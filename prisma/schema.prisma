@@ -1,0 +1,207 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ──────────────────────────────────────────────
+
+enum SessionType {
+  lecture
+  lab
+}
+
+enum CoverageLevel {
+  introduced
+  practiced
+  assessed
+}
+
+enum AssessmentType {
+  gaie
+  assignment
+  exam
+  project
+}
+
+enum ArtifactType {
+  notebook
+  handout
+  slides
+  ta_key
+  other
+}
+
+enum ParentType {
+  session
+  assessment
+  module
+}
+
+// ─── Models ─────────────────────────────────────────────
+
+model Instructor {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  email     String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  terms Term[]
+
+  @@map("instructors")
+}
+
+model Term {
+  id             String   @id @default(uuid()) @db.Uuid
+  instructorId   String   @map("instructor_id") @db.Uuid
+  code           String   // e.g. "S26", "F25"
+  name           String   // e.g. "Spring 2026"
+  startDate      DateTime @map("start_date") @db.Date
+  endDate        DateTime @map("end_date") @db.Date
+  courseCode     String   @map("course_code") // e.g. "DS-100"
+  meetingPattern Json?    @map("meeting_pattern") @db.JsonB
+  holidays       Json?    @db.JsonB
+  clonedFromId   String?  @map("cloned_from_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  instructor Instructor  @relation(fields: [instructorId], references: [id])
+  clonedFrom Term?       @relation("TermClone", fields: [clonedFromId], references: [id])
+  clones     Term[]      @relation("TermClone")
+  modules    Module[]
+  assessments Assessment[]
+
+  @@map("terms")
+}
+
+model Module {
+  id                 String   @id @default(uuid()) @db.Uuid
+  termId             String   @map("term_id") @db.Uuid
+  sequence           Int
+  code               String   // e.g. "LM-01"
+  title              String
+  description        String?  @db.Text
+  learningObjectives String[] @map("learning_objectives")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  term     Term      @relation(fields: [termId], references: [id], onDelete: Cascade)
+  sessions Session[]
+
+  @@map("modules")
+}
+
+model Skill {
+  id            String   @id @default(uuid()) @db.Uuid
+  code          String   // e.g. "A01", "B03"
+  category      String   // e.g. "Foundations", "Analysis"
+  description   String   @db.Text
+  prerequisites String[] @db.Uuid
+  isGlobal      Boolean  @default(true) @map("is_global")
+  termId        String?  @map("term_id") @db.Uuid // null if global
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  coverages  Coverage[]
+  assessmentSkills AssessmentSkill[]
+
+  @@map("skills")
+}
+
+model Session {
+  id          String      @id @default(uuid()) @db.Uuid
+  moduleId    String      @map("module_id") @db.Uuid
+  sequence    Int
+  sessionType SessionType @map("session_type")
+  code        String      // e.g. "lec-05", "lab-03"
+  title       String
+  date        DateTime?   @db.Date
+  description String?     @db.Text
+  format      String?     // e.g. "traditional", "flipped"
+  priorArt    String[]    @map("prior_art") @db.Uuid
+  notes       String?     @db.Text
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  module     Module      @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  coverages  Coverage[]
+  assessments Assessment[]
+  artifacts  Artifact[]
+
+  @@map("sessions")
+}
+
+model Coverage {
+  id        String        @id @default(uuid()) @db.Uuid
+  sessionId String        @map("session_id") @db.Uuid
+  skillId   String        @map("skill_id") @db.Uuid
+  level     CoverageLevel
+  notes     String?       @db.Text
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  skill   Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, skillId, level])
+  @@map("coverages")
+}
+
+model Assessment {
+  id               String         @id @default(uuid()) @db.Uuid
+  termId           String         @map("term_id") @db.Uuid
+  code             String         // e.g. "GAIE-01", "midterm"
+  title            String
+  assessmentType   AssessmentType @map("assessment_type")
+  description      String?        @db.Text
+  sessionId        String?        @map("session_id") @db.Uuid
+  dueDate          DateTime?      @map("due_date") @db.Date
+  rubric           Json?          @db.JsonB
+  progressionStage String?        @map("progression_stage") // For GAIEs
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  term    Term    @relation(fields: [termId], references: [id], onDelete: Cascade)
+  session Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  skills  AssessmentSkill[]
+  artifacts Artifact[]
+
+  @@map("assessments")
+}
+
+// Join table for Assessment <-> Skill (many-to-many)
+model AssessmentSkill {
+  id           String @id @default(uuid()) @db.Uuid
+  assessmentId String @map("assessment_id") @db.Uuid
+  skillId      String @map("skill_id") @db.Uuid
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  skill      Skill      @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([assessmentId, skillId])
+  @@map("assessment_skills")
+}
+
+model Artifact {
+  id           String       @id @default(uuid()) @db.Uuid
+  parentType   ParentType   @map("parent_type")
+  sessionId    String?      @map("session_id") @db.Uuid
+  assessmentId String?      @map("assessment_id") @db.Uuid
+  moduleId     String?      @map("module_id") @db.Uuid
+  artifactType ArtifactType @map("artifact_type")
+  filename     String
+  template     String?
+  generatedAt  DateTime?    @map("generated_at")
+  metadata     Json?        @db.JsonB
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  session    Session?    @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  assessment Assessment? @relation(fields: [assessmentId], references: [id], onDelete: SetNull)
+
+  @@map("artifacts")
+}
