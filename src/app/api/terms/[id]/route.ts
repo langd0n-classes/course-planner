@@ -15,7 +15,10 @@ export async function GET(
       modules: {
         orderBy: { sequence: "asc" },
         include: {
-          sessions: { orderBy: { sequence: "asc" } },
+          sessions: {
+            orderBy: { sequence: "asc" },
+            include: { coverages: { include: { skill: true } } },
+          },
         },
       },
       assessments: {
