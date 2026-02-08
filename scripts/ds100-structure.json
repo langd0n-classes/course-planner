@@ -1,0 +1,1498 @@
+{
+  "modules": [
+    {
+      "code": "LM-00",
+      "sequence": 0,
+      "title": "Onboarding and Course Info",
+      "description": "Setup, workflow, GenAI zones, and tool orientation.",
+      "learningObjectives": [
+        "Navigate course tools and platforms",
+        "Understand the weekly course rhythm",
+        "Describe GenAI zones and integrity expectations"
+      ],
+      "sessions": [
+        {
+          "code": "lec-01",
+          "sessionType": "lecture",
+          "title": "Onboarding & Tools",
+          "date": "2026-01-20",
+          "description": "Lecture: Onboarding & Tools",
+          "sequence": 1
+        },
+        {
+          "code": "lec-02",
+          "sessionType": "lecture",
+          "title": "Course Workflow",
+          "date": "2026-01-22",
+          "description": "Lecture: Course Workflow",
+          "sequence": 2
+        },
+        {
+          "code": "lab-01",
+          "sessionType": "lab",
+          "title": "Setup & Verification",
+          "date": "2026-01-23",
+          "description": "Lab: Setup & Verification",
+          "sequence": 3
+        }
+      ]
+    },
+    {
+      "code": "LM-01",
+      "sequence": 1,
+      "title": "Programming Basics",
+      "description": "Python fundamentals: variables, types, lists, debugging, imports.",
+      "learningObjectives": [
+        "Use variables and basic data types",
+        "Create and manipulate lists",
+        "Apply basic debugging habits",
+        "Import and use standard libraries"
+      ],
+      "sessions": [
+        {
+          "code": "lec-03",
+          "sessionType": "lecture",
+          "title": "CANCELED — Instructor Absence",
+          "date": "2026-01-27",
+          "description": "Lecture: CANCELED — Instructor Absence",
+          "sequence": 1
+        },
+        {
+          "code": "lec-04",
+          "sessionType": "lecture",
+          "title": "CANCELED — Instructor Absence",
+          "date": "2026-01-29",
+          "description": "Lecture: CANCELED — Instructor Absence",
+          "sequence": 2
+        },
+        {
+          "code": "lab-02",
+          "sessionType": "lab",
+          "title": "Programming Foundations Practice",
+          "date": "2026-01-30",
+          "description": "Lab: Programming Foundations Practice",
+          "sequence": 3
+        },
+        {
+          "code": "lec-05",
+          "sessionType": "lecture",
+          "title": "Programming Basics (Catch-up)",
+          "date": "2026-02-03",
+          "description": "Lecture: Programming Basics (Catch-up)",
+          "sequence": 4
+        }
+      ]
+    },
+    {
+      "code": "LM-02",
+      "sequence": 2,
+      "title": "Data Claims",
+      "description": "DataFrames, exploration, cleaning, and evidence-based claims.",
+      "learningObjectives": [
+        "Create and explore DataFrames",
+        "Clean data using standard methods",
+        "Frame claims with evidence and limitations"
+      ],
+      "sessions": [
+        {
+          "code": "lec-06",
+          "sessionType": "lecture",
+          "title": "Tables & Claims",
+          "date": "2026-02-05",
+          "description": "Lecture: Tables & Claims",
+          "sequence": 1
+        },
+        {
+          "code": "lab-03",
+          "sessionType": "lab",
+          "title": "Tables Practice",
+          "date": "2026-02-06",
+          "description": "Lab: Tables Practice",
+          "sequence": 2
+        }
+      ]
+    },
+    {
+      "code": "LM-03",
+      "sequence": 3,
+      "title": "Seeing Patterns in Data",
+      "description": "Filtering, grouping, aggregation, and visualization for pattern recognition.",
+      "learningObjectives": [
+        "Filter, sort, and group data",
+        "Create and interpret basic charts",
+        "Connect patterns to evidence-based claims"
+      ],
+      "sessions": [
+        {
+          "code": "lec-07",
+          "sessionType": "lecture",
+          "title": "Data Manipulation",
+          "date": "2026-02-10",
+          "description": "Lecture: Data Manipulation",
+          "sequence": 1
+        },
+        {
+          "code": "lec-08",
+          "sessionType": "lecture",
+          "title": "Visualization Basics",
+          "date": "2026-02-12",
+          "description": "Lecture: Visualization Basics",
+          "sequence": 2
+        },
+        {
+          "code": "lab-04",
+          "sessionType": "lab",
+          "title": "Patterns Practice",
+          "date": "2026-02-13",
+          "description": "Lab: Patterns Practice",
+          "sequence": 3
+        }
+      ]
+    },
+    {
+      "code": "LM-04",
+      "sequence": 4,
+      "title": "Variation",
+      "description": "Histograms, distributions, center, spread, and outlier effects.",
+      "learningObjectives": [
+        "Interpret histograms and distribution shape",
+        "Describe center and spread",
+        "Reason about variation across distributions"
+      ],
+      "sessions": [
+        {
+          "code": "lec-09",
+          "sessionType": "lecture",
+          "title": "Variation & Histograms",
+          "date": "2026-02-19",
+          "description": "Lecture: Variation & Histograms",
+          "sequence": 1
+        },
+        {
+          "code": "lab-05",
+          "sessionType": "lab",
+          "title": "Histogram Interpretation",
+          "date": "2026-02-20",
+          "description": "Lab: Histogram Interpretation",
+          "sequence": 2
+        }
+      ]
+    },
+    {
+      "code": "LM-05",
+      "sequence": 5,
+      "title": "Uncertainty",
+      "description": "Probability, simulation, sampling, bootstrap, and confidence intervals.",
+      "learningObjectives": [
+        "Apply basic probability rules",
+        "Use simulation for randomness modeling",
+        "Build and interpret bootstrap distributions",
+        "Interpret confidence intervals"
+      ],
+      "sessions": [
+        {
+          "code": "lec-10",
+          "sessionType": "lecture",
+          "title": "Probability Foundations",
+          "date": "2026-02-24",
+          "description": "Lecture: Probability Foundations",
+          "sequence": 1
+        },
+        {
+          "code": "lec-11",
+          "sessionType": "lecture",
+          "title": "Simulation & Randomness",
+          "date": "2026-02-26",
+          "description": "Lecture: Simulation & Randomness",
+          "sequence": 2
+        },
+        {
+          "code": "lab-06",
+          "sessionType": "lab",
+          "title": "Probability Lab",
+          "date": "2026-02-27",
+          "description": "Lab: Probability Lab",
+          "sequence": 3
+        },
+        {
+          "code": "lec-12",
+          "sessionType": "lecture",
+          "title": "Sampling Distributions",
+          "date": "2026-03-03",
+          "description": "Lecture: Sampling Distributions",
+          "sequence": 4
+        },
+        {
+          "code": "lec-13",
+          "sessionType": "lecture",
+          "title": "Bootstrap Foundations",
+          "date": "2026-03-05",
+          "description": "Lecture: Bootstrap Foundations",
+          "sequence": 5
+        },
+        {
+          "code": "lab-07",
+          "sessionType": "lab",
+          "title": "Sampling Lab",
+          "date": "2026-03-06",
+          "description": "Lab: Sampling Lab",
+          "sequence": 6
+        }
+      ]
+    },
+    {
+      "code": "LM-06",
+      "sequence": 6,
+      "title": "Testing Ideas",
+      "description": "Hypothesis testing, p-values, Type I/II errors, A/B testing, validity.",
+      "learningObjectives": [
+        "Explain hypothesis testing logic",
+        "Interpret p-values and significance",
+        "Design and critique A/B tests"
+      ],
+      "sessions": [
+        {
+          "code": "lec-14",
+          "sessionType": "lecture",
+          "title": "Hypothesis Testing",
+          "date": "2026-03-17",
+          "description": "Lecture: Hypothesis Testing",
+          "sequence": 1
+        },
+        {
+          "code": "lec-15",
+          "sessionType": "lecture",
+          "title": "A/B Testing",
+          "date": "2026-03-19",
+          "description": "Lecture: A/B Testing",
+          "sequence": 2
+        },
+        {
+          "code": "lab-08",
+          "sessionType": "lab",
+          "title": "Testing Lab",
+          "date": "2026-03-20",
+          "description": "Lab: Testing Lab",
+          "sequence": 3
+        },
+        {
+          "code": "lec-16",
+          "sessionType": "lecture",
+          "title": "Review & Reinforcement",
+          "date": "2026-03-24",
+          "description": "Lecture: Review & Reinforcement",
+          "sequence": 4
+        },
+        {
+          "code": "lec-17",
+          "sessionType": "lecture",
+          "title": "Applied Review",
+          "date": "2026-03-26",
+          "description": "Lecture: Applied Review",
+          "sequence": 5
+        },
+        {
+          "code": "lab-09",
+          "sessionType": "lab",
+          "title": "Review Lab",
+          "date": "2026-03-27",
+          "description": "Lab: Review Lab",
+          "sequence": 6
+        }
+      ]
+    },
+    {
+      "code": "LM-07",
+      "sequence": 7,
+      "title": "Modeling and Communication",
+      "description": "Regression, classification, model evaluation, ethics, and data storytelling.",
+      "learningObjectives": [
+        "Fit and interpret linear regression",
+        "Describe classification concepts",
+        "Evaluate models and analyze ethics",
+        "Communicate results to nontechnical audiences"
+      ],
+      "sessions": [
+        {
+          "code": "lec-18",
+          "sessionType": "lecture",
+          "title": "Regression Concepts",
+          "date": "2026-03-31",
+          "description": "Lecture: Regression Concepts",
+          "sequence": 1
+        },
+        {
+          "code": "lec-19",
+          "sessionType": "lecture",
+          "title": "Regression Practice",
+          "date": "2026-04-02",
+          "description": "Lecture: Regression Practice",
+          "sequence": 2
+        },
+        {
+          "code": "lab-10",
+          "sessionType": "lab",
+          "title": "Regression Lab / Project Release",
+          "date": "2026-04-03",
+          "description": "Lab: Regression Lab / Project Release",
+          "sequence": 3
+        },
+        {
+          "code": "lec-20",
+          "sessionType": "lecture",
+          "title": "Classification Concepts",
+          "date": "2026-04-07",
+          "description": "Lecture: Classification Concepts",
+          "sequence": 4
+        },
+        {
+          "code": "lec-21",
+          "sessionType": "lecture",
+          "title": "Model Evaluation",
+          "date": "2026-04-09",
+          "description": "Lecture: Model Evaluation",
+          "sequence": 5
+        },
+        {
+          "code": "lab-11",
+          "sessionType": "lab",
+          "title": "Classification Lab / Clinic",
+          "date": "2026-04-10",
+          "description": "Lab: Classification Lab / Clinic",
+          "sequence": 6
+        },
+        {
+          "code": "lec-22",
+          "sessionType": "lecture",
+          "title": "Ethics & Bias in Modeling",
+          "date": "2026-04-14",
+          "description": "Lecture: Ethics & Bias in Modeling",
+          "sequence": 7
+        },
+        {
+          "code": "lec-23",
+          "sessionType": "lecture",
+          "title": "Communicating Results",
+          "date": "2026-04-16",
+          "description": "Lecture: Communicating Results",
+          "sequence": 8
+        },
+        {
+          "code": "lab-12",
+          "sessionType": "lab",
+          "title": "Ethics & Communication Lab",
+          "date": "2026-04-17",
+          "description": "Lab: Ethics & Communication Lab",
+          "sequence": 9
+        },
+        {
+          "code": "lec-24",
+          "sessionType": "lecture",
+          "title": "Project Synthesis",
+          "date": "2026-04-21",
+          "description": "Lecture: Project Synthesis",
+          "sequence": 10
+        },
+        {
+          "code": "lec-25",
+          "sessionType": "lecture",
+          "title": "Data Storytelling",
+          "date": "2026-04-23",
+          "description": "Lecture: Data Storytelling",
+          "sequence": 11
+        },
+        {
+          "code": "lab-13",
+          "sessionType": "lab",
+          "title": "Synthesis & Defense Lab",
+          "date": "2026-04-24",
+          "description": "Lab: Synthesis & Defense Lab",
+          "sequence": 12
+        },
+        {
+          "code": "lec-26",
+          "sessionType": "lecture",
+          "title": "Final Project Work Time",
+          "date": "2026-04-28",
+          "description": "Lecture: Final Project Work Time",
+          "sequence": 13
+        },
+        {
+          "code": "lec-27",
+          "sessionType": "lecture",
+          "title": "Course Wrap-Up",
+          "date": "2026-04-30",
+          "description": "Lecture: Course Wrap-Up",
+          "sequence": 14
+        }
+      ]
+    }
+  ],
+  "skills": [
+    {
+      "code": "LM00-C01",
+      "category": "Onboarding and Course Info",
+      "description": "Describe the weekly workflow and learning rhythm.",
+      "moduleCode": "LM-00"
+    },
+    {
+      "code": "LM00-C02",
+      "category": "Onboarding and Course Info",
+      "description": "Explain GenAI zones and integrity expectations.",
+      "moduleCode": "LM-00"
+    },
+    {
+      "code": "LM00-C03",
+      "category": "Onboarding and Course Info",
+      "description": "Access and navigate Blackboard, Gradescope, Piazza, and TerrierGPT.",
+      "moduleCode": "LM-00"
+    },
+    {
+      "code": "LM00-C04",
+      "category": "Onboarding and Course Info",
+      "description": "Set up Jupyter and run a notebook successfully.",
+      "moduleCode": "LM-00"
+    },
+    {
+      "code": "LM00-C05",
+      "category": "Onboarding and Course Info",
+      "description": "Use basic notebook operations such as running cells and restarting",
+      "moduleCode": "LM-00"
+    },
+    {
+      "code": "LM00-C06",
+      "category": "Onboarding and Course Info",
+      "description": "Troubleshoot common setup or environment errors.",
+      "moduleCode": "LM-00"
+    },
+    {
+      "code": "LM00-C07",
+      "category": "Onboarding and Course Info",
+      "description": "Identify support channels and escalation steps.",
+      "moduleCode": "LM-00"
+    },
+    {
+      "code": "LM00-X01",
+      "category": "Onboarding and Course Info (Expansion)",
+      "description": "No expansion skills identified for LM-00.",
+      "moduleCode": "LM-00"
+    },
+    {
+      "code": "LM01-C01",
+      "category": "Programming Basics",
+      "description": "Use variables and assignment to store values.",
+      "moduleCode": "LM-01"
+    },
+    {
+      "code": "LM01-C02",
+      "category": "Programming Basics",
+      "description": "Work with basic data types such as int, float, str, and bool.",
+      "moduleCode": "LM-01"
+    },
+    {
+      "code": "LM01-C03",
+      "category": "Programming Basics",
+      "description": "Apply type conversions to resolve type mismatches.",
+      "moduleCode": "LM-01"
+    },
+    {
+      "code": "LM01-C04",
+      "category": "Programming Basics",
+      "description": "Explain number system intuition at a basic level.",
+      "moduleCode": "LM-01"
+    },
+    {
+      "code": "LM01-C05",
+      "category": "Programming Basics",
+      "description": "Create lists and access items by index.",
+      "moduleCode": "LM-01"
+    },
+    {
+      "code": "LM01-C06",
+      "category": "Programming Basics",
+      "description": "Use list slicing to select subsets.",
+      "moduleCode": "LM-01"
+    },
+    {
+      "code": "LM01-C07",
+      "category": "Programming Basics",
+      "description": "Explain why lists are limited for data analysis.",
+      "moduleCode": "LM-01"
+    },
+    {
+      "code": "LM01-C08",
+      "category": "Programming Basics",
+      "description": "Apply basic debugging habits in notebooks.",
+      "moduleCode": "LM-01"
+    },
+    {
+      "code": "LM01-C09",
+      "category": "Programming Basics",
+      "description": "Import modules using standard conventions and explain libraries as",
+      "moduleCode": "LM-01"
+    },
+    {
+      "code": "LM01-X01",
+      "category": "Programming Basics (Expansion)",
+      "description": "Write simple functions with parameters and return values.",
+      "moduleCode": "LM-01"
+    },
+    {
+      "code": "LM01-X02",
+      "category": "Programming Basics (Expansion)",
+      "description": "Use conditional logic with if, elif, and else.",
+      "moduleCode": "LM-01"
+    },
+    {
+      "code": "LM01-X03",
+      "category": "Programming Basics (Expansion)",
+      "description": "Use for loops for basic iteration.",
+      "moduleCode": "LM-01"
+    },
+    {
+      "code": "LM01-X04",
+      "category": "Programming Basics (Expansion)",
+      "description": "Use advanced list methods such as .index and .count.",
+      "moduleCode": "LM-01"
+    },
+    {
+      "code": "LM01-X05",
+      "category": "Programming Basics (Expansion)",
+      "description": "Use while loops and loop control statements.",
+      "moduleCode": "LM-01"
+    },
+    {
+      "code": "LM02-C01",
+      "category": "Data Claims",
+      "description": "Explain tables and DataFrames as evidence structures.",
+      "moduleCode": "LM-02"
+    },
+    {
+      "code": "LM02-C02",
+      "category": "Data Claims",
+      "description": "Distinguish observations and variables, rows and columns.",
+      "moduleCode": "LM-02"
+    },
+    {
+      "code": "LM02-C03",
+      "category": "Data Claims",
+      "description": "Create DataFrames from dictionaries and CSV files.",
+      "moduleCode": "LM-02"
+    },
+    {
+      "code": "LM02-C04",
+      "category": "Data Claims",
+      "description": "Use basic exploration methods such as .head, .shape, .info, and",
+      "moduleCode": "LM-02"
+    },
+    {
+      "code": "LM02-C05",
+      "category": "Data Claims",
+      "description": "Select rows and columns using .iloc and column selection.",
+      "moduleCode": "LM-02"
+    },
+    {
+      "code": "LM02-C06",
+      "category": "Data Claims",
+      "description": "Check missing data using .isna or .isnull and count results.",
+      "moduleCode": "LM-02"
+    },
+    {
+      "code": "LM02-C07",
+      "category": "Data Claims",
+      "description": "Apply basic cleaning with .dropna, .fillna, .astype, and",
+      "moduleCode": "LM-02"
+    },
+    {
+      "code": "LM02-C08",
+      "category": "Data Claims",
+      "description": "Frame simple claims with evidence and limitations.",
+      "moduleCode": "LM-02"
+    },
+    {
+      "code": "LM02-C09",
+      "category": "Data Claims",
+      "description": "Recognize common public data sources such as census and survey data.",
+      "moduleCode": "LM-02"
+    },
+    {
+      "code": "LM02-X01",
+      "category": "Data Claims (Expansion)",
+      "description": "Detect and handle duplicates with .duplicated and .drop_duplicates.",
+      "moduleCode": "LM-02"
+    },
+    {
+      "code": "LM02-X02",
+      "category": "Data Claims (Expansion)",
+      "description": "Perform range checks and lightweight data profiling.",
+      "moduleCode": "LM-02"
+    },
+    {
+      "code": "LM03-C01",
+      "category": "Seeing Patterns in Data",
+      "description": "Filter rows and select columns using boolean indexing.",
+      "moduleCode": "LM-03"
+    },
+    {
+      "code": "LM03-C02",
+      "category": "Seeing Patterns in Data",
+      "description": "Sort data using .sort_values.",
+      "moduleCode": "LM-03"
+    },
+    {
+      "code": "LM03-C03",
+      "category": "Seeing Patterns in Data",
+      "description": "Group and aggregate data using .groupby and .reset_index.",
+      "moduleCode": "LM-03"
+    },
+    {
+      "code": "LM03-C04",
+      "category": "Seeing Patterns in Data",
+      "description": "Compute summary statistics such as mean, sum, count, value_counts,",
+      "moduleCode": "LM-03"
+    },
+    {
+      "code": "LM03-C05",
+      "category": "Seeing Patterns in Data",
+      "description": "Create basic charts such as bar, histogram, scatter, and line plots.",
+      "moduleCode": "LM-03"
+    },
+    {
+      "code": "LM03-C06",
+      "category": "Seeing Patterns in Data",
+      "description": "Interpret charts and describe patterns precisely.",
+      "moduleCode": "LM-03"
+    },
+    {
+      "code": "LM03-C07",
+      "category": "Seeing Patterns in Data",
+      "description": "Connect patterns to evidence-based claims.",
+      "moduleCode": "LM-03"
+    },
+    {
+      "code": "LM03-X01",
+      "category": "Seeing Patterns in Data (Expansion)",
+      "description": "Use advanced visualization techniques such as box plots, subplots,",
+      "moduleCode": "LM-03"
+    },
+    {
+      "code": "LM03-X02",
+      "category": "Seeing Patterns in Data (Expansion)",
+      "description": "Clean and filter text with .str methods.",
+      "moduleCode": "LM-03"
+    },
+    {
+      "code": "LM03-X03",
+      "category": "Seeing Patterns in Data (Expansion)",
+      "description": "Combine and reshape data with merge, join, concat, pivot, and melt.",
+      "moduleCode": "LM-03"
+    },
+    {
+      "code": "LM03-X04",
+      "category": "Seeing Patterns in Data (Expansion)",
+      "description": "Conduct a systematic EDA walkthrough.",
+      "moduleCode": "LM-03"
+    },
+    {
+      "code": "LM04-C01",
+      "category": "Variation",
+      "description": "Interpret histograms and distribution shape.",
+      "moduleCode": "LM-04"
+    },
+    {
+      "code": "LM04-C02",
+      "category": "Variation",
+      "description": "Describe center and spread using appropriate measures.",
+      "moduleCode": "LM-04"
+    },
+    {
+      "code": "LM04-C03",
+      "category": "Variation",
+      "description": "Compare distributions to reason about variation.",
+      "moduleCode": "LM-04"
+    },
+    {
+      "code": "LM04-C04",
+      "category": "Variation",
+      "description": "Explain outlier effects on summaries.",
+      "moduleCode": "LM-04"
+    },
+    {
+      "code": "LM04-X01",
+      "category": "Variation (Expansion)",
+      "description": "No expansion skills identified for LM-04.",
+      "moduleCode": "LM-04"
+    },
+    {
+      "code": "LM05-C01",
+      "category": "Uncertainty",
+      "description": "Apply basic probability concepts and rules.",
+      "moduleCode": "LM-05"
+    },
+    {
+      "code": "LM05-C02",
+      "category": "Uncertainty",
+      "description": "Use simulation to model randomness.",
+      "moduleCode": "LM-05"
+    },
+    {
+      "code": "LM05-C03",
+      "category": "Uncertainty",
+      "description": "Explain sampling methods and sampling bias.",
+      "moduleCode": "LM-05"
+    },
+    {
+      "code": "LM05-C04",
+      "category": "Uncertainty",
+      "description": "Interpret sampling distributions.",
+      "moduleCode": "LM-05"
+    },
+    {
+      "code": "LM05-C05",
+      "category": "Uncertainty",
+      "description": "Build bootstrap distributions.",
+      "moduleCode": "LM-05"
+    },
+    {
+      "code": "LM05-C06",
+      "category": "Uncertainty",
+      "description": "Interpret confidence intervals.",
+      "moduleCode": "LM-05"
+    },
+    {
+      "code": "LM05-X01",
+      "category": "Uncertainty (Expansion)",
+      "description": "No expansion skills identified for LM-05.",
+      "moduleCode": "LM-05"
+    },
+    {
+      "code": "LM06-C01",
+      "category": "Testing Ideas",
+      "description": "Explain hypothesis testing logic with null and alternative.",
+      "moduleCode": "LM-06"
+    },
+    {
+      "code": "LM06-C02",
+      "category": "Testing Ideas",
+      "description": "Interpret p-values and statistical significance.",
+      "moduleCode": "LM-06"
+    },
+    {
+      "code": "LM06-C03",
+      "category": "Testing Ideas",
+      "description": "Explain Type I and Type II errors by example.",
+      "moduleCode": "LM-06"
+    },
+    {
+      "code": "LM06-C04",
+      "category": "Testing Ideas",
+      "description": "Design and critique A/B tests.",
+      "moduleCode": "LM-06"
+    },
+    {
+      "code": "LM06-C05",
+      "category": "Testing Ideas",
+      "description": "Evaluate validity, randomization, and causal caution.",
+      "moduleCode": "LM-06"
+    },
+    {
+      "code": "LM06-X01",
+      "category": "Testing Ideas (Expansion)",
+      "description": "No expansion skills identified for LM-06.",
+      "moduleCode": "LM-06"
+    },
+    {
+      "code": "LM07-C01",
+      "category": "Modeling and Communication",
+      "description": "Fit and interpret linear regression models.",
+      "moduleCode": "LM-07"
+    },
+    {
+      "code": "LM07-C02",
+      "category": "Modeling and Communication",
+      "description": "Evaluate regression assumptions and limitations.",
+      "moduleCode": "LM-07"
+    },
+    {
+      "code": "LM07-C03",
+      "category": "Modeling and Communication",
+      "description": "Use model evaluation metrics and error analysis.",
+      "moduleCode": "LM-07"
+    },
+    {
+      "code": "LM07-C04",
+      "category": "Modeling and Communication",
+      "description": "Describe classification concepts and tradeoffs.",
+      "moduleCode": "LM-07"
+    },
+    {
+      "code": "LM07-C05",
+      "category": "Modeling and Communication",
+      "description": "Analyze ethics and bias in modeling.",
+      "moduleCode": "LM-07"
+    },
+    {
+      "code": "LM07-C06",
+      "category": "Modeling and Communication",
+      "description": "Communicate results to nontechnical audiences.",
+      "moduleCode": "LM-07"
+    },
+    {
+      "code": "LM07-X01",
+      "category": "Modeling and Communication (Expansion)",
+      "description": "Plan and present an independent analysis.",
+      "moduleCode": "LM-07"
+    }
+  ],
+  "coverages": [
+    {
+      "sessionCode": "lec-01",
+      "skillCode": "LM00-C01",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-02",
+      "skillCode": "LM00-C02",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-01",
+      "skillCode": "LM00-C03",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-02",
+      "skillCode": "LM00-C04",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-01",
+      "skillCode": "LM00-C05",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-02",
+      "skillCode": "LM00-C06",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-01",
+      "skillCode": "LM00-C07",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lab-01",
+      "skillCode": "LM00-C01",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-01",
+      "skillCode": "LM00-C02",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-01",
+      "skillCode": "LM00-C03",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-01",
+      "skillCode": "LM00-C04",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-01",
+      "skillCode": "LM00-C05",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-01",
+      "skillCode": "LM00-C06",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-01",
+      "skillCode": "LM00-C07",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lec-03",
+      "skillCode": "LM01-C01",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-04",
+      "skillCode": "LM01-C02",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-05",
+      "skillCode": "LM01-C03",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-03",
+      "skillCode": "LM01-C04",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-04",
+      "skillCode": "LM01-C05",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-05",
+      "skillCode": "LM01-C06",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-03",
+      "skillCode": "LM01-C07",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-04",
+      "skillCode": "LM01-C08",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-05",
+      "skillCode": "LM01-C09",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lab-02",
+      "skillCode": "LM01-C01",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-02",
+      "skillCode": "LM01-C02",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-02",
+      "skillCode": "LM01-C03",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-02",
+      "skillCode": "LM01-C04",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-02",
+      "skillCode": "LM01-C05",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-02",
+      "skillCode": "LM01-C06",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-02",
+      "skillCode": "LM01-C07",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-02",
+      "skillCode": "LM01-C08",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-02",
+      "skillCode": "LM01-C09",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lec-06",
+      "skillCode": "LM02-C01",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-06",
+      "skillCode": "LM02-C02",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-06",
+      "skillCode": "LM02-C03",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-06",
+      "skillCode": "LM02-C04",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-06",
+      "skillCode": "LM02-C05",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-06",
+      "skillCode": "LM02-C06",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-06",
+      "skillCode": "LM02-C07",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-06",
+      "skillCode": "LM02-C08",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-06",
+      "skillCode": "LM02-C09",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lab-03",
+      "skillCode": "LM02-C01",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-03",
+      "skillCode": "LM02-C02",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-03",
+      "skillCode": "LM02-C03",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-03",
+      "skillCode": "LM02-C04",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-03",
+      "skillCode": "LM02-C05",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-03",
+      "skillCode": "LM02-C06",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-03",
+      "skillCode": "LM02-C07",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-03",
+      "skillCode": "LM02-C08",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-03",
+      "skillCode": "LM02-C09",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lec-07",
+      "skillCode": "LM03-C01",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-08",
+      "skillCode": "LM03-C02",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-07",
+      "skillCode": "LM03-C03",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-08",
+      "skillCode": "LM03-C04",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-07",
+      "skillCode": "LM03-C05",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-08",
+      "skillCode": "LM03-C06",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-07",
+      "skillCode": "LM03-C07",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lab-04",
+      "skillCode": "LM03-C01",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-04",
+      "skillCode": "LM03-C02",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-04",
+      "skillCode": "LM03-C03",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-04",
+      "skillCode": "LM03-C04",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-04",
+      "skillCode": "LM03-C05",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-04",
+      "skillCode": "LM03-C06",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-04",
+      "skillCode": "LM03-C07",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lec-09",
+      "skillCode": "LM04-C01",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-09",
+      "skillCode": "LM04-C02",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-09",
+      "skillCode": "LM04-C03",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-09",
+      "skillCode": "LM04-C04",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lab-05",
+      "skillCode": "LM04-C01",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-05",
+      "skillCode": "LM04-C02",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-05",
+      "skillCode": "LM04-C03",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-05",
+      "skillCode": "LM04-C04",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lec-10",
+      "skillCode": "LM05-C01",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-11",
+      "skillCode": "LM05-C02",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-12",
+      "skillCode": "LM05-C03",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-13",
+      "skillCode": "LM05-C04",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-10",
+      "skillCode": "LM05-C05",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-11",
+      "skillCode": "LM05-C06",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lab-06",
+      "skillCode": "LM05-C01",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-07",
+      "skillCode": "LM05-C02",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-06",
+      "skillCode": "LM05-C03",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-07",
+      "skillCode": "LM05-C04",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-06",
+      "skillCode": "LM05-C05",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-07",
+      "skillCode": "LM05-C06",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lec-14",
+      "skillCode": "LM06-C01",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-15",
+      "skillCode": "LM06-C02",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-16",
+      "skillCode": "LM06-C03",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-17",
+      "skillCode": "LM06-C04",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-14",
+      "skillCode": "LM06-C05",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lab-08",
+      "skillCode": "LM06-C01",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-09",
+      "skillCode": "LM06-C02",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-08",
+      "skillCode": "LM06-C03",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-09",
+      "skillCode": "LM06-C04",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-08",
+      "skillCode": "LM06-C05",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lec-18",
+      "skillCode": "LM07-C01",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-19",
+      "skillCode": "LM07-C02",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-20",
+      "skillCode": "LM07-C03",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-21",
+      "skillCode": "LM07-C04",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-22",
+      "skillCode": "LM07-C05",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lec-23",
+      "skillCode": "LM07-C06",
+      "level": "introduced"
+    },
+    {
+      "sessionCode": "lab-10",
+      "skillCode": "LM07-C01",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-11",
+      "skillCode": "LM07-C02",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-12",
+      "skillCode": "LM07-C03",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-13",
+      "skillCode": "LM07-C04",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-10",
+      "skillCode": "LM07-C05",
+      "level": "practiced"
+    },
+    {
+      "sessionCode": "lab-11",
+      "skillCode": "LM07-C06",
+      "level": "practiced"
+    }
+  ],
+  "assessments": [
+    {
+      "code": "GAIE-01",
+      "assessmentType": "gaie",
+      "title": "Programming Basics GAIE",
+      "description": "Copy-paste AI prompt exercise on programming concepts.",
+      "progressionStage": "copy-paste",
+      "skillCodes": [
+        "LM01-C01",
+        "LM01-C02",
+        "LM01-C03"
+      ],
+      "dueDate": "2026-02-03"
+    },
+    {
+      "code": "GAIE-02",
+      "assessmentType": "gaie",
+      "title": "Data Manipulation GAIE",
+      "description": "Copy-paste AI prompt exercise on data manipulation.",
+      "progressionStage": "copy-paste",
+      "skillCodes": [
+        "LM03-C01",
+        "LM03-C02",
+        "LM03-C03"
+      ],
+      "dueDate": "2026-02-10"
+    },
+    {
+      "code": "GAIE-03",
+      "assessmentType": "gaie",
+      "title": "Variation & Distributions GAIE",
+      "description": "Copy-paste AI prompt exercise on histograms and variation.",
+      "progressionStage": "copy-paste",
+      "skillCodes": [
+        "LM04-C01",
+        "LM04-C02"
+      ],
+      "dueDate": "2026-02-19"
+    },
+    {
+      "code": "GAIE-04",
+      "assessmentType": "gaie",
+      "title": "Probability & Simulation GAIE",
+      "description": "Modify AI prompt exercise on probability concepts.",
+      "progressionStage": "modify",
+      "skillCodes": [
+        "LM05-C01",
+        "LM05-C02"
+      ],
+      "dueDate": "2026-02-24"
+    },
+    {
+      "code": "GAIE-05",
+      "assessmentType": "gaie",
+      "title": "Sampling & Bootstrap GAIE",
+      "description": "Modify AI prompt exercise on sampling and bootstrap.",
+      "progressionStage": "modify",
+      "skillCodes": [
+        "LM05-C03",
+        "LM05-C04",
+        "LM05-C05"
+      ],
+      "dueDate": "2026-03-03"
+    },
+    {
+      "code": "GAIE-06",
+      "assessmentType": "gaie",
+      "title": "Hypothesis Testing GAIE",
+      "description": "Modify AI prompt exercise on hypothesis testing.",
+      "progressionStage": "modify",
+      "skillCodes": [
+        "LM06-C01",
+        "LM06-C02",
+        "LM06-C03"
+      ],
+      "dueDate": "2026-03-17"
+    },
+    {
+      "code": "GAIE-07",
+      "assessmentType": "gaie",
+      "title": "Regression & Modeling GAIE",
+      "description": "Write-own AI prompt exercise on regression and modeling.",
+      "progressionStage": "write-own",
+      "skillCodes": [
+        "LM07-C01",
+        "LM07-C02",
+        "LM07-C03"
+      ],
+      "dueDate": "2026-03-31"
+    },
+    {
+      "code": "MINI-PROJECT",
+      "assessmentType": "project",
+      "title": "Mini-Project: Team Data Analysis",
+      "description": "Team-based data analysis project covering modules 1–6.",
+      "progressionStage": null,
+      "skillCodes": [
+        "LM03-C01",
+        "LM03-C05",
+        "LM05-C04",
+        "LM05-C06"
+      ],
+      "dueDate": "2026-03-23"
+    },
+    {
+      "code": "FINAL-PROJECT",
+      "assessmentType": "project",
+      "title": "Final Project: Independent Analysis",
+      "description": "Independent analysis project covering all modules.",
+      "progressionStage": null,
+      "skillCodes": [
+        "LM07-C01",
+        "LM07-C04",
+        "LM07-C05",
+        "LM07-C06"
+      ],
+      "dueDate": "2026-05-04"
+    }
+  ]
+}

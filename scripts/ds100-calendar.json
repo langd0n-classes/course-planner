@@ -1,0 +1,324 @@
+{
+  "slots": [
+    {
+      "date": "2026-01-20",
+      "dayOfWeek": "Tuesday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-01-22",
+      "dayOfWeek": "Thursday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-01-23",
+      "dayOfWeek": "Friday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-01-27",
+      "dayOfWeek": "Tuesday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-01-29",
+      "dayOfWeek": "Thursday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-01-30",
+      "dayOfWeek": "Friday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-02-03",
+      "dayOfWeek": "Tuesday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-02-05",
+      "dayOfWeek": "Thursday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-02-06",
+      "dayOfWeek": "Friday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-02-10",
+      "dayOfWeek": "Tuesday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-02-12",
+      "dayOfWeek": "Thursday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-02-13",
+      "dayOfWeek": "Friday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-02-16",
+      "dayOfWeek": "Monday",
+      "slotType": "holiday",
+      "label": "Presidents' Day"
+    },
+    {
+      "date": "2026-02-17",
+      "dayOfWeek": "Tuesday",
+      "slotType": "holiday",
+      "label": "Monday Schedule (no TTh/F class)"
+    },
+    {
+      "date": "2026-02-19",
+      "dayOfWeek": "Thursday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-02-20",
+      "dayOfWeek": "Friday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-02-24",
+      "dayOfWeek": "Tuesday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-02-26",
+      "dayOfWeek": "Thursday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-02-27",
+      "dayOfWeek": "Friday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-03-03",
+      "dayOfWeek": "Tuesday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-03-05",
+      "dayOfWeek": "Thursday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-03-06",
+      "dayOfWeek": "Friday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-03-07",
+      "dayOfWeek": "Saturday",
+      "slotType": "break_day",
+      "label": "Spring Recess"
+    },
+    {
+      "date": "2026-03-08",
+      "dayOfWeek": "Sunday",
+      "slotType": "break_day",
+      "label": "Spring Recess"
+    },
+    {
+      "date": "2026-03-09",
+      "dayOfWeek": "Monday",
+      "slotType": "break_day",
+      "label": "Spring Recess"
+    },
+    {
+      "date": "2026-03-10",
+      "dayOfWeek": "Tuesday",
+      "slotType": "break_day",
+      "label": "Spring Recess"
+    },
+    {
+      "date": "2026-03-11",
+      "dayOfWeek": "Wednesday",
+      "slotType": "break_day",
+      "label": "Spring Recess"
+    },
+    {
+      "date": "2026-03-12",
+      "dayOfWeek": "Thursday",
+      "slotType": "break_day",
+      "label": "Spring Recess"
+    },
+    {
+      "date": "2026-03-13",
+      "dayOfWeek": "Friday",
+      "slotType": "break_day",
+      "label": "Spring Recess"
+    },
+    {
+      "date": "2026-03-14",
+      "dayOfWeek": "Saturday",
+      "slotType": "break_day",
+      "label": "Spring Recess"
+    },
+    {
+      "date": "2026-03-15",
+      "dayOfWeek": "Sunday",
+      "slotType": "break_day",
+      "label": "Spring Recess"
+    },
+    {
+      "date": "2026-03-17",
+      "dayOfWeek": "Tuesday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-03-19",
+      "dayOfWeek": "Thursday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-03-20",
+      "dayOfWeek": "Friday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-03-24",
+      "dayOfWeek": "Tuesday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-03-26",
+      "dayOfWeek": "Thursday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-03-27",
+      "dayOfWeek": "Friday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-03-31",
+      "dayOfWeek": "Tuesday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-04-02",
+      "dayOfWeek": "Thursday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-04-03",
+      "dayOfWeek": "Friday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-04-07",
+      "dayOfWeek": "Tuesday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-04-09",
+      "dayOfWeek": "Thursday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-04-10",
+      "dayOfWeek": "Friday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-04-14",
+      "dayOfWeek": "Tuesday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-04-16",
+      "dayOfWeek": "Thursday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-04-17",
+      "dayOfWeek": "Friday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-04-20",
+      "dayOfWeek": "Monday",
+      "slotType": "holiday",
+      "label": "Patriots' Day"
+    },
+    {
+      "date": "2026-04-21",
+      "dayOfWeek": "Tuesday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-04-23",
+      "dayOfWeek": "Thursday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-04-24",
+      "dayOfWeek": "Friday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-04-28",
+      "dayOfWeek": "Tuesday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-04-30",
+      "dayOfWeek": "Thursday",
+      "slotType": "class_day"
+    },
+    {
+      "date": "2026-05-01",
+      "dayOfWeek": "Friday",
+      "slotType": "break_day",
+      "label": "Study Period"
+    },
+    {
+      "date": "2026-05-02",
+      "dayOfWeek": "Saturday",
+      "slotType": "break_day",
+      "label": "Study Period"
+    },
+    {
+      "date": "2026-05-03",
+      "dayOfWeek": "Sunday",
+      "slotType": "break_day",
+      "label": "Study Period"
+    },
+    {
+      "date": "2026-05-04",
+      "dayOfWeek": "Monday",
+      "slotType": "finals",
+      "label": "Finals Period"
+    },
+    {
+      "date": "2026-05-05",
+      "dayOfWeek": "Tuesday",
+      "slotType": "finals",
+      "label": "Finals Period"
+    },
+    {
+      "date": "2026-05-06",
+      "dayOfWeek": "Wednesday",
+      "slotType": "finals",
+      "label": "Finals Period"
+    },
+    {
+      "date": "2026-05-07",
+      "dayOfWeek": "Thursday",
+      "slotType": "finals",
+      "label": "Finals Period"
+    },
+    {
+      "date": "2026-05-08",
+      "dayOfWeek": "Friday",
+      "slotType": "finals",
+      "label": "Finals Period"
+    }
+  ]
+}
