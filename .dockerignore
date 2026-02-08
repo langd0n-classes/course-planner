@@ -1,0 +1,29 @@
+# Dependencies
+node_modules
+.next
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Docs (not needed in container)
+docs/
+*.md
+!README.md
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+
+# Tests (not needed in prod image)
+e2e/
+**/*.test.ts
+vitest.config.ts
