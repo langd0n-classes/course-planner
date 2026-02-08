@@ -1,0 +1,83 @@
+import { NextRequest } from "next/server";
+import prisma from "@/lib/prisma";
+import { ok, badRequest, notFound, serverError } from "@/lib/api-helpers";
+import { z } from "zod";
+
+const cancelSchema = z.object({
+  reason: z.string().optional(),
+  redistributions: z
+    .array(
+      z.object({
+        skillId: z.string().uuid(),
+        level: z.enum(["introduced", "practiced", "assessed"]),
+        targetSessionId: z.string().uuid(),
+      }),
+    )
+    .optional()
+    .default([]),
+});
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+
+  try {
+    const body = await request.json();
+    const parsed = cancelSchema.safeParse(body);
+    if (!parsed.success) {
+      return badRequest("Invalid request", parsed.error.flatten().fieldErrors);
+    }
+
+    const session = await prisma.session.findUnique({
+      where: { id },
+      include: { coverages: true },
+    });
+    if (!session) return notFound("Session not found");
+    if (session.status === "canceled") {
+      return badRequest("Session is already canceled");
+    }
+
+    const { reason, redistributions } = parsed.data;
+
+    await prisma.$transaction(async (tx) => {
+      // Mark session as canceled
+      await tx.session.update({
+        where: { id },
+        data: {
+          status: "canceled",
+          canceledAt: new Date(),
+          canceledReason: reason ?? null,
+        },
+      });
+
+      // Create redistribution coverage entries
+      for (const redist of redistributions) {
+        await tx.coverage.create({
+          data: {
+            sessionId: redist.targetSessionId,
+            skillId: redist.skillId,
+            level: redist.level,
+            redistributedFrom: id,
+            redistributedAt: new Date(),
+          },
+        });
+      }
+    });
+
+    // Return updated session
+    const updated = await prisma.session.findUnique({
+      where: { id },
+      include: {
+        module: true,
+        coverages: { include: { skill: true } },
+      },
+    });
+
+    return ok(updated);
+  } catch (error) {
+    console.error("Cancel session error:", error);
+    return serverError("Failed to cancel session");
+  }
+}
