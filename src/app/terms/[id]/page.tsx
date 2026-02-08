@@ -78,7 +78,7 @@ export default function TermDetailPage() {
   const [moveForm, setMoveForm] = useState({ date: "", sequence: 0 });
 
   const load = useCallback(async () => {
-    const t = (await api.getTerm(id)) as Term;
+    const t = (await api.getTerm(id)) as unknown as Term;
     setTerm(t);
   }, [id]);
 
@@ -147,7 +147,7 @@ export default function TermDetailPage() {
     const result = (await api.moveSession(sessionId, {
       date: moveForm.date || null,
       sequence: moveForm.sequence,
-    })) as { impact: typeof moveResult };
+    })) as unknown as { impact: typeof moveResult };
     setMoveResult(result.impact);
     setMoveSession(null);
     load();
@@ -189,6 +189,18 @@ export default function TermDetailPage() {
             className="bg-green-600 text-white px-3 py-1.5 rounded text-sm hover:bg-green-700"
           >
             Assessments
+          </Link>
+          <Link
+            href={`/terms/${id}/calendar`}
+            className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700"
+          >
+            Calendar
+          </Link>
+          <Link
+            href={`/terms/${id}/import`}
+            className="bg-gray-600 text-white px-3 py-1.5 rounded text-sm hover:bg-gray-700"
+          >
+            Import
           </Link>
         </div>
       </div>

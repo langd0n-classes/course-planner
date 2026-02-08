@@ -47,9 +47,9 @@ export default function CoverageMatrixPage() {
 
   const load = useCallback(async () => {
     const [c, sk, se] = await Promise.all([
-      api.getCoverages({ termId }) as Promise<CoverageRow[]>,
-      api.getSkills() as Promise<Skill[]>,
-      api.getSessions({ termId }) as Promise<Session[]>,
+      api.getCoverages({ termId }) as unknown as Promise<CoverageRow[]>,
+      api.getSkills() as unknown as Promise<Skill[]>,
+      api.getSessions({ termId }) as unknown as Promise<Session[]>,
     ]);
     setCoverages(c);
     setSkills(sk);
@@ -62,7 +62,11 @@ export default function CoverageMatrixPage() {
 
   async function addCoverage(e: React.FormEvent) {
     e.preventDefault();
-    await api.createCoverage(addForm);
+    await api.createCoverage({
+      sessionId: addForm.sessionId,
+      skillId: addForm.skillId,
+      level: addForm.level as "introduced" | "practiced" | "assessed",
+    });
     setShowAdd(false);
     setAddForm({ sessionId: "", skillId: "", level: "introduced" });
     load();

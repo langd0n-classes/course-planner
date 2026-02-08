@@ -48,9 +48,9 @@ export default function AssessmentsPage() {
 
   const load = useCallback(async () => {
     const [a, sk, se] = await Promise.all([
-      api.getAssessments(termId) as Promise<Assessment[]>,
-      api.getSkills() as Promise<Skill[]>,
-      api.getSessions({ termId }) as Promise<
+      api.getAssessments(termId) as unknown as Promise<Assessment[]>,
+      api.getSkills() as unknown as Promise<Skill[]>,
+      api.getSessions({ termId }) as unknown as Promise<
         { id: string; code: string; title: string }[]
       >,
     ]);
@@ -69,7 +69,7 @@ export default function AssessmentsPage() {
       termId,
       code: form.code,
       title: form.title,
-      assessmentType: form.assessmentType,
+      assessmentType: form.assessmentType as "gaie" | "assignment" | "exam" | "project",
       description: form.description || undefined,
       dueDate: form.dueDate || null,
       sessionId: form.sessionId || null,

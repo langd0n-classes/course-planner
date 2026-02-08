@@ -42,8 +42,8 @@ export default function TermsPage() {
 
   async function loadData() {
     const [t, i] = await Promise.all([
-      api.getTerms() as Promise<Term[]>,
-      api.getInstructors() as Promise<Instructor[]>,
+      api.getTerms() as unknown as Promise<Term[]>,
+      api.getInstructors() as unknown as Promise<Instructor[]>,
     ]);
     setTerms(t);
     setInstructors(i);

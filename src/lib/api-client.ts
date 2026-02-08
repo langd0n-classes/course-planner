@@ -1,4 +1,4 @@
-/** Simple fetch wrapper for client components */
+/** Typed fetch wrapper for client components */
 
 const BASE = "";
 
@@ -17,30 +17,143 @@ async function request<T>(
   return res.json();
 }
 
+// ─── Shared Types ───────────────────────────────────────
+
+export interface Instructor {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export interface Term {
+  id: string;
+  code: string;
+  name: string;
+  courseCode: string;
+  startDate: string;
+  endDate: string;
+  meetingPattern: unknown;
+  instructorId: string;
+  clonedFromId?: string | null;
+  instructor?: Instructor;
+  modules?: Module[];
+  assessments?: Assessment[];
+  _count?: Record<string, number>;
+}
+
+export interface Module {
+  id: string;
+  termId: string;
+  sequence: number;
+  code: string;
+  title: string;
+  description: string | null;
+  learningObjectives: string[];
+  sessions?: Session[];
+}
+
+export interface Session {
+  id: string;
+  moduleId: string;
+  sequence: number;
+  sessionType: "lecture" | "lab";
+  code: string;
+  title: string;
+  date: string | null;
+  description: string | null;
+  format?: string | null;
+  notes?: string | null;
+  status: "scheduled" | "canceled" | "moved";
+  canceledAt: string | null;
+  canceledReason: string | null;
+  module?: Module;
+  coverages?: Coverage[];
+  // Move endpoint may return impact info
+  impact?: { affectedSkillIds: string[]; newViolations: Array<{ type: string; message: string }> } | null;
+}
+
+export interface Skill {
+  id: string;
+  code: string;
+  category: string;
+  description: string;
+  isGlobal: boolean;
+  termId: string | null;
+  coverages?: Coverage[];
+  _count?: Record<string, number>;
+}
+
+export interface Coverage {
+  id: string;
+  sessionId: string;
+  skillId: string;
+  level: "introduced" | "practiced" | "assessed";
+  notes: string | null;
+  redistributedFrom?: string | null;
+  skill?: Skill;
+  session?: Session;
+}
+
+export interface Assessment {
+  id: string;
+  termId: string;
+  code: string;
+  title: string;
+  assessmentType: "gaie" | "assignment" | "exam" | "project";
+  description: string | null;
+  progressionStage: string | null;
+  dueDate: string | null;
+  sessionId?: string | null;
+  session?: Session | null;
+  skills?: Array<{ skill: Skill }>;
+}
+
+export interface CalendarSlot {
+  id: string;
+  termId: string;
+  date: string;
+  dayOfWeek: string;
+  slotType: "class_day" | "holiday" | "finals" | "break_day";
+  label: string | null;
+}
+
+export interface ImportResult {
+  created?: number;
+  updated?: number;
+  total?: number;
+  modules?: number;
+  sessions?: number;
+  skills?: number;
+  coverages?: number;
+  assessments?: number;
+}
+
+// ─── API Client ─────────────────────────────────────────
+
 export const api = {
   // Instructors
-  getInstructors: () => request<unknown[]>("/api/instructors"),
+  getInstructors: () => request<Instructor[]>("/api/instructors"),
 
   // Terms
   getTerms: (instructorId?: string) =>
-    request<unknown[]>(
+    request<Term[]>(
       `/api/terms${instructorId ? `?instructorId=${instructorId}` : ""}`,
     ),
-  getTerm: (id: string) => request<unknown>(`/api/terms/${id}`),
-  createTerm: (data: unknown) =>
-    request<unknown>("/api/terms", {
+  getTerm: (id: string) => request<Term>(`/api/terms/${id}`),
+  createTerm: (data: Partial<Term>) =>
+    request<Term>("/api/terms", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  updateTerm: (id: string, data: unknown) =>
-    request<unknown>(`/api/terms/${id}`, {
+  updateTerm: (id: string, data: Partial<Term>) =>
+    request<Term>(`/api/terms/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
   deleteTerm: (id: string) =>
-    request<unknown>(`/api/terms/${id}`, { method: "DELETE" }),
-  cloneTerm: (id: string, data: unknown) =>
-    request<unknown>(`/api/terms/${id}/clone`, {
+    request<{ deleted: boolean }>(`/api/terms/${id}`, { method: "DELETE" }),
+  cloneTerm: (id: string, data: { code: string; name: string; startDate: string; endDate: string }) =>
+    request<Term>(`/api/terms/${id}/clone`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -49,39 +162,39 @@ export const api = {
 
   // Modules
   getModules: (termId?: string) =>
-    request<unknown[]>(
+    request<Module[]>(
       `/api/modules${termId ? `?termId=${termId}` : ""}`,
     ),
-  createModule: (data: unknown) =>
-    request<unknown>("/api/modules", {
+  createModule: (data: Partial<Module>) =>
+    request<Module>("/api/modules", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  updateModule: (id: string, data: unknown) =>
-    request<unknown>(`/api/modules/${id}`, {
+  updateModule: (id: string, data: Partial<Module>) =>
+    request<Module>(`/api/modules/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
   deleteModule: (id: string) =>
-    request<unknown>(`/api/modules/${id}`, { method: "DELETE" }),
+    request<{ deleted: boolean }>(`/api/modules/${id}`, { method: "DELETE" }),
 
   // Skills
   getSkills: (termId?: string) =>
-    request<unknown[]>(
+    request<Skill[]>(
       `/api/skills${termId ? `?termId=${termId}` : ""}`,
     ),
-  createSkill: (data: unknown) =>
-    request<unknown>("/api/skills", {
+  createSkill: (data: Partial<Skill>) =>
+    request<Skill>("/api/skills", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  updateSkill: (id: string, data: unknown) =>
-    request<unknown>(`/api/skills/${id}`, {
+  updateSkill: (id: string, data: Partial<Skill>) =>
+    request<Skill>(`/api/skills/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
   deleteSkill: (id: string) =>
-    request<unknown>(`/api/skills/${id}`, { method: "DELETE" }),
+    request<{ deleted: boolean }>(`/api/skills/${id}`, { method: "DELETE" }),
 
   // Sessions
   getSessions: (params?: { moduleId?: string; termId?: string }) => {
@@ -89,25 +202,32 @@ export const api = {
     if (params?.moduleId) qs.set("moduleId", params.moduleId);
     if (params?.termId) qs.set("termId", params.termId);
     const q = qs.toString();
-    return request<unknown[]>(`/api/sessions${q ? `?${q}` : ""}`);
+    return request<Session[]>(`/api/sessions${q ? `?${q}` : ""}`);
   },
-  createSession: (data: unknown) =>
-    request<unknown>("/api/sessions", {
+  createSession: (data: Partial<Session>) =>
+    request<Session>("/api/sessions", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  updateSession: (id: string, data: unknown) =>
-    request<unknown>(`/api/sessions/${id}`, {
+  updateSession: (id: string, data: Partial<Session>) =>
+    request<Session>(`/api/sessions/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
   deleteSession: (id: string) =>
-    request<unknown>(`/api/sessions/${id}`, { method: "DELETE" }),
-  moveSession: (id: string, data: unknown) =>
-    request<unknown>(`/api/sessions/${id}/move`, {
+    request<{ deleted: boolean }>(`/api/sessions/${id}`, { method: "DELETE" }),
+  moveSession: (id: string, data: { date?: string | null; moduleId?: string; sequence?: number }) =>
+    request<Session>(`/api/sessions/${id}/move`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  cancelSession: (id: string, data: { reason?: string; redistributions?: Array<{ skillId: string; level: string; targetSessionId: string }> }) =>
+    request<Session>(`/api/sessions/${id}/cancel`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getSessionWhatIf: (id: string) =>
+    request<unknown>(`/api/sessions/${id}/whatif`),
 
   // Coverage
   getCoverages: (params?: {
@@ -120,33 +240,33 @@ export const api = {
     if (params?.skillId) qs.set("skillId", params.skillId);
     if (params?.termId) qs.set("termId", params.termId);
     const q = qs.toString();
-    return request<unknown[]>(`/api/coverages${q ? `?${q}` : ""}`);
+    return request<Coverage[]>(`/api/coverages${q ? `?${q}` : ""}`);
   },
-  createCoverage: (data: unknown) =>
-    request<unknown>("/api/coverages", {
+  createCoverage: (data: Partial<Coverage>) =>
+    request<Coverage>("/api/coverages", {
       method: "POST",
       body: JSON.stringify(data),
     }),
   deleteCoverage: (id: string) =>
-    request<unknown>(`/api/coverages/${id}`, { method: "DELETE" }),
+    request<{ deleted: boolean }>(`/api/coverages/${id}`, { method: "DELETE" }),
 
   // Assessments
   getAssessments: (termId?: string) =>
-    request<unknown[]>(
+    request<Assessment[]>(
       `/api/assessments${termId ? `?termId=${termId}` : ""}`,
     ),
-  createAssessment: (data: unknown) =>
-    request<unknown>("/api/assessments", {
+  createAssessment: (data: Partial<Assessment> & { skillIds?: string[] }) =>
+    request<Assessment>("/api/assessments", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  updateAssessment: (id: string, data: unknown) =>
-    request<unknown>(`/api/assessments/${id}`, {
+  updateAssessment: (id: string, data: Partial<Assessment>) =>
+    request<Assessment>(`/api/assessments/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
   deleteAssessment: (id: string) =>
-    request<unknown>(`/api/assessments/${id}`, { method: "DELETE" }),
+    request<{ deleted: boolean }>(`/api/assessments/${id}`, { method: "DELETE" }),
 
   // Artifacts
   getArtifacts: (params?: {
@@ -166,4 +286,24 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  // Calendar
+  getCalendarSlots: (termId: string) =>
+    request<CalendarSlot[]>(`/api/terms/${termId}/calendar-slots`),
+  importCalendar: (termId: string, data: { slots: Array<{ date: string; dayOfWeek: string; slotType: string; label?: string }> }) =>
+    request<ImportResult>(`/api/terms/${termId}/import-calendar`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  importStructure: (termId: string, data: unknown) =>
+    request<ImportResult>(`/api/terms/${termId}/import-structure`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // What-If
+  whatIfCompare: (termId: string, sessionA: string, sessionB: string) =>
+    request<unknown>(
+      `/api/terms/${termId}/whatif-compare?sessionA=${sessionA}&sessionB=${sessionB}`,
+    ),
 };
