@@ -29,7 +29,7 @@ export default function SkillsPage() {
   }, []);
 
   async function loadSkills() {
-    const s = (await api.getSkills()) as Skill[];
+    const s = (await api.getSkills()) as unknown as Skill[];
     setSkills(s);
   }
 

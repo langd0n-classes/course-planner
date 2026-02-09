@@ -27,6 +27,19 @@ enum AssessmentType {
   project
 }
 
+enum SessionStatus {
+  scheduled
+  canceled
+  moved
+}
+
+enum SlotType {
+  class_day
+  holiday
+  finals
+  break_day
+}
+
 enum ArtifactType {
   notebook
   handout
@@ -69,11 +82,12 @@ model Term {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  instructor Instructor  @relation(fields: [instructorId], references: [id])
-  clonedFrom Term?       @relation("TermClone", fields: [clonedFromId], references: [id])
-  clones     Term[]      @relation("TermClone")
-  modules    Module[]
-  assessments Assessment[]
+  instructor    Instructor     @relation(fields: [instructorId], references: [id])
+  clonedFrom    Term?          @relation("TermClone", fields: [clonedFromId], references: [id])
+  clones        Term[]         @relation("TermClone")
+  modules       Module[]
+  assessments   Assessment[]
+  calendarSlots CalendarSlot[]
 
   @@map("terms")
 }
@@ -113,19 +127,22 @@ model Skill {
 }
 
 model Session {
-  id          String      @id @default(uuid()) @db.Uuid
-  moduleId    String      @map("module_id") @db.Uuid
-  sequence    Int
-  sessionType SessionType @map("session_type")
-  code        String      // e.g. "lec-05", "lab-03"
-  title       String
-  date        DateTime?   @db.Date
-  description String?     @db.Text
-  format      String?     // e.g. "traditional", "flipped"
-  priorArt    String[]    @map("prior_art") @db.Uuid
-  notes       String?     @db.Text
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
+  id             String        @id @default(uuid()) @db.Uuid
+  moduleId       String        @map("module_id") @db.Uuid
+  sequence       Int
+  sessionType    SessionType   @map("session_type")
+  code           String        // e.g. "lec-05", "lab-03"
+  title          String
+  date           DateTime?     @db.Date
+  description    String?       @db.Text
+  format         String?       // e.g. "traditional", "flipped"
+  priorArt       String[]      @map("prior_art") @db.Uuid
+  notes          String?       @db.Text
+  status         SessionStatus @default(scheduled)
+  canceledAt     DateTime?     @map("canceled_at")
+  canceledReason String?       @map("canceled_reason") @db.Text
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
 
   module     Module      @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   coverages  Coverage[]
@@ -136,13 +153,15 @@ model Session {
 }
 
 model Coverage {
-  id        String        @id @default(uuid()) @db.Uuid
-  sessionId String        @map("session_id") @db.Uuid
-  skillId   String        @map("skill_id") @db.Uuid
-  level     CoverageLevel
-  notes     String?       @db.Text
-  createdAt DateTime      @default(now()) @map("created_at")
-  updatedAt DateTime      @updatedAt @map("updated_at")
+  id                String        @id @default(uuid()) @db.Uuid
+  sessionId         String        @map("session_id") @db.Uuid
+  skillId           String        @map("skill_id") @db.Uuid
+  level             CoverageLevel
+  notes             String?       @db.Text
+  redistributedFrom String?       @map("redistributed_from") @db.Uuid
+  redistributedAt   DateTime?     @map("redistributed_at")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
 
   session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   skill   Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
@@ -184,6 +203,22 @@ model AssessmentSkill {
 
   @@unique([assessmentId, skillId])
   @@map("assessment_skills")
+}
+
+model CalendarSlot {
+  id        String   @id @default(uuid()) @db.Uuid
+  termId    String   @map("term_id") @db.Uuid
+  date      DateTime @db.Date
+  dayOfWeek String   @map("day_of_week") // "Monday", "Tuesday", etc.
+  slotType  SlotType @map("slot_type")
+  label     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  term Term @relation(fields: [termId], references: [id], onDelete: Cascade)
+
+  @@unique([termId, date])
+  @@map("calendar_slots")
 }
 
 model Artifact {

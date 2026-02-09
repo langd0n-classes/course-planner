@@ -63,7 +63,12 @@ export const createSessionSchema = z.object({
   notes: z.string().optional(),
 });
 
-export const updateSessionSchema = createSessionSchema.partial();
+export const updateSessionSchema = createSessionSchema
+  .extend({
+    status: z.enum(["scheduled", "canceled", "moved"]).optional(),
+    canceledReason: z.string().nullable().optional(),
+  })
+  .partial();
 
 export const moveSessionSchema = z.object({
   date: z.string().nullable().optional(),
@@ -116,3 +121,66 @@ export const createArtifactSchema = z.object({
 });
 
 export const updateArtifactSchema = createArtifactSchema.partial();
+
+// ─── Import Schemas ────────────────────────────────────
+
+export const calendarSlotImportSchema = z.object({
+  date: z.string(),
+  dayOfWeek: z.string(),
+  slotType: z
+    .enum(["class_day", "holiday", "finals", "break_day", "break"])
+    .transform((v) => (v === "break" ? "break_day" : v) as "class_day" | "holiday" | "finals" | "break_day"),
+  label: z.string().nullable().optional(),
+});
+
+export const importCalendarSchema = z.object({
+  slots: z.array(calendarSlotImportSchema).min(1),
+});
+
+export const importSessionSchema = z.object({
+  code: z.string().min(1),
+  sessionType: z.enum(["lecture", "lab"]),
+  title: z.string().min(1),
+  date: z.string().nullable().optional(),
+  description: z.string().optional(),
+  sequence: z.number().int().min(0).optional(),
+});
+
+export const importModuleSchema = z.object({
+  code: z.string().min(1),
+  sequence: z.number().int().min(0),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  learningObjectives: z.array(z.string()).optional().default([]),
+  sessions: z.array(importSessionSchema).optional().default([]),
+});
+
+export const importSkillSchema = z.object({
+  code: z.string().min(1),
+  category: z.string().min(1),
+  description: z.string().min(1),
+  moduleCode: z.string().optional(),
+});
+
+export const importCoverageSchema = z.object({
+  sessionCode: z.string().min(1),
+  skillCode: z.string().min(1),
+  level: z.enum(["introduced", "practiced", "assessed"]),
+});
+
+export const importAssessmentSchema = z.object({
+  code: z.string().min(1),
+  assessmentType: z.enum(["gaie", "assignment", "exam", "project"]),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  progressionStage: z.string().nullable().optional(),
+  skillCodes: z.array(z.string()).optional().default([]),
+  dueDate: z.string().nullable().optional(),
+});
+
+export const importStructureSchema = z.object({
+  modules: z.array(importModuleSchema).optional().default([]),
+  skills: z.array(importSkillSchema).optional().default([]),
+  coverages: z.array(importCoverageSchema).optional().default([]),
+  assessments: z.array(importAssessmentSchema).optional().default([]),
+});

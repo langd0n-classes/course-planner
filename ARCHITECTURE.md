@@ -56,11 +56,19 @@ src/
 │   │   ├── terms/
 │   │   │   └── [id]/
 │   │   │       ├── clone/
-│   │   │       └── impact/
+│   │   │       ├── impact/
+│   │   │       ├── calendar-slots/
+│   │   │       ├── import-calendar/
+│   │   │       ├── import-structure/
+│   │   │       ├── import-skills-csv/
+│   │   │       └── whatif-compare/
 │   │   ├── modules/
 │   │   ├── skills/
 │   │   ├── sessions/
-│   │   │   └── [id]/move/
+│   │   │   └── [id]/
+│   │   │       ├── move/
+│   │   │       ├── cancel/
+│   │   │       └── whatif/
 │   │   ├── coverages/
 │   │   ├── assessments/
 │   │   └── artifacts/
@@ -69,13 +77,17 @@ src/
 │   │   └── [id]/
 │   │       ├── coverage/
 │   │       ├── impact/
-│   │       └── assessments/
+│   │       ├── assessments/
+│   │       ├── calendar/    # Weekly calendar view
+│   │       └── import/      # Data import page
 │   ├── skills/             # Skills browser
 │   ├── layout.tsx          # Root layout with nav
 │   └── page.tsx            # Homepage
 ├── domain/                 # Pure domain logic
 │   ├── coverage-rules.ts   # Coverage ordering, GAIE progression, impact
-│   └── coverage-rules.test.ts
+│   ├── coverage-rules.test.ts
+│   ├── whatif.ts            # What-if cancellation simulation
+│   └── whatif.test.ts
 ├── lib/                    # Shared utilities
 │   ├── prisma.ts           # Prisma client singleton
 │   ├── schemas.ts          # Zod validation schemas
@@ -103,7 +115,8 @@ prisma/
 
 ```
 Instructor ──< Term ──< Module ──< Session ──< Coverage >── Skill
-                │                                              │
+                │         │                                    │
+                │         └──< CalendarSlot                    │
                 └──< Assessment >── AssessmentSkill >──────────┘
                          │
                          └──< Artifact
@@ -112,8 +125,9 @@ Instructor ──< Term ──< Module ──< Session ──< Coverage >── 
 ### Key Relationships
 - **Term** belongs to an **Instructor** (multi-tenant)
 - **Module** belongs to a **Term**, contains **Sessions**
-- **Session** belongs to a **Module**, has **Coverage** entries
-- **Coverage** links a **Session** to a **Skill** with a level (I/P/A)
+- **Session** belongs to a **Module**, has **Coverage** entries, has a `status` (scheduled/canceled/moved)
+- **Coverage** links a **Session** to a **Skill** with a level (I/P/A); may have `redistributedFrom` pointing to canceled session
+- **CalendarSlot** belongs to a **Term**, represents a date+type (class_day/holiday/finals/break)
 - **Assessment** belongs to a **Term**, links to **Skills** via join table
 - **Artifact** has a polymorphic parent (session, assessment, or module)
 - **Term** can be cloned from another term (`cloned_from_id`)
@@ -136,10 +150,33 @@ Both interfaces have mock implementations for development/testing and are regist
 
 ## Domain Rules (Invariants)
 
-Implemented as pure functions in `src/domain/coverage-rules.ts`:
+Implemented as pure functions in `src/domain/coverage-rules.ts` and `src/domain/whatif.ts`:
 
+### Coverage Rules (`coverage-rules.ts`)
 1. **Coverage ordering**: Introduced before Practiced before Assessed
 2. **GAIE progression**: copy-paste → modify → write-own
 3. **Orphan detection**: Skills with no coverage
 4. **Unassessed detection**: Skills with no assessment
 5. **Impact analysis**: Compute affected skills when a session moves
+
+### What-If Simulation (`whatif.ts`)
+1. **simulateCancellation**: Pure function returning impact (at-risk skills, health diff, new violations)
+2. **compareScenarios**: Side-by-side comparison of canceling two sessions
+3. **validateRedistribution**: Check that redistributed coverages maintain I→P→A ordering
+4. **computeCoverageHealth**: Summary of coverage state (introduced/practiced/assessed/fully covered counts)
+
+## Import Subsystem
+
+API routes for importing course data:
+- `POST /api/terms/[id]/import-calendar` — Upsert CalendarSlots with date range validation
+- `POST /api/terms/[id]/import-structure` — Transactional import of modules, sessions, skills, coverages, assessments
+- `POST /api/terms/[id]/import-skills-csv` — CSV upload for skills (code, category, description)
+- `GET /api/terms/[id]/calendar-slots` — Fetch calendar slots ordered by date
+
+Seed script: `scripts/generate-ds100-exemplar.ts` generates `ds100-calendar.json` and `ds100-structure.json` from the exemplar files.
+
+## Cancellation Workflow
+
+- `POST /api/sessions/[id]/cancel` — Cancel session with optional redistribution
+- `GET /api/sessions/[id]/whatif` — Simulate cancellation impact (read-only)
+- `GET /api/terms/[id]/whatif-compare` — Compare two cancellation scenarios

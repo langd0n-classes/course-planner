@@ -28,25 +28,39 @@ view, no change simulation, coverage matrix hides gaps.
 
 ---
 
-## Phase 2A: Import, Calendar, What-If (next)
+## Phase 2A: Import, Calendar, What-If (complete)
 
 **Goal:** Make the app usable for real course planning.
 
-**Scope:**
-- Data import pipeline (academic calendar + course
-  structure + CSV skills)
-- DS-100 exemplar seed script (standalone, generates
-  import JSON from `docs/ds100-exemplar/` files)
-- Calendar view (weekly grid, holidays, planning gaps)
-- Session status field (scheduled/canceled/moved)
-- What-if simulation panel (explore impact of
-  cancellations before committing, compare scenarios)
-- Cancellation workflow with manual skill redistribution
-- Redistribution tracking (audit trail)
-- Technical debt fixes (Docker build, error handling,
-  typed API client)
-
-**Depends on:** Phase 1 merged.
+**Delivered:**
+- Schema extensions: `SessionStatus` enum (scheduled/
+  canceled/moved), `CalendarSlot` model, Coverage
+  `redistributedFrom`/`redistributedAt` tracking
+- Data import pipeline:
+  - `POST /api/terms/[id]/import-calendar` (upsert calendar
+    slots with date range validation)
+  - `POST /api/terms/[id]/import-structure` (transactional
+    import of modules, sessions, skills, coverages,
+    assessments with referential integrity checks)
+  - `POST /api/terms/[id]/import-skills-csv` (CSV upload)
+- DS-100 exemplar seed script (`scripts/generate-ds100-
+  exemplar.ts`) generating 60 calendar slots, 8 modules,
+  40 sessions, 69 skills, 106 coverages, 9 assessments
+- Calendar view (`/terms/[id]/calendar`): weekly grid
+  with session cards, module color coding, holidays,
+  planning gaps, unscheduled section
+- What-if domain logic (`src/domain/whatif.ts`):
+  `simulateCancellation`, `compareScenarios`,
+  `validateRedistribution`, `computeCoverageHealth`
+- What-if panel (side drawer): impact analysis, at-risk
+  skills, health diff, scenario comparison, demo scenarios
+- Cancellation workflow: `POST /api/sessions/[id]/cancel`
+  with redistribution entries
+- Import UI (`/terms/[id]/import`): three tabs (Calendar,
+  Structure, CSV), validation preview, file upload
+- Technical debt: typed API client (full TypeScript
+  generics replacing `unknown`), new API endpoints
+- 38 unit tests passing (13 new what-if tests)
 
 **Build prompt:** `docs/prompts/phase2a_import_calendar_whatif.md`
 

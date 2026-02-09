@@ -35,7 +35,23 @@ export async function PATCH(
     data.date = parsed.data.date ? new Date(parsed.data.date) : null;
   }
 
-  const session = await prisma.session.update({ where: { id }, data });
+  // Auto-set canceledAt when status changes to canceled
+  if (parsed.data.status === "canceled") {
+    data.canceledAt = new Date();
+  } else if (parsed.data.status === "scheduled") {
+    // Clear cancellation fields when re-scheduling
+    data.canceledAt = null;
+    data.canceledReason = null;
+  }
+
+  const session = await prisma.session.update({
+    where: { id },
+    data,
+    include: {
+      module: true,
+      coverages: { include: { skill: true } },
+    },
+  });
   return ok(session);
 }
 
