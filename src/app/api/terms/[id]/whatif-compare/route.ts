@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import { ok, badRequest, notFound, serverError } from "@/lib/api-helpers";
 import { compareScenarios } from "@/domain/whatif";
-import { loadTermData } from "@/app/api/sessions/[id]/whatif/route";
+import { loadTermData } from "@/lib/term-data";
 
 export async function GET(
   request: NextRequest,
