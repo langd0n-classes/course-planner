@@ -41,6 +41,44 @@ export async function POST(
 
     const { reason, redistributions } = parsed.data;
 
+    // Validate redistribution targets
+    if (redistributions.length > 0) {
+      const targetIds = [...new Set(redistributions.map((r) => r.targetSessionId))];
+      const targets = await prisma.session.findMany({
+        where: { id: { in: targetIds } },
+        include: { module: { select: { termId: true } } },
+      });
+
+      const targetMap = new Map(targets.map((t) => [t.id, t]));
+      const sessionTermId = session.moduleId
+        ? (await prisma.module.findUnique({ where: { id: session.moduleId }, select: { termId: true } }))?.termId
+        : null;
+
+      const errors: string[] = [];
+      for (const tid of targetIds) {
+        const target = targetMap.get(tid);
+        if (!target) {
+          errors.push(`Target session not found: ${tid}`);
+          continue;
+        }
+        if (tid === id) {
+          errors.push(`Cannot redistribute to the session being canceled: ${tid}`);
+          continue;
+        }
+        if (target.status === "canceled") {
+          errors.push(`Target session is canceled: ${tid}`);
+          continue;
+        }
+        if (sessionTermId && target.module.termId !== sessionTermId) {
+          errors.push(`Target session ${tid} is in a different term`);
+        }
+      }
+
+      if (errors.length > 0) {
+        return badRequest("Invalid redistribution targets", errors);
+      }
+    }
+
     await prisma.$transaction(async (tx) => {
       // Mark session as canceled
       await tx.session.update({

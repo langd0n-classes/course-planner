@@ -234,7 +234,7 @@ export default function ImportPage() {
               disabled={
                 importing ||
                 !text.trim() ||
-                (validation !== null && !validation.valid)
+                !validation?.valid
               }
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
             >

@@ -127,7 +127,9 @@ export const updateArtifactSchema = createArtifactSchema.partial();
 export const calendarSlotImportSchema = z.object({
   date: z.string(),
   dayOfWeek: z.string(),
-  slotType: z.enum(["class_day", "holiday", "finals", "break_day"]),
+  slotType: z
+    .enum(["class_day", "holiday", "finals", "break_day", "break"])
+    .transform((v) => (v === "break" ? "break_day" : v) as "class_day" | "holiday" | "finals" | "break_day"),
   label: z.string().nullable().optional(),
 });
 

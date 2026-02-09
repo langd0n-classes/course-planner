@@ -21,6 +21,27 @@ export async function GET(
     const term = await prisma.term.findUnique({ where: { id: termId } });
     if (!term) return notFound("Term not found");
 
+    // Validate both sessions exist and belong to this term
+    const [sessA, sessB] = await Promise.all([
+      prisma.session.findUnique({
+        where: { id: sessionA },
+        include: { module: { select: { termId: true } } },
+      }),
+      prisma.session.findUnique({
+        where: { id: sessionB },
+        include: { module: { select: { termId: true } } },
+      }),
+    ]);
+
+    if (!sessA) return badRequest(`Session not found: ${sessionA}`);
+    if (!sessB) return badRequest(`Session not found: ${sessionB}`);
+    if (sessA.module.termId !== termId) {
+      return badRequest(`Session ${sessionA} does not belong to term ${termId}`);
+    }
+    if (sessB.module.termId !== termId) {
+      return badRequest(`Session ${sessionB} does not belong to term ${termId}`);
+    }
+
     const termData = await loadTermData(termId);
     const comparison = compareScenarios(termData, sessionA, sessionB);
 
