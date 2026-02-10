@@ -56,9 +56,34 @@ subsequent comments capture prompt revisions, review
 notes, and lessons learned. The issue is closed when
 the work ships.
 
-**To execute a build prompt:** open the issue, copy the
-prompt comment into a CCW session, and let it run. Link
-the resulting PR back to the issue.
+**To read an issue:** use `gh issue view <number> --comments`
+to get the issue body and all comments. If `gh` is not
+available, install it or fall back to the GitHub API:
+
+```bash
+# Option 1: install gh (preferred)
+(type -p gh > /dev/null) || \
+  (curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+    | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+    | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+  && sudo apt update && sudo apt install gh -y)
+
+# Option 2: curl fallback (if gh install fails)
+# Read issue body:
+curl -s -H "Authorization: token $GITHUB_TOKEN" \
+  https://api.github.com/repos/langd0n-classes/course-planner/issues/4 \
+  | jq -r .body
+# Read comments (first comment = build prompt):
+curl -s -H "Authorization: token $GITHUB_TOKEN" \
+  https://api.github.com/repos/langd0n-classes/course-planner/issues/4/comments \
+  | jq -r '.[0].body'
+```
+
+**To execute a build prompt:** read the issue, find the
+build prompt in the first comment (or the most recent
+comment labeled "PROMPT"), and follow it as your task
+specification. Link the resulting PR back to the issue.
 
 **To revise a prompt:** add a new comment on the issue
 with the updated prompt (don't edit the original — keep
