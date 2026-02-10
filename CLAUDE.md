@@ -56,46 +56,38 @@ subsequent comments capture prompt revisions, review
 notes, and lessons learned. The issue is closed when
 the work ships.
 
-**To read an issue:** use `gh issue view <number> --comments`
-to get the issue body and all comments. If `gh` is not
-available, install it or fall back to the GitHub API:
+**To read an issue and its build prompt**, run this first:
 
 ```bash
-# Option 1: install gh (preferred)
-(type -p gh > /dev/null) || \
-  (curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-    | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
-  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-    | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-  && sudo apt update && sudo apt install gh -y)
-
-# Option 2: curl fallback (if gh install fails)
-# Read issue body:
-curl -s -H "Authorization: token $GITHUB_TOKEN" \
-  https://api.github.com/repos/langd0n-classes/course-planner/issues/4 \
-  | jq -r .body
-# Read comments (first comment = build prompt):
-curl -s -H "Authorization: token $GITHUB_TOKEN" \
-  https://api.github.com/repos/langd0n-classes/course-planner/issues/4/comments \
-  | jq -r '.[0].body'
+source scripts/gh-access-remote.sh
 ```
+
+This handles everything: installs `gh` without sudo if
+needed, authenticates using `GH_TOKEN`, and provides a
+`gh-issue` helper. Then:
+
+```bash
+gh-issue <number>              # issue body
+gh-issue <number> --prompt     # latest BUILD PROMPT comment
+gh-issue <number> --comments   # all comments
+```
+
+**Requires:** `GH_TOKEN` env var set in Claude Code
+project environment variables. The script checks both
+`GH_TOKEN` and `GITHUB_TOKEN`.
+
+**IMPORTANT:** Do NOT use `gh issue view` — it has a
+known GraphQL bug with GitHub Projects Classic that causes
+failures. The script uses `gh api` (REST) which works
+reliably, with a `curl` + `python3` fallback if `gh`
+install fails.
 
 **To find the build prompt:** look for the most recent
 comment that starts with `## BUILD PROMPT`. Every prompt
 comment uses this header. If there are multiple (prompt
 was revised), use the LAST one — it supersedes earlier
-versions. You can find it programmatically:
-
-```bash
-# With gh:
-gh issue view <number> --comments --json comments \
-  --jq '.comments | map(select(.body | startswith("## BUILD PROMPT"))) | last | .body'
-
-# With curl:
-curl -s -H "Authorization: token $GITHUB_TOKEN" \
-  https://api.github.com/repos/langd0n-classes/course-planner/issues/<number>/comments \
-  | jq -r '[.[] | select(.body | startswith("## BUILD PROMPT"))] | last | .body'
-```
+versions. `gh-issue <number> --prompt` does this
+automatically.
 
 Follow the prompt as your task specification. Link the
 resulting PR back to the issue.
