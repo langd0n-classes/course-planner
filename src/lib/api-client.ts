@@ -241,8 +241,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  cancelSession: (id: string, data: { reason?: string; redistributions?: Array<{ skillId: string; level: string; targetSessionId: string }> }) =>
-    request<Session>(`/api/sessions/${id}/cancel`, {
+  cancelSession: (id: string, data: { reason?: string; redistributions?: Array<{ skillId: string; level: string; targetSessionId: string }>; dryRun?: boolean; force?: boolean }) =>
+    request<Session | { valid: boolean; violations: Array<{ type: string; message: string }> }>(`/api/sessions/${id}/cancel`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -319,6 +319,13 @@ export const api = {
     request<ImportResult>(`/api/terms/${termId}/import-structure`, {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+
+  // AI
+  suggestRedistribution: (canceledSessionId: string, termId: string) =>
+    request<Array<{ skillId: string; targetSessionId: string; suggestedLevel: string; rationale: string; confidence: number }>>("/api/ai/suggest-redistribution", {
+      method: "POST",
+      body: JSON.stringify({ canceledSessionId, termId }),
     }),
 
   // What-If

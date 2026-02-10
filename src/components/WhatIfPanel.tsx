@@ -30,6 +30,7 @@ interface WhatIfPanelProps {
     sessionId: string,
     reason: string,
     redistributions: Array<{ skillId: string; level: string; targetSessionId: string }>,
+    force?: boolean,
   ) => void;
   compareSessionId: string | null;
   onSetCompare: (id: string | null) => void;
@@ -161,30 +162,16 @@ export default function WhatIfPanel({
     if (!impact) return;
     setSuggesting(true);
     try {
-      const res = await fetch("/api/ai/suggest-redistribution", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          canceledSessionId: activeSessionId,
-          termId,
+      const suggestions = await api.suggestRedistribution(activeSessionId, termId);
+      setRedistributions((prev) =>
+        prev.map((r) => {
+          const suggestion = suggestions.find((s) => s.skillId === r.skillId);
+          if (suggestion) {
+            return { ...r, targetSessionId: suggestion.targetSessionId };
+          }
+          return r;
         }),
-      });
-      if (res.ok) {
-        const suggestions: Array<{
-          skillId: string;
-          targetSessionId: string;
-          suggestedLevel: string;
-        }> = await res.json();
-        setRedistributions((prev) =>
-          prev.map((r) => {
-            const suggestion = suggestions.find((s) => s.skillId === r.skillId);
-            if (suggestion) {
-              return { ...r, targetSessionId: suggestion.targetSessionId };
-            }
-            return r;
-          }),
-        );
-      }
+      );
     } catch (err) {
       console.error("Suggest redistribution error:", err);
     }
@@ -196,47 +183,30 @@ export default function WhatIfPanel({
     setValidating(true);
     try {
       const filled = redistributions.filter((r) => r.targetSessionId);
-      const res = await fetch(`/api/sessions/${activeSessionId}/cancel`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          reason: cancelReason,
-          redistributions: filled.map((r) => ({
-            skillId: r.skillId,
-            level: r.level,
-            targetSessionId: r.targetSessionId,
-          })),
-          dryRun: true,
-        }),
+      const result = await api.cancelSession(activeSessionId, {
+        reason: cancelReason,
+        redistributions: filled.map((r) => ({
+          skillId: r.skillId,
+          level: r.level,
+          targetSessionId: r.targetSessionId,
+        })),
+        dryRun: true,
       });
-      if (res.ok) {
-        setValidationResult({ valid: true, violations: [] });
-      } else {
-        const err = await res.json();
-        if (err.violations || err.details) {
-          setValidationResult({
-            valid: false,
-            violations: err.violations || err.details || [{ type: "error", message: err.error }],
-          });
-        } else {
-          setValidationResult({
-            valid: false,
-            violations: [{ type: "error", message: err.error || "Validation failed" }],
-          });
-        }
-      }
+      // dryRun returns { valid, violations }
+      const dryRunResult = result as { valid: boolean; violations: Array<{ type: string; message: string }> };
+      setValidationResult(dryRunResult);
     } catch (err) {
       console.error("Validation error:", err);
       setValidationResult({
         valid: false,
-        violations: [{ type: "error", message: "Failed to validate" }],
+        violations: [{ type: "error", message: err instanceof Error ? err.message : "Failed to validate" }],
       });
     }
     setValidating(false);
   }
 
   // Confirm cancellation with redistributions
-  function confirmCancellation() {
+  function confirmCancellation(force?: boolean) {
     const filled = redistributions.filter((r) => r.targetSessionId);
     onApplyCancel(
       activeSessionId,
@@ -246,6 +216,7 @@ export default function WhatIfPanel({
         level: r.level,
         targetSessionId: r.targetSessionId,
       })),
+      force,
     );
     setCancelSuccess({
       sessionCode: session?.code || "",
@@ -658,7 +629,7 @@ export default function WhatIfPanel({
                     ))}
                     <div className="mt-2 flex gap-2">
                       <button
-                        onClick={confirmCancellation}
+                        onClick={() => confirmCancellation(true)}
                         className="flex-1 px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-xs font-medium"
                       >
                         Proceed Anyway

@@ -18,6 +18,7 @@ const cancelSchema = z.object({
     .optional()
     .default([]),
   dryRun: z.boolean().optional().default(false),
+  force: z.boolean().optional().default(false),
 });
 
 export async function POST(
@@ -42,7 +43,7 @@ export async function POST(
       return badRequest("Session is already canceled");
     }
 
-    const { reason, redistributions, dryRun } = parsed.data;
+    const { reason, redistributions, dryRun, force } = parsed.data;
     const termId = session.module.termId;
 
     // Validate redistribution targets
@@ -98,7 +99,7 @@ export async function POST(
         return ok({ valid: violations.length === 0, violations });
       }
 
-      if (violations.length > 0) {
+      if (violations.length > 0 && !force) {
         return badRequest("Redistribution would break coverage ordering", violations);
       }
     }

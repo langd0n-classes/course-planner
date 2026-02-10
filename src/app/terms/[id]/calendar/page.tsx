@@ -340,9 +340,10 @@ export default function CalendarPage() {
       sessionId: string,
       reason: string,
       redistributions: Array<{ skillId: string; level: string; targetSessionId: string }>,
+      force?: boolean,
     ) => {
       try {
-        await api.cancelSession(sessionId, { reason, redistributions });
+        await api.cancelSession(sessionId, { reason, redistributions, force });
         loadData();
       } catch (err) {
         console.error("Cancel error:", err);
