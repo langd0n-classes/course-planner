@@ -106,6 +106,17 @@ like `## BUILD PROMPT v2`). Don't edit the original —
 keep the history. Add a brief note at the top of the new
 comment explaining what changed from the prior version.
 
+**Updating long comments via `gh api`:** The `--input`
+and `-F body=@file` flags URL-encode the body, which hits
+HTTP 414 (Request-URL Too Long) on prompt-sized comments.
+Use a shell variable instead:
+
+```bash
+BODY=$(cat prompt.md)
+gh api repos/langd0n-classes/course-planner/issues/comments/<id> \
+  -X PATCH -f body="$BODY"
+```
+
 **Historical prompts** from earlier phases are in
 `docs/prompts/` for reference. New work should use
 issues, not new prompt files.
