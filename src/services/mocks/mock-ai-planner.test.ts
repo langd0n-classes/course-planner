@@ -18,7 +18,7 @@ describe("MockAiPlanner", () => {
     expect(suggestions).toHaveLength(2);
     expect(suggestions[0].skillId).toBe("sk1");
     expect(suggestions[0].confidence).toBeGreaterThan(0);
-    expect(suggestions[0].rationale).toContain("[Mock]");
+    expect(suggestions[0].rationale).toContain("[Mock AI]");
   });
 
   it("returns coverage analysis", async () => {

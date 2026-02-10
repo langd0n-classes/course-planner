@@ -39,7 +39,15 @@ export interface AiPlanner {
   suggestRedistribution(context: {
     canceledSessionId: string;
     affectedSkillIds: string[];
-    availableSessions: Array<{ id: string; title: string; date: Date | null }>;
+    availableSessions: Array<{
+      id: string;
+      title: string;
+      date: Date | null;
+      moduleId?: string;
+      skillCategories?: string[];
+    }>;
+    canceledModuleId?: string;
+    skillDetails?: Array<{ id: string; category: string; level: string }>;
     termContext: string;
   }): Promise<RedistributionSuggestion[]>;
 

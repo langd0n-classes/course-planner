@@ -90,6 +90,41 @@ view, no change simulation, coverage matrix hides gaps.
 
 ---
 
+## Phase 2A.3: Redistribution & Polish (complete)
+
+**Goal:** Make cancellation actionable with redistribution,
+fix quality issues from Phase 2A code review.
+
+**Delivered:**
+- Redistribution UI in what-if panel: multi-step flow
+  (impact → redistribute → validate → confirm)
+- At-risk skill dropdowns with same-module/other-module
+  grouping
+- "Suggest Redistribution" button using improved mock AI
+  (same-module, same-category, round-robin preferences)
+- dryRun validation via cancel endpoint
+- "Cancel Without Redistributing" option
+- Non-at-risk skills shown in collapsed reference section
+- Empty calendar cell interactions (create session /
+  assign unscheduled session)
+- What-if panel on term detail page (shared component)
+- Calendar meeting pattern derived from data (not
+  hardcoded TTh/F)
+- Typed API client cleanup: removed duplicate interfaces,
+  `as unknown as` casts, raw fetch() in calendar page
+- Shared WhatIfPanel component (`src/components/`)
+- AI suggestion endpoint (`POST /api/ai/suggest-
+  redistribution`)
+- Cancel endpoint tests (6 tests with Prisma mocking)
+- Playwright E2E test scaffold
+- `output: "standalone"` in next.config.ts (was already
+  present)
+- 49 unit tests passing (6 new cancel route tests)
+
+**Build prompt:** `docs/prompts/phase2a3_redistribution_and_polish.md`
+
+---
+
 ## Phase 2B: Views, Flow, Workspace (after 2A)
 
 **Goal:** Make the app a rich workspace, not just a

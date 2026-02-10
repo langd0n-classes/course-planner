@@ -2,25 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api-client";
-
-interface Term {
-  id: string;
-  code: string;
-  name: string;
-  courseCode: string;
-  startDate: string;
-  endDate: string;
-  clonedFromId: string | null;
-  instructor: { id: string; name: string };
-  _count: { modules: number; assessments: number };
-}
-
-interface Instructor {
-  id: string;
-  name: string;
-  email: string;
-}
+import { api, type Term, type Instructor } from "@/lib/api-client";
 
 export default function TermsPage() {
   const [terms, setTerms] = useState<Term[]>([]);
@@ -42,8 +24,8 @@ export default function TermsPage() {
 
   async function loadData() {
     const [t, i] = await Promise.all([
-      api.getTerms() as unknown as Promise<Term[]>,
-      api.getInstructors() as unknown as Promise<Instructor[]>,
+      api.getTerms(),
+      api.getInstructors(),
     ]);
     setTerms(t);
     setInstructors(i);
