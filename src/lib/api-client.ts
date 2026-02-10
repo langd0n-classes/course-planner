@@ -32,7 +32,7 @@ export interface Term {
   courseCode: string;
   startDate: string;
   endDate: string;
-  meetingPattern: unknown;
+  meetingPattern: { days?: string[] } | null;
   instructorId: string;
   clonedFromId?: string | null;
   instructor?: Instructor;
@@ -126,6 +126,26 @@ export interface ImportResult {
   skills?: number;
   coverages?: number;
   assessments?: number;
+}
+
+export interface WhatIfImpact {
+  canceledSessionId: string;
+  affectedCoverages: Array<{ skillId: string; level: string }>;
+  atRiskSkills: Array<{
+    skillId: string;
+    skillCode: string;
+    level: string;
+    uniqueCoverage: boolean;
+    otherSessions: Array<{ sessionId: string; sessionCode: string; level: string }>;
+  }>;
+  healthBefore: { totalSkills: number; fullyCovered: number; fullyIntroduced: number };
+  healthAfter: { totalSkills: number; fullyCovered: number; fullyIntroduced: number };
+  newViolations: Array<{ type: string; message: string }>;
+}
+
+export interface ScenarioComparison {
+  scenarioA: WhatIfImpact;
+  scenarioB: WhatIfImpact;
 }
 
 // ─── API Client ─────────────────────────────────────────
@@ -227,7 +247,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
   getSessionWhatIf: (id: string) =>
-    request<unknown>(`/api/sessions/${id}/whatif`),
+    request<WhatIfImpact>(`/api/sessions/${id}/whatif`),
 
   // Coverage
   getCoverages: (params?: {
@@ -303,7 +323,7 @@ export const api = {
 
   // What-If
   whatIfCompare: (termId: string, sessionA: string, sessionB: string) =>
-    request<unknown>(
+    request<ScenarioComparison>(
       `/api/terms/${termId}/whatif-compare?sessionA=${sessionA}&sessionB=${sessionB}`,
     ),
 };

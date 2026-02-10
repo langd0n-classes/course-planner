@@ -9,23 +9,87 @@ export class MockAiPlanner implements AiPlanner {
   async suggestRedistribution(context: {
     canceledSessionId: string;
     affectedSkillIds: string[];
-    availableSessions: Array<{ id: string; title: string; date: Date | null }>;
+    availableSessions: Array<{
+      id: string;
+      title: string;
+      date: Date | null;
+      moduleId?: string;
+      skillCategories?: string[];
+    }>;
+    canceledModuleId?: string;
+    skillDetails?: Array<{ id: string; category: string; level: string }>;
     termContext: string;
   }): Promise<RedistributionSuggestion[]> {
-    // Return mock suggestions — spread skills across available sessions
-    return context.affectedSkillIds.flatMap((skillId, i) => {
-      const target =
-        context.availableSessions[i % context.availableSessions.length];
-      if (!target) return [];
-      return [
-        {
-          targetSessionId: target.id,
-          skillId,
-          suggestedLevel: "practiced" as const,
-          rationale: `[Mock] Suggested moving skill to "${target.title}" based on topic proximity.`,
-          confidence: 0.75,
-        },
-      ];
+    const {
+      affectedSkillIds,
+      availableSessions,
+      canceledModuleId,
+      skillDetails,
+    } = context;
+
+    if (availableSessions.length === 0) return [];
+
+    return affectedSkillIds.map((skillId, index) => {
+      const detail = skillDetails?.find((s) => s.id === skillId);
+
+      // 1. Prefer sessions in the same module as the canceled session
+      const sameModuleSessions = canceledModuleId
+        ? availableSessions.filter((s) => s.moduleId === canceledModuleId)
+        : [];
+
+      // 2. Prefer sessions that already cover related skills (same category)
+      const sameCategorySessions = detail?.category
+        ? availableSessions.filter((s) =>
+            s.skillCategories?.includes(detail.category),
+          )
+        : [];
+
+      // Pick the best group: same module + same category > same module > same category > all
+      const bestBoth = sameModuleSessions.filter((s) =>
+        sameCategorySessions.some((sc) => sc.id === s.id),
+      );
+
+      const preferredGroup =
+        bestBoth.length > 0
+          ? bestBoth
+          : sameModuleSessions.length > 0
+            ? sameModuleSessions
+            : sameCategorySessions.length > 0
+              ? sameCategorySessions
+              : availableSessions;
+
+      // Round-robin within the preferred group to spread the load
+      const target = preferredGroup[index % preferredGroup.length];
+
+      const suggestedLevel = (detail?.level || "practiced") as
+        | "introduced"
+        | "practiced"
+        | "assessed";
+
+      const isSameModule = sameModuleSessions.some((s) => s.id === target.id);
+      const isSameCategory = sameCategorySessions.some((s) => s.id === target.id);
+
+      return {
+        targetSessionId: target.id,
+        skillId,
+        suggestedLevel,
+        rationale: `[Mock AI] Suggested moving to "${target.title}" — ${
+          isSameModule && isSameCategory
+            ? "same module, related category"
+            : isSameModule
+              ? "same module"
+              : isSameCategory
+                ? "related skill category"
+                : "next available session"
+        }.`,
+        confidence: isSameModule && isSameCategory
+          ? 0.9
+          : isSameModule
+            ? 0.8
+            : isSameCategory
+              ? 0.7
+              : 0.5,
+      };
     });
   }
 

@@ -1,16 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { api } from "@/lib/api-client";
-
-interface Skill {
-  id: string;
-  code: string;
-  category: string;
-  description: string;
-  isGlobal: boolean;
-  _count: { coverages: number; assessmentSkills: number };
-}
+import { api, type Skill } from "@/lib/api-client";
 
 export default function SkillsPage() {
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -29,7 +20,7 @@ export default function SkillsPage() {
   }, []);
 
   async function loadSkills() {
-    const s = (await api.getSkills()) as unknown as Skill[];
+    const s = await api.getSkills();
     setSkills(s);
   }
 

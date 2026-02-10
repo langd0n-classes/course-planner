@@ -3,61 +3,23 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { api } from "@/lib/api-client";
-
-interface Skill {
-  id: string;
-  code: string;
-  description: string;
-}
-
-interface Coverage {
-  id: string;
-  level: string;
-  skill: Skill;
-}
-
-interface Session {
-  id: string;
-  sequence: number;
-  sessionType: string;
-  code: string;
-  title: string;
-  date: string | null;
-  description: string | null;
-  format: string | null;
-  notes: string | null;
-  coverages: Coverage[];
-}
-
-interface Module {
-  id: string;
-  sequence: number;
-  code: string;
-  title: string;
-  description: string | null;
-  sessions: Session[];
-}
-
-interface Term {
-  id: string;
-  code: string;
-  name: string;
-  courseCode: string;
-  startDate: string;
-  endDate: string;
-  instructor: { name: string };
-  modules: Module[];
-  assessments: unknown[];
-}
+import {
+  api,
+  type Term,
+  type Session,
+} from "@/lib/api-client";
+import WhatIfPanel from "@/components/WhatIfPanel";
 
 export default function TermDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [term, setTerm] = useState<Term | null>(null);
+  const [allSessions, setAllSessions] = useState<Session[]>([]);
   const [showAddModule, setShowAddModule] = useState(false);
   const [editingSession, setEditingSession] = useState<string | null>(null);
   const [showAddSession, setShowAddSession] = useState<string | null>(null);
   const [moveSession, setMoveSession] = useState<string | null>(null);
+  const [whatIfSession, setWhatIfSession] = useState<string | null>(null);
+  const [compareSession, setCompareSession] = useState<string | null>(null);
   const [moveResult, setMoveResult] = useState<{
     affectedSkillIds: string[];
     newViolations: { type: string; message: string }[];
@@ -78,20 +40,40 @@ export default function TermDetailPage() {
   const [moveForm, setMoveForm] = useState({ date: "", sequence: 0 });
 
   const load = useCallback(async () => {
-    const t = (await api.getTerm(id)) as unknown as Term;
+    const [t, sessions] = await Promise.all([
+      api.getTerm(id),
+      api.getSessions({ termId: id }),
+    ]);
     setTerm(t);
+    setAllSessions(sessions);
   }, [id]);
 
   useEffect(() => {
     load();
   }, [load]);
 
+  const handleApplyCancel = useCallback(
+    async (
+      sessionId: string,
+      reason: string,
+      redistributions: Array<{ skillId: string; level: string; targetSessionId: string }>,
+    ) => {
+      try {
+        await api.cancelSession(sessionId, { reason, redistributions });
+        load();
+      } catch (err) {
+        console.error("Cancel error:", err);
+      }
+    },
+    [load],
+  );
+
   async function addModule(e: React.FormEvent) {
     e.preventDefault();
     if (!term) return;
     await api.createModule({
       termId: term.id,
-      sequence: term.modules.length,
+      sequence: term.modules?.length ?? 0,
       ...modForm,
     });
     setShowAddModule(false);
@@ -107,10 +89,10 @@ export default function TermDetailPage() {
 
   async function addSession(moduleId: string, e: React.FormEvent) {
     e.preventDefault();
-    const mod = term?.modules.find((m) => m.id === moduleId);
+    const mod = term?.modules?.find((m) => m.id === moduleId);
     await api.createSession({
       moduleId,
-      sequence: mod?.sessions.length ?? 0,
+      sequence: mod?.sessions?.length ?? 0,
       ...sessionForm,
       date: sessionForm.date || null,
     });
@@ -144,19 +126,23 @@ export default function TermDetailPage() {
 
   async function handleMoveSession(sessionId: string, e: React.FormEvent) {
     e.preventDefault();
-    const result = (await api.moveSession(sessionId, {
+    const result = await api.moveSession(sessionId, {
       date: moveForm.date || null,
       sequence: moveForm.sequence,
-    })) as unknown as { impact: typeof moveResult };
-    setMoveResult(result.impact);
+    });
+    if (result.impact) {
+      setMoveResult(result.impact);
+    }
     setMoveSession(null);
     load();
   }
 
   if (!term) return <p className="text-gray-500">Loading...</p>;
 
+  const modules = term.modules ?? [];
+
   return (
-    <div>
+    <div className={`${whatIfSession ? "mr-[420px]" : ""} transition-all`}>
       <div className="flex justify-between items-start mb-4">
         <div>
           <h1 className="text-2xl font-bold">
@@ -166,7 +152,7 @@ export default function TermDetailPage() {
             </span>
           </h1>
           <p className="text-sm text-gray-500">
-            {term.instructor.name} &middot;{" "}
+            {term.instructor?.name} &middot;{" "}
             {new Date(term.startDate).toLocaleDateString()} —{" "}
             {new Date(term.endDate).toLocaleDateString()}
           </p>
@@ -285,11 +271,11 @@ export default function TermDetailPage() {
         </form>
       )}
 
-      {term.modules.length === 0 ? (
+      {modules.length === 0 ? (
         <p className="text-gray-500 text-sm">No modules yet.</p>
       ) : (
         <div className="space-y-4">
-          {term.modules.map((mod) => (
+          {modules.map((mod) => (
             <div key={mod.id} className="bg-white border rounded">
               <div className="px-4 py-3 border-b flex justify-between items-center">
                 <div>
@@ -297,7 +283,7 @@ export default function TermDetailPage() {
                     {mod.code}: {mod.title}
                   </span>
                   <span className="text-gray-400 text-sm ml-2">
-                    ({mod.sessions.length} sessions)
+                    ({(mod.sessions ?? []).length} sessions)
                   </span>
                 </div>
                 <div className="flex gap-2">
@@ -396,9 +382,9 @@ export default function TermDetailPage() {
                 </form>
               )}
 
-              {mod.sessions.length > 0 && (
+              {(mod.sessions ?? []).length > 0 && (
                 <div className="divide-y">
-                  {mod.sessions.map((s) => (
+                  {(mod.sessions ?? []).map((s) => (
                     <div key={s.id} className="px-4 py-2">
                       {editingSession === s.id ? (
                         <form
@@ -494,18 +480,26 @@ export default function TermDetailPage() {
                                 {new Date(s.date).toLocaleDateString()}
                               </span>
                             )}
-                            {s.coverages.length > 0 && (
+                            {(s.coverages?.length ?? 0) > 0 && (
                               <span className="text-gray-400 text-xs ml-2">
-                                [{s.coverages.map((c) => `${c.skill.code}:${c.level[0].toUpperCase()}`).join(", ")}]
+                                [{s.coverages!.map((c) => `${c.skill?.code}:${c.level[0].toUpperCase()}`).join(", ")}]
                               </span>
                             )}
                           </div>
                           <div className="flex gap-2 text-xs">
+                            {s.status === "scheduled" && (
+                              <button
+                                onClick={() => setWhatIfSession(s.id)}
+                                className="text-red-500 hover:underline"
+                              >
+                                What if cancel?
+                              </button>
+                            )}
                             <button
                               onClick={() => {
                                 setEditingSession(s.id);
                                 setSessionForm({
-                                  sessionType: s.sessionType as "lecture" | "lab",
+                                  sessionType: s.sessionType,
                                   code: s.code,
                                   title: s.title,
                                   date: s.date
@@ -604,6 +598,22 @@ export default function TermDetailPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* What-If side panel */}
+      {whatIfSession && (
+        <WhatIfPanel
+          sessionId={whatIfSession}
+          termId={id}
+          sessions={allSessions}
+          onClose={() => {
+            setWhatIfSession(null);
+            setCompareSession(null);
+          }}
+          onApplyCancel={handleApplyCancel}
+          compareSessionId={compareSession}
+          onSetCompare={setCompareSession}
+        />
       )}
     </div>
   );

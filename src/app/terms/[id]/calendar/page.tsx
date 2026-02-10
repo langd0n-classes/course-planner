@@ -3,55 +3,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-
-// ─── Types ──────────────────────────────────────────────
-
-interface CalendarSlot {
-  id: string;
-  date: string;
-  dayOfWeek: string;
-  slotType: "class_day" | "holiday" | "finals" | "break_day";
-  label: string | null;
-}
-
-interface Coverage {
-  id: string;
-  level: string;
-  skill: { id: string; code: string; description: string };
-}
-
-interface Session {
-  id: string;
-  code: string;
-  title: string;
-  date: string | null;
-  sessionType: string;
-  status: string;
-  canceledReason: string | null;
-  sequence: number;
-  coverages: Coverage[];
-  module: { id: string; code: string; title: string; sequence: number };
-}
-
-interface WhatIfImpact {
-  canceledSessionId: string;
-  affectedCoverages: Array<{ skillId: string; level: string }>;
-  atRiskSkills: Array<{
-    skillId: string;
-    skillCode: string;
-    level: string;
-    uniqueCoverage: boolean;
-    otherSessions: Array<{ sessionId: string; sessionCode: string; level: string }>;
-  }>;
-  healthBefore: { totalSkills: number; fullyCovered: number; fullyIntroduced: number };
-  healthAfter: { totalSkills: number; fullyCovered: number; fullyIntroduced: number };
-  newViolations: Array<{ type: string; message: string }>;
-}
-
-interface ScenarioComparison {
-  scenarioA: WhatIfImpact;
-  scenarioB: WhatIfImpact;
-}
+import {
+  api,
+  type CalendarSlot,
+  type Session,
+  type Term,
+} from "@/lib/api-client";
+import WhatIfPanel from "@/components/WhatIfPanel";
 
 // ─── Module color coding ────────────────────────────────
 
@@ -70,6 +28,38 @@ function getModuleColor(sequence: number): string {
   return MODULE_COLORS[sequence % MODULE_COLORS.length];
 }
 
+// ─── Helper: Derive day columns from meeting pattern ────
+
+const DEFAULT_DAY_COLUMNS = ["Tuesday", "Thursday", "Friday"];
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+}
+
+function getDayColumns(term: Term | null, slots: CalendarSlot[]): string[] {
+  // 1. Try from term's meetingPattern
+  if (term?.meetingPattern?.days && term.meetingPattern.days.length > 0) {
+    return term.meetingPattern.days.map(capitalize);
+  }
+
+  // 2. Derive from actual calendar slots
+  if (slots.length > 0) {
+    const daySet = new Set<string>();
+    for (const slot of slots) {
+      if (slot.slotType === "class_day") {
+        daySet.add(slot.dayOfWeek);
+      }
+    }
+    if (daySet.size > 0) {
+      const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+      return dayOrder.filter((d) => daySet.has(d));
+    }
+  }
+
+  // 3. Fall back to default
+  return DEFAULT_DAY_COLUMNS;
+}
+
 // ─── Session Card ───────────────────────────────────────
 
 function SessionCard({
@@ -82,7 +72,7 @@ function SessionCard({
   onWhatIf: () => void;
 }) {
   const isCanceled = session.status === "canceled";
-  const colorClass = getModuleColor(session.module.sequence);
+  const colorClass = getModuleColor(session.module?.sequence ?? 0);
 
   return (
     <div
@@ -110,14 +100,14 @@ function SessionCard({
       </div>
       <div className="flex items-center gap-1 mt-1">
         <span className="bg-white/50 px-1 rounded text-[10px]">
-          {session.module.code}
+          {session.module?.code}
         </span>
         <span className="bg-white/50 px-1 rounded text-[10px]">
           {session.sessionType}
         </span>
-        {session.coverages.length > 0 && (
+        {(session.coverages?.length ?? 0) > 0 && (
           <span className="bg-white/50 px-1 rounded text-[10px]">
-            {session.coverages.length} skills
+            {session.coverages!.length} skills
           </span>
         )}
       </div>
@@ -136,281 +126,173 @@ function SessionCard({
   );
 }
 
-// ─── What-If Panel ──────────────────────────────────────
+// ─── Empty Cell Popover ─────────────────────────────────
 
-function WhatIfPanel({
-  sessionId,
+function EmptyCellPopover({
+  date,
   termId,
-  sessions,
+  unscheduledSessions,
   onClose,
-  onApplyCancel,
-  compareSessionId,
-  onSetCompare,
+  onRefresh,
 }: {
-  sessionId: string;
+  date: string;
   termId: string;
-  sessions: Session[];
+  unscheduledSessions: Session[];
   onClose: () => void;
-  onApplyCancel: (sessionId: string, reason: string) => void;
-  compareSessionId: string | null;
-  onSetCompare: (id: string | null) => void;
+  onRefresh: () => void;
 }) {
-  const [impact, setImpact] = useState<WhatIfImpact | null>(null);
-  const [comparison, setComparison] = useState<ScenarioComparison | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [cancelReason, setCancelReason] = useState("");
-  const [showApply, setShowApply] = useState(false);
-  const [demoScenario, setDemoScenario] = useState("");
-
-  // Demo scenarios
-  const demoScenarios = sessions
-    .filter((s) => s.status === "scheduled" && s.coverages.length > 0)
-    .slice(0, 3)
-    .map((s) => ({
-      id: s.id,
-      label: `Cancel ${s.code} — ${s.coverages.length} skills affected`,
-    }));
+  const [mode, setMode] = useState<"menu" | "create" | "assign">("menu");
+  const [createForm, setCreateForm] = useState({
+    code: "",
+    title: "",
+    sessionType: "lecture" as "lecture" | "lab",
+  });
+  const [assignSessionId, setAssignSessionId] = useState("");
+  const [moduleId, setModuleId] = useState("");
+  const [modules, setModules] = useState<Array<{ id: string; code: string; title: string }>>([]);
 
   useEffect(() => {
-    async function load() {
-      setLoading(true);
-      try {
-        const targetId = demoScenario || sessionId;
-        const res = await fetch(`/api/sessions/${targetId}/whatif`);
-        if (res.ok) {
-          setImpact(await res.json());
-        }
-      } catch (err) {
-        console.error("What-if error:", err);
-      }
-      setLoading(false);
-    }
-    load();
-  }, [sessionId, demoScenario]);
+    api.getModules(termId).then((mods) => {
+      setModules(mods.map((m) => ({ id: m.id, code: m.code, title: m.title })));
+      if (mods.length > 0) setModuleId(mods[0].id);
+    });
+  }, [termId]);
 
-  useEffect(() => {
-    if (!compareSessionId) {
-      setComparison(null);
-      return;
-    }
-    async function loadComparison() {
-      try {
-        const targetA = demoScenario || sessionId;
-        const res = await fetch(
-          `/api/terms/${termId}/whatif-compare?sessionA=${targetA}&sessionB=${compareSessionId}`,
-        );
-        if (res.ok) {
-          setComparison(await res.json());
-        }
-      } catch (err) {
-        console.error("Comparison error:", err);
-      }
-    }
-    loadComparison();
-  }, [compareSessionId, sessionId, termId, demoScenario]);
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!moduleId) return;
+    await api.createSession({
+      moduleId,
+      sequence: 0,
+      code: createForm.code,
+      title: createForm.title,
+      sessionType: createForm.sessionType,
+      date,
+    });
+    onRefresh();
+    onClose();
+  }
 
-  const session = sessions.find((s) => s.id === (demoScenario || sessionId));
+  async function handleAssign() {
+    if (!assignSessionId) return;
+    await api.updateSession(assignSessionId, { date });
+    onRefresh();
+    onClose();
+  }
 
   return (
-    <div className="fixed right-0 top-0 h-full w-[420px] bg-white border-l border-gray-200 shadow-lg z-50 overflow-y-auto">
-      <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex items-center justify-between">
-        <h2 className="font-bold text-lg">What-If Analysis</h2>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">
-          &times;
-        </button>
-      </div>
+    <div
+      className="fixed inset-0 z-40"
+      onClick={onClose}
+    >
+      <div
+        className="absolute bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-72 z-50"
+        style={{ top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-medium">
+            {date}
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg">
+            &times;
+          </button>
+        </div>
 
-      <div className="p-4 space-y-4">
-        {/* Demo scenarios dropdown */}
-        {demoScenarios.length > 0 && (
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">
-              Load demo scenario
-            </label>
-            <select
-              value={demoScenario}
-              onChange={(e) => {
-                setDemoScenario(e.target.value);
-                onSetCompare(null);
-              }}
-              className="w-full border border-gray-300 rounded text-sm p-2"
+        {mode === "menu" && (
+          <div className="space-y-2">
+            <button
+              onClick={() => setMode("create")}
+              className="w-full text-left px-3 py-2 text-sm bg-blue-50 hover:bg-blue-100 rounded border border-blue-200"
             >
-              <option value="">Current selection: {session?.code}</option>
-              {demoScenarios.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.label}
-                </option>
-              ))}
-            </select>
+              Create new session
+            </button>
+            {unscheduledSessions.length > 0 && (
+              <button
+                onClick={() => setMode("assign")}
+                className="w-full text-left px-3 py-2 text-sm bg-green-50 hover:bg-green-100 rounded border border-green-200"
+              >
+                Assign existing session ({unscheduledSessions.length} unscheduled)
+              </button>
+            )}
           </div>
         )}
 
-        {loading ? (
-          <div className="text-sm text-gray-500">Analyzing impact...</div>
-        ) : impact ? (
-          <>
-            {/* Session info */}
-            <div className="bg-gray-50 rounded p-3">
-              <div className="font-mono font-bold">{session?.code}</div>
-              <div className="text-sm text-gray-600">{session?.title}</div>
-            </div>
-
-            {/* Coverage impact */}
-            <div>
-              <h3 className="text-sm font-medium mb-2">Coverage Impact</h3>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="bg-gray-50 p-2 rounded">
-                  <div className="text-xs text-gray-500">Before</div>
-                  <div className="font-bold">
-                    {impact.healthBefore.fullyCovered} / {impact.healthBefore.totalSkills}
-                  </div>
-                  <div className="text-xs text-gray-500">fully covered</div>
-                </div>
-                <div className="bg-red-50 p-2 rounded">
-                  <div className="text-xs text-gray-500">After</div>
-                  <div className="font-bold text-red-700">
-                    {impact.healthAfter.fullyCovered} / {impact.healthAfter.totalSkills}
-                  </div>
-                  <div className="text-xs text-gray-500">fully covered</div>
-                </div>
-              </div>
-            </div>
-
-            {/* At-risk skills */}
-            {impact.atRiskSkills.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium mb-2">
-                  At-Risk Skills ({impact.atRiskSkills.filter((s) => s.uniqueCoverage).length} unique)
-                </h3>
-                <div className="space-y-1 max-h-48 overflow-y-auto">
-                  {impact.atRiskSkills.map((skill, i) => (
-                    <div
-                      key={i}
-                      className={`text-xs p-2 rounded border ${
-                        skill.uniqueCoverage
-                          ? "bg-red-50 border-red-200"
-                          : "bg-yellow-50 border-yellow-200"
-                      }`}
-                    >
-                      <span className="font-mono font-medium">{skill.skillCode}</span>
-                      <span className="ml-1 text-gray-500">({skill.level})</span>
-                      {skill.uniqueCoverage && (
-                        <span className="ml-1 text-red-600 font-medium">UNIQUE</span>
-                      )}
-                      {skill.otherSessions.length > 0 && (
-                        <div className="text-gray-500 mt-1">
-                          Also in: {skill.otherSessions.map((s) => s.sessionCode).join(", ")}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* New violations */}
-            {impact.newViolations.length > 0 && (
-              <div className="bg-red-50 border border-red-200 rounded p-3">
-                <h3 className="text-sm font-medium text-red-800 mb-1">
-                  New Ordering Violations
-                </h3>
-                {impact.newViolations.map((v, i) => (
-                  <div key={i} className="text-xs text-red-700">
-                    {v.message}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Compare section */}
-            <div>
-              <h3 className="text-sm font-medium mb-2">Compare with another session</h3>
-              <select
-                value={compareSessionId || ""}
-                onChange={(e) => onSetCompare(e.target.value || null)}
-                className="w-full border border-gray-300 rounded text-sm p-2"
-              >
-                <option value="">Select a session to compare...</option>
-                {sessions
-                  .filter(
-                    (s) =>
-                      s.status === "scheduled" &&
-                      s.id !== (demoScenario || sessionId),
-                  )
-                  .map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.code}: {s.title} ({s.coverages.length} skills)
-                    </option>
-                  ))}
-              </select>
-            </div>
-
-            {/* Side-by-side comparison */}
-            {comparison && (
-              <div className="border border-gray-200 rounded">
-                <div className="grid grid-cols-2 text-xs">
-                  <div className="p-3 border-r border-gray-200">
-                    <div className="font-bold mb-1">
-                      {sessions.find((s) => s.id === comparison.scenarioA.canceledSessionId)?.code}
-                    </div>
-                    <div>At-risk (unique): {comparison.scenarioA.atRiskSkills.filter((s) => s.uniqueCoverage).length}</div>
-                    <div>Fully covered: {comparison.scenarioA.healthBefore.fullyCovered} → {comparison.scenarioA.healthAfter.fullyCovered}</div>
-                    <div>New violations: {comparison.scenarioA.newViolations.length}</div>
-                  </div>
-                  <div className="p-3">
-                    <div className="font-bold mb-1">
-                      {sessions.find((s) => s.id === comparison.scenarioB.canceledSessionId)?.code}
-                    </div>
-                    <div>At-risk (unique): {comparison.scenarioB.atRiskSkills.filter((s) => s.uniqueCoverage).length}</div>
-                    <div>Fully covered: {comparison.scenarioB.healthBefore.fullyCovered} → {comparison.scenarioB.healthAfter.fullyCovered}</div>
-                    <div>New violations: {comparison.scenarioB.newViolations.length}</div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Apply cancellation */}
-            {!showApply ? (
-              <button
-                onClick={() => setShowApply(true)}
-                className="w-full px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm font-medium"
-              >
-                Apply Cancellation
+        {mode === "create" && (
+          <form onSubmit={handleCreate} className="space-y-2">
+            <select
+              value={moduleId}
+              onChange={(e) => setModuleId(e.target.value)}
+              className="w-full border border-gray-300 rounded text-sm p-1.5"
+              required
+            >
+              <option value="">Select module...</option>
+              {modules.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.code}: {m.title}
+                </option>
+              ))}
+            </select>
+            <select
+              value={createForm.sessionType}
+              onChange={(e) => setCreateForm({ ...createForm, sessionType: e.target.value as "lecture" | "lab" })}
+              className="w-full border border-gray-300 rounded text-sm p-1.5"
+            >
+              <option value="lecture">Lecture</option>
+              <option value="lab">Lab</option>
+            </select>
+            <input
+              value={createForm.code}
+              onChange={(e) => setCreateForm({ ...createForm, code: e.target.value })}
+              placeholder="Code (e.g. lec-05)"
+              className="w-full border border-gray-300 rounded text-sm p-1.5"
+              required
+            />
+            <input
+              value={createForm.title}
+              onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })}
+              placeholder="Title"
+              className="w-full border border-gray-300 rounded text-sm p-1.5"
+              required
+            />
+            <div className="flex gap-2">
+              <button type="submit" className="flex-1 bg-blue-600 text-white px-3 py-1.5 rounded text-sm">
+                Create
               </button>
-            ) : (
-              <div className="border border-red-200 rounded p-3 space-y-3">
-                <h3 className="text-sm font-medium text-red-800">
-                  Confirm Cancellation
-                </h3>
-                <textarea
-                  value={cancelReason}
-                  onChange={(e) => setCancelReason(e.target.value)}
-                  placeholder="Reason for cancellation (optional)"
-                  rows={2}
-                  className="w-full border border-gray-300 rounded p-2 text-sm"
-                />
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      onApplyCancel(demoScenario || sessionId, cancelReason);
-                      onClose();
-                    }}
-                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm font-medium"
-                  >
-                    Confirm Cancel
-                  </button>
-                  <button
-                    onClick={() => setShowApply(false)}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm"
-                  >
-                    Back
-                  </button>
-                </div>
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="text-sm text-gray-500">No impact data available.</div>
+              <button type="button" onClick={() => setMode("menu")} className="px-3 py-1.5 border rounded text-sm">
+                Back
+              </button>
+            </div>
+          </form>
+        )}
+
+        {mode === "assign" && (
+          <div className="space-y-2">
+            <select
+              value={assignSessionId}
+              onChange={(e) => setAssignSessionId(e.target.value)}
+              className="w-full border border-gray-300 rounded text-sm p-1.5"
+            >
+              <option value="">Select session...</option>
+              {unscheduledSessions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.code}: {s.title} ({s.module?.code})
+                </option>
+              ))}
+            </select>
+            <div className="flex gap-2">
+              <button
+                onClick={handleAssign}
+                disabled={!assignSessionId}
+                className="flex-1 bg-green-600 text-white px-3 py-1.5 rounded text-sm disabled:opacity-50"
+              >
+                Assign
+              </button>
+              <button onClick={() => setMode("menu")} className="px-3 py-1.5 border rounded text-sm">
+                Back
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>
@@ -421,6 +303,7 @@ function WhatIfPanel({
 
 export default function CalendarPage() {
   const { id: termId } = useParams<{ id: string }>();
+  const [term, setTerm] = useState<Term | null>(null);
   const [slots, setSlots] = useState<CalendarSlot[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
@@ -428,17 +311,19 @@ export default function CalendarPage() {
   const [whatIfSession, setWhatIfSession] = useState<string | null>(null);
   const [compareSession, setCompareSession] = useState<string | null>(null);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const [emptyCellDate, setEmptyCellDate] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [slotsRes, sessionsRes] = await Promise.all([
-        fetch(`/api/terms/${termId}/calendar-slots`),
-        fetch(`/api/sessions?termId=${termId}`),
+      const [termData, slotsData, sessionsData] = await Promise.all([
+        api.getTerm(termId),
+        api.getCalendarSlots(termId),
+        api.getSessions({ termId }),
       ]);
-
-      if (slotsRes.ok) setSlots(await slotsRes.json());
-      if (sessionsRes.ok) setSessions(await sessionsRes.json());
+      setTerm(termData);
+      setSlots(slotsData);
+      setSessions(sessionsData);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -451,22 +336,23 @@ export default function CalendarPage() {
   }, [loadData]);
 
   const handleApplyCancel = useCallback(
-    async (sessionId: string, reason: string) => {
+    async (
+      sessionId: string,
+      reason: string,
+      redistributions: Array<{ skillId: string; level: string; targetSessionId: string }>,
+    ) => {
       try {
-        const res = await fetch(`/api/sessions/${sessionId}/cancel`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reason }),
-        });
-        if (res.ok) {
-          loadData();
-        }
+        await api.cancelSession(sessionId, { reason, redistributions });
+        loadData();
       } catch (err) {
         console.error("Cancel error:", err);
       }
     },
     [loadData],
   );
+
+  // Derive day columns from term data
+  const dayColumns = getDayColumns(term, slots);
 
   // Build session lookup by date
   const sessionsByDate = new Map<string, Session[]>();
@@ -483,7 +369,6 @@ export default function CalendarPage() {
 
   // Build weeks from slots
   const weeks: CalendarSlot[][] = [];
-  const dayColumns = ["Tuesday", "Thursday", "Friday"]; // Default TTh/F
   let currentWeek: CalendarSlot[] = [];
   let lastWeekStart = "";
 
@@ -630,7 +515,10 @@ export default function CalendarPage() {
                                 ))}
                               </div>
                             ) : (
-                              <div className="border-2 border-dashed border-gray-200 rounded p-2 h-16 flex items-center justify-center">
+                              <div
+                                className="border-2 border-dashed border-gray-200 rounded p-2 h-16 flex items-center justify-center cursor-pointer hover:border-blue-300 hover:bg-blue-50/30 transition-colors"
+                                onClick={() => setEmptyCellDate(dateStr)}
+                              >
                                 <span className="text-xs text-gray-400">
                                   Unplanned
                                 </span>
@@ -667,6 +555,17 @@ export default function CalendarPage() {
         </>
       )}
 
+      {/* Empty cell popover */}
+      {emptyCellDate && (
+        <EmptyCellPopover
+          date={emptyCellDate}
+          termId={termId}
+          unscheduledSessions={unscheduled}
+          onClose={() => setEmptyCellDate(null)}
+          onRefresh={loadData}
+        />
+      )}
+
       {/* Session detail modal */}
       {selectedSession && (
         <div
@@ -691,7 +590,7 @@ export default function CalendarPage() {
             <div className="space-y-2 text-sm">
               <div>
                 <span className="font-medium text-gray-500">Module: </span>
-                {selectedSession.module.code} — {selectedSession.module.title}
+                {selectedSession.module?.code} — {selectedSession.module?.title}
               </div>
               <div>
                 <span className="font-medium text-gray-500">Type: </span>
@@ -717,16 +616,16 @@ export default function CalendarPage() {
                   {selectedSession.canceledReason}
                 </div>
               )}
-              {selectedSession.coverages.length > 0 && (
+              {(selectedSession.coverages?.length ?? 0) > 0 && (
                 <div>
                   <span className="font-medium text-gray-500">Coverage: </span>
                   <div className="mt-1 space-y-1">
-                    {selectedSession.coverages.map((c) => (
+                    {selectedSession.coverages!.map((c) => (
                       <div
                         key={c.id}
                         className="flex items-center gap-2 text-xs bg-gray-50 p-1 rounded"
                       >
-                        <span className="font-mono">{c.skill.code}</span>
+                        <span className="font-mono">{c.skill?.code}</span>
                         <span
                           className={`px-1 rounded text-[10px] ${
                             c.level === "introduced"
@@ -739,7 +638,7 @@ export default function CalendarPage() {
                           {c.level}
                         </span>
                         <span className="text-gray-500 truncate">
-                          {c.skill.description}
+                          {c.skill?.description}
                         </span>
                       </div>
                     ))}

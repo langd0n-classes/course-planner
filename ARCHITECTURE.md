@@ -71,6 +71,8 @@ src/
 │   │   │       └── whatif/
 │   │   ├── coverages/
 │   │   ├── assessments/
+│   │   ├── ai/
+│   │   │   └── suggest-redistribution/
 │   │   └── artifacts/
 │   │       └── export/
 │   ├── terms/              # Term pages
@@ -104,7 +106,8 @@ src/
 │   │   └── mock-artifact-exporter.test.ts
 │   ├── real/               # Future: real implementations
 │   └── index.ts            # Service registry
-└── components/             # Shared UI components (future)
+├── components/             # Shared UI components
+│   └── WhatIfPanel.tsx     # What-if analysis + redistribution workflow
 
 prisma/
 ├── schema.prisma           # Database schema
@@ -177,6 +180,21 @@ Seed script: `scripts/generate-ds100-exemplar.ts` generates `ds100-calendar.json
 
 ## Cancellation Workflow
 
-- `POST /api/sessions/[id]/cancel` — Cancel session with optional redistribution
+- `POST /api/sessions/[id]/cancel` — Cancel session with optional redistribution; supports `dryRun: true` for validation without persistence
 - `GET /api/sessions/[id]/whatif` — Simulate cancellation impact (read-only)
 - `GET /api/terms/[id]/whatif-compare` — Compare two cancellation scenarios
+- `POST /api/ai/suggest-redistribution` — Mock AI suggestions for skill redistribution targets
+
+### Redistribution Flow (Phase 2A.3)
+
+The what-if panel (`WhatIfPanel.tsx`) now supports a multi-step cancellation workflow:
+1. **Impact** — See coverage health diff, at-risk skills, ordering violations
+2. **Redistribute** — Assign at-risk skills to other sessions via dropdowns; optionally use AI suggestions
+3. **Validate** — Dry-run validation against coverage ordering rules
+4. **Confirm** — Apply cancellation with redistributions, or skip redistribution
+
+The panel is shared between the calendar view and the term detail page.
+
+## E2E Testing
+
+Playwright E2E tests live in `e2e/`. Config: `playwright.config.ts`. Run with `npm run e2e`.
