@@ -56,15 +56,18 @@ subsequent comments capture prompt revisions, review
 notes, and lessons learned. The issue is closed when
 the work ships.
 
-**To read an issue and its build prompt**, run this first:
+**To read an issue and its build prompt:**
+
+First, check if `gh` works: `gh auth status`. If it does,
+use `gh api` directly (see commands below). If `gh` is
+missing or auth fails (common in remote/sandboxed envs):
 
 ```bash
 source scripts/gh-access-remote.sh
 ```
 
-This handles everything: installs `gh` without sudo if
-needed, authenticates using `GH_TOKEN`, and provides a
-`gh-issue` helper. Then:
+This installs `gh` without sudo, authenticates using
+`GH_TOKEN`, and provides a `gh-issue` helper:
 
 ```bash
 gh-issue <number>              # issue body
@@ -72,15 +75,17 @@ gh-issue <number> --prompt     # latest BUILD PROMPT comment
 gh-issue <number> --comments   # all comments
 ```
 
-**Requires:** `GH_TOKEN` env var set in Claude Code
-project environment variables. The script checks both
-`GH_TOKEN` and `GITHUB_TOKEN`.
+If `gh` is already working, you can use `gh api` directly:
+
+```bash
+gh api repos/langd0n-classes/course-planner/issues/<number> --jq '.body'
+gh api repos/langd0n-classes/course-planner/issues/<number>/comments \
+  --jq '[.[] | select(.body | startswith("## BUILD PROMPT"))] | last | .body'
+```
 
 **IMPORTANT:** Do NOT use `gh issue view` — it has a
 known GraphQL bug with GitHub Projects Classic that causes
-failures. The script uses `gh api` (REST) which works
-reliably, with a `curl` + `python3` fallback if `gh`
-install fails.
+failures. Always use `gh api` (REST) instead.
 
 **To find the build prompt:** look for the most recent
 comment that starts with `## BUILD PROMPT`. Every prompt
