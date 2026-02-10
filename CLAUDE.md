@@ -49,11 +49,38 @@ Read these files before doing any work in this repo:
 ## Build prompts
 
 When working from a build prompt in `docs/prompts/`, treat
-it as the task specification. The prompts are sequential:
+it as the task specification.
 
-1. `claude_code_web_mvp_build_prompt.md` — Phase 1 (done)
-2. `phase2a_import_calendar_whatif.md` — Phase 2A (next)
-3. `phase2b_views_flow_workspace.md` — Phase 2B (after 2A)
+**Completed:**
+1. `claude_code_web_mvp_build_prompt.md` — Phase 1
+2. `phase2a_import_calendar_whatif.md` — Phase 2A pass 1
+3. `phase2a3_redistribution_and_polish.md` — Phase 2A pass 2
+
+**Current (run in parallel):**
+4. `phase2b1_matrix_and_views.md` — Coverage matrix +
+   content views
+5. `phase2b2_flow_visualization.md` — Skill flow grid
+
+**Planned:**
+6. Exports prompt (Phase 2C) — not yet written
+
+**Archived:**
+- `phase2b_views_flow_workspace.md` — original monolithic
+  2B prompt, superseded by the 2B.1/2B.2 split
+
+## Lessons from prior phases
+
+These patterns caused bugs and rework. Follow them:
+
+- **Always use `src/lib/api-client.ts`** for API calls.
+  Never raw `fetch()` in page/component files.
+- **Import types from `api-client.ts`**. Never define
+  local interface duplicates in page files.
+- **Wire parameters end-to-end**: Zod schema → handler →
+  api-client.ts → UI component. Don't leave gaps.
+- **E2E tests must import real data** before testing UI.
+- **Extract shared UI into `src/components/`** instead of
+  duplicating across pages.
 
 ## Conventions
 

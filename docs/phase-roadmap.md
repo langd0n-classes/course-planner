@@ -130,34 +130,63 @@ fix quality issues from Phase 2A code review.
 **Goal:** Make the app a rich workspace, not just a
 planning tool.
 
+Split into two parallel sub-phases based on lessons
+from Phase 2A (scope was too large for one session;
+strict file ownership enables parallel execution).
+
+### 2B.1: Coverage Matrix + Content Views (parallel)
+
 **Scope:**
 - Coverage matrix fix (show ALL skills, gap visibility,
   clickable empty cells, health summary)
-- In-app content views:
-  - Term dashboard (health panel, module cards,
-    assessment timeline)
-  - Module detail view (live editable, reads like an
-    overview document)
-  - Session detail view (full description, coverage,
-    assessments, prior art)
-  - Skill detail view (coverage timeline, assessment
-    links, dependency chain)
-- Skill flow visualization (horizontal swimlane showing
-  skills progressing through sessions, integrates with
-  what-if panel)
-- External-system exports only:
-  - Blackboard module overview (.docx)
-  - Term summary (markdown, for instructor reference)
-  - Session/lecture prompt (for GenAI content generation)
-- UI polish (loading states, toasts, breadcrumbs, empty
-  states)
+- Term dashboard enhancement (health panel, module cards,
+  assessment timeline, recent changes)
+- Module detail view (live editable, reads like an
+  overview document)
+- Session detail view (description, coverage, audit trail)
+- Skill detail view (coverage timeline, assessment links)
+- Navigation (breadcrumbs, loading states, empty states,
+  toasts)
+- Tech debt cleanup (duplicate types, raw fetch() in
+  existing pages)
+
+**Owns:** All existing pages, api-client.ts, components/
+
+**Build prompt:** `docs/prompts/phase2b1_matrix_and_views.md`
+
+### 2B.2: Skill Flow Visualization (parallel)
+
+**Scope:**
+- Skill flow grid: skills as rows, sessions grouped by
+  module as columns, coverage level dots
+- Gap visibility (uncovered skills as prominent empty
+  rows)
+- Canceled session visual indicators
+- Hover/click interactions, filtering
+- Stretch: what-if simulation overlay
+
+**Owns:** `src/app/terms/[id]/flow/`,
+`src/components/flow/` (new files only)
+
+**Build prompt:** `docs/prompts/phase2b2_flow_visualization.md`
+
+### 2C: External-System Exports (after 2B)
+
+**Scope (deferred from original 2B):**
+- Blackboard module overview (.docx)
+- Term summary (markdown, for instructor reference)
+- Session/lecture prompt (for GenAI content generation)
+
+Exports are a "failure state" (design principle #2) and
+don't block the workspace experience. Deferred to keep
+2B focused on in-app views.
+
+**Build prompt:** not yet written.
 
 **Depends on:** Phase 2A fully complete (both passes).
-Needs import pipeline (real data), calendar view
-(navigation context), working redistribution workflow,
-and what-if infrastructure (flow view integration).
 
-**Build prompt:** `docs/prompts/phase2b_views_flow_workspace.md`
+**Supersedes:** `docs/prompts/phase2b_views_flow_workspace.md`
+(original monolithic prompt, kept for reference)
 
 ---
 
