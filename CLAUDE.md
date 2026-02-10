@@ -80,14 +80,31 @@ curl -s -H "Authorization: token $GITHUB_TOKEN" \
   | jq -r '.[0].body'
 ```
 
-**To execute a build prompt:** read the issue, find the
-build prompt in the first comment (or the most recent
-comment labeled "PROMPT"), and follow it as your task
-specification. Link the resulting PR back to the issue.
+**To find the build prompt:** look for the most recent
+comment that starts with `## BUILD PROMPT`. Every prompt
+comment uses this header. If there are multiple (prompt
+was revised), use the LAST one — it supersedes earlier
+versions. You can find it programmatically:
 
-**To revise a prompt:** add a new comment on the issue
-with the updated prompt (don't edit the original — keep
-the history). Note what changed and why.
+```bash
+# With gh:
+gh issue view <number> --comments --json comments \
+  --jq '.comments | map(select(.body | startswith("## BUILD PROMPT"))) | last | .body'
+
+# With curl:
+curl -s -H "Authorization: token $GITHUB_TOKEN" \
+  https://api.github.com/repos/langd0n-classes/course-planner/issues/<number>/comments \
+  | jq -r '[.[] | select(.body | startswith("## BUILD PROMPT"))] | last | .body'
+```
+
+Follow the prompt as your task specification. Link the
+resulting PR back to the issue.
+
+**To revise a prompt:** add a NEW comment on the issue
+starting with `## BUILD PROMPT` (with an optional version
+like `## BUILD PROMPT v2`). Don't edit the original —
+keep the history. Add a brief note at the top of the new
+comment explaining what changed from the prior version.
 
 **Historical prompts** from earlier phases are in
 `docs/prompts/` for reference. New work should use
