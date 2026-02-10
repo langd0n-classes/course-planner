@@ -152,7 +152,7 @@ strict file ownership enables parallel execution).
 
 **Owns:** All existing pages, api-client.ts, components/
 
-**Build prompt:** `docs/prompts/phase2b1_matrix_and_views.md`
+**Issue:** #4 (build prompt attached as comment)
 
 ### 2B.2: Skill Flow Visualization (parallel)
 
@@ -168,7 +168,7 @@ strict file ownership enables parallel execution).
 **Owns:** `src/app/terms/[id]/flow/`,
 `src/components/flow/` (new files only)
 
-**Build prompt:** `docs/prompts/phase2b2_flow_visualization.md`
+**Issue:** #5 (build prompt attached as comment)
 
 ### 2C: External-System Exports (after 2B)
 
@@ -181,12 +181,9 @@ Exports are a "failure state" (design principle #2) and
 don't block the workspace experience. Deferred to keep
 2B focused on in-app views.
 
-**Build prompt:** not yet written.
+**Issue:** #6 (build prompt not yet written)
 
-**Depends on:** Phase 2A fully complete (both passes).
-
-**Supersedes:** `docs/prompts/phase2b_views_flow_workspace.md`
-(original monolithic prompt, kept for reference)
+**Depends on:** Phase 2B complete (#4, #5).
 
 ---
 

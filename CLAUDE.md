@@ -48,25 +48,30 @@ Read these files before doing any work in this repo:
 
 ## Build prompts
 
-When working from a build prompt in `docs/prompts/`, treat
-it as the task specification.
+Build prompts live as comments on GitHub issues, not as
+files in the repo. Each issue tracks one unit of work:
+the issue body has scope and acceptance criteria, the
+first comment has the full CCW build prompt, and
+subsequent comments capture prompt revisions, review
+notes, and lessons learned. The issue is closed when
+the work ships.
 
-**Completed:**
-1. `claude_code_web_mvp_build_prompt.md` — Phase 1
-2. `phase2a_import_calendar_whatif.md` — Phase 2A pass 1
-3. `phase2a3_redistribution_and_polish.md` — Phase 2A pass 2
+**To execute a build prompt:** open the issue, copy the
+prompt comment into a CCW session, and let it run. Link
+the resulting PR back to the issue.
 
-**Current (run in parallel):**
-4. `phase2b1_matrix_and_views.md` — Coverage matrix +
-   content views
-5. `phase2b2_flow_visualization.md` — Skill flow grid
+**To revise a prompt:** add a new comment on the issue
+with the updated prompt (don't edit the original — keep
+the history). Note what changed and why.
 
-**Planned:**
-6. Exports prompt (Phase 2C) — not yet written
+**Historical prompts** from earlier phases are in
+`docs/prompts/` for reference. New work should use
+issues, not new prompt files.
 
-**Archived:**
-- `phase2b_views_flow_workspace.md` — original monolithic
-  2B prompt, superseded by the 2B.1/2B.2 split
+**Current issues:**
+- #4 — Phase 2B.1: Coverage Matrix + Content Views
+- #5 — Phase 2B.2: Skill Flow Visualization
+- #6 — Phase 2C: External-System Exports (planned)
 
 ## Lessons from prior phases
 
