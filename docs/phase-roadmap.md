@@ -28,9 +28,11 @@ view, no change simulation, coverage matrix hides gaps.
 
 ---
 
-## Phase 2A: Import, Calendar, What-If (complete)
+## Phase 2A: Import, Calendar, What-If
 
 **Goal:** Make the app usable for real course planning.
+
+### Pass 1 (complete — PR #2)
 
 **Delivered:**
 - Schema extensions: `SessionStatus` enum (scheduled/
@@ -55,14 +57,36 @@ view, no change simulation, coverage matrix hides gaps.
 - What-if panel (side drawer): impact analysis, at-risk
   skills, health diff, scenario comparison, demo scenarios
 - Cancellation workflow: `POST /api/sessions/[id]/cancel`
-  with redistribution entries
+  with `validateRedistribution` call and redistribution
+  entries
 - Import UI (`/terms/[id]/import`): three tabs (Calendar,
   Structure, CSV), validation preview, file upload
-- Technical debt: typed API client (full TypeScript
-  generics replacing `unknown`), new API endpoints
-- 38 unit tests passing (13 new what-if tests)
+- Technical debt: typed API client (TypeScript generics
+  replacing `unknown`), `loadTermData` extracted to
+  shared `src/lib/term-data.ts`
+- 43 unit tests passing (13 what-if + 5 schema tests)
 
 **Build prompt:** `docs/prompts/phase2a_import_calendar_whatif.md`
+
+### Pass 2 (in progress)
+
+**Scope:**
+- Redistribution UI: per-skill target-session dropdowns,
+  mock AI suggest button, ordering validation in the UI,
+  confirm/skip flow
+- Empty calendar cell interactions (click to create or
+  assign session)
+- What-if panel on term detail page (not just calendar)
+- Calendar meeting pattern derived from data (not
+  hardcoded TTh/F)
+- Typed API client cleanup (remove duplicate interfaces
+  and double-casts from pages, switch calendar page to
+  use `api` client)
+- `next.config.ts` standalone output fix (Docker build)
+- Missing tests: cancel route API tests, Playwright E2E
+  smoke test
+
+**Build prompt:** `docs/prompts/phase2a3_redistribution_and_polish.md`
 
 ---
 
@@ -93,9 +117,10 @@ planning tool.
 - UI polish (loading states, toasts, breadcrumbs, empty
   states)
 
-**Depends on:** Phase 2A merged. Needs import pipeline
-(real data), calendar view (navigation context), and
-what-if infrastructure (flow view integration).
+**Depends on:** Phase 2A fully complete (both passes).
+Needs import pipeline (real data), calendar view
+(navigation context), working redistribution workflow,
+and what-if infrastructure (flow view integration).
 
 **Build prompt:** `docs/prompts/phase2b_views_flow_workspace.md`
 
