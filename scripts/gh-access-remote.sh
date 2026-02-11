@@ -39,6 +39,10 @@ if ! command -v gh &>/dev/null; then
      tar -xzf "/tmp/${GH_ARCHIVE}" -C /tmp && \
      cp "/tmp/gh_${GH_VERSION}_linux_amd64/bin/gh" ~/bin/gh; then
     export PATH=~/bin:$PATH
+    # Persist PATH for future Bash tool calls (each runs a new shell)
+    if ! grep -q 'export PATH="$HOME/bin:$PATH"' ~/.bashrc 2>/dev/null; then
+      echo 'export PATH="$HOME/bin:$PATH"' >> ~/.bashrc
+    fi
     echo "[gh-access] gh $(gh --version | head -1) installed to ~/bin/gh" >&2
   else
     echo "[gh-access] WARNING: gh binary install failed. Using curl fallback." >&2
@@ -109,5 +113,12 @@ for c in json.load(sys.stdin):
       ;;
   esac
 }
+
+# ── Install dependencies if needed ────────────────────────────────
+if [ -f package.json ] && [ ! -d node_modules ]; then
+  echo "[gh-access] Installing npm dependencies (npm ci)..." >&2
+  npm ci --prefer-offline 2>&1 | tail -3 >&2
+  echo "[gh-access] Dependencies installed." >&2
+fi
 
 echo "[gh-access] Ready. Use: gh-issue <number> [--body|--prompt|--comments]" >&2
