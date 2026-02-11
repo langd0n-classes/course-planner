@@ -49,6 +49,7 @@ export interface Module {
   title: string;
   description: string | null;
   learningObjectives: string[];
+  notes: string | null;
   sessions?: Session[];
 }
 
@@ -80,6 +81,7 @@ export interface Skill {
   isGlobal: boolean;
   termId: string | null;
   coverages?: Coverage[];
+  assessmentSkills?: Array<{ assessment: Assessment }>;
   _count?: Record<string, number>;
 }
 
@@ -185,6 +187,7 @@ export const api = {
     request<Module[]>(
       `/api/modules${termId ? `?termId=${termId}` : ""}`,
     ),
+  getModule: (id: string) => request<Module>(`/api/modules/${id}`),
   createModule: (data: Partial<Module>) =>
     request<Module>("/api/modules", {
       method: "POST",
@@ -199,6 +202,7 @@ export const api = {
     request<{ deleted: boolean }>(`/api/modules/${id}`, { method: "DELETE" }),
 
   // Skills
+  getSkill: (id: string) => request<Skill>(`/api/skills/${id}`),
   getSkills: (termId?: string) =>
     request<Skill[]>(
       `/api/skills${termId ? `?termId=${termId}` : ""}`,
@@ -217,6 +221,7 @@ export const api = {
     request<{ deleted: boolean }>(`/api/skills/${id}`, { method: "DELETE" }),
 
   // Sessions
+  getSession: (id: string) => request<Session>(`/api/sessions/${id}`),
   getSessions: (params?: { moduleId?: string; termId?: string }) => {
     const qs = new URLSearchParams();
     if (params?.moduleId) qs.set("moduleId", params.moduleId);
