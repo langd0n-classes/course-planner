@@ -3,37 +3,24 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { api } from "@/lib/api-client";
+import {
+  api,
+  type Skill,
+  type Assessment,
+  type Session,
+} from "@/lib/api-client";
 
-interface Skill {
-  id: string;
-  code: string;
-  description: string;
-}
-
-interface AssessmentSkill {
-  skill: Skill;
-}
-
-interface Assessment {
-  id: string;
-  code: string;
-  title: string;
-  assessmentType: string;
-  description: string | null;
-  dueDate: string | null;
-  progressionStage: string | null;
-  skills: AssessmentSkill[];
+// The assessments endpoint returns skills as { skill: Skill }[] shape
+interface AssessmentWithSkills extends Assessment {
+  skills: Array<{ skill: Skill }>;
   session: { id: string; code: string; title: string } | null;
 }
 
 export default function AssessmentsPage() {
   const { id: termId } = useParams<{ id: string }>();
-  const [assessments, setAssessments] = useState<Assessment[]>([]);
+  const [assessments, setAssessments] = useState<AssessmentWithSkills[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
-  const [sessions, setSessions] = useState<
-    { id: string; code: string; title: string }[]
-  >([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({
     code: "",
@@ -48,11 +35,9 @@ export default function AssessmentsPage() {
 
   const load = useCallback(async () => {
     const [a, sk, se] = await Promise.all([
-      api.getAssessments(termId) as unknown as Promise<Assessment[]>,
-      api.getSkills() as unknown as Promise<Skill[]>,
-      api.getSessions({ termId }) as unknown as Promise<
-        { id: string; code: string; title: string }[]
-      >,
+      api.getAssessments(termId) as Promise<AssessmentWithSkills[]>,
+      api.getSkills(termId),
+      api.getSessions({ termId }),
     ]);
     setAssessments(a);
     setSkills(sk);

@@ -77,17 +77,22 @@ src/
 │   │       └── export/
 │   ├── terms/              # Term pages
 │   │   └── [id]/
-│   │       ├── coverage/
-│   │       ├── impact/
-│   │       ├── assessments/
-│   │       ├── calendar/    # Weekly calendar view
-│   │       └── import/      # Data import page
+│   │       ├── coverage/        # Coverage matrix
+│   │       ├── impact/          # Validation report
+│   │       ├── assessments/     # Assessment management
+│   │       ├── calendar/        # Weekly calendar view
+│   │       ├── import/          # Data import page
+│   │       ├── modules/[moduleId]/  # Module detail view
+│   │       ├── sessions/[sessionId]/ # Session detail view
+│   │       └── skills/[skillId]/    # Skill detail view
 │   ├── skills/             # Skills browser
-│   ├── layout.tsx          # Root layout with nav
+│   ├── layout.tsx          # Root layout with nav + ToastProvider
 │   └── page.tsx            # Homepage
 ├── domain/                 # Pure domain logic
 │   ├── coverage-rules.ts   # Coverage ordering, GAIE progression, impact
 │   ├── coverage-rules.test.ts
+│   ├── coverage-matrix.ts  # Matrix assembly, health bar, gap filtering
+│   ├── coverage-matrix.test.ts
 │   ├── whatif.ts            # What-if cancellation simulation
 │   └── whatif.test.ts
 ├── lib/                    # Shared utilities
@@ -107,7 +112,14 @@ src/
 │   ├── real/               # Future: real implementations
 │   └── index.ts            # Service registry
 ├── components/             # Shared UI components
-│   └── WhatIfPanel.tsx     # What-if analysis + redistribution workflow
+│   ├── WhatIfPanel.tsx     # What-if analysis + redistribution workflow
+│   ├── Breadcrumbs.tsx     # Navigation breadcrumbs
+│   ├── CoverageBadge.tsx   # I/P/A level badges with click actions
+│   ├── EditableText.tsx    # Inline-editable text/textarea
+│   ├── LoadingSkeleton.tsx # Loading states (card, table, lines)
+│   ├── Providers.tsx       # Client-side context providers wrapper
+│   ├── StatusBadge.tsx     # Session type/status, assessment type badges
+│   └── Toast.tsx           # Toast notifications (context + provider)
 
 prisma/
 ├── schema.prisma           # Database schema
@@ -194,6 +206,26 @@ The what-if panel (`WhatIfPanel.tsx`) now supports a multi-step cancellation wor
 4. **Confirm** — Apply cancellation with redistributions, or skip redistribution
 
 The panel is shared between the calendar view and the term detail page.
+
+## Content Views (Phase 2B.1)
+
+### Coverage Matrix (`/terms/[id]/coverage`)
+Uses domain logic from `coverage-matrix.ts` for matrix assembly, health computation, and gap filtering. Shows ALL skills as rows with session columns. Health summary bar at top with visual progress. Clickable empty cells for adding coverage.
+
+### Module Detail (`/terms/[id]/modules/[moduleId]`)
+Full module view with editable learning objectives, planning notes, session list with inline-editable descriptions, and skills summary table. Uses `EditableText` component for inline editing.
+
+### Session Detail (`/terms/[id]/sessions/[sessionId]`)
+Session view with editable description/notes, coverage entries, redistribution audit trail, linked assessments, and what-if panel integration. Shows canceled session info prominently.
+
+### Skill Detail (`/terms/[id]/skills/[skillId]`)
+Skill view with coverage status (I/P/A indicators), timeline visualization showing all coverage entries chronologically, and linked assessments.
+
+### Domain Logic (`coverage-matrix.ts`)
+Pure functions for matrix assembly:
+- `assembleCoverageMatrix()` — build full matrix from skills, sessions, coverages
+- `computeHealthBar()` — count fully/partially/uncovered skills
+- `filterMatrixRows()` — filter by "all", "gaps", or "at_risk"
 
 ## E2E Testing
 

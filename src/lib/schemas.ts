@@ -31,6 +31,7 @@ export const createModuleSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
   learningObjectives: z.array(z.string()).optional().default([]),
+  notes: z.string().nullable().optional(),
 });
 
 export const updateModuleSchema = createModuleSchema.partial();

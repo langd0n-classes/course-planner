@@ -7,13 +7,27 @@ import {
   api,
   type Term,
   type Session,
+  type Coverage,
+  type Skill,
+  type Assessment,
 } from "@/lib/api-client";
+import {
+  assembleCoverageMatrix,
+  computeHealthBar,
+} from "@/domain/coverage-matrix";
 import WhatIfPanel from "@/components/WhatIfPanel";
+import Breadcrumbs from "@/components/Breadcrumbs";
+import { AssessmentTypeBadge } from "@/components/StatusBadge";
+import { CardSkeleton } from "@/components/LoadingSkeleton";
 
 export default function TermDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [term, setTerm] = useState<Term | null>(null);
   const [allSessions, setAllSessions] = useState<Session[]>([]);
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [coverages, setCoverages] = useState<Coverage[]>([]);
+  const [assessments, setAssessments] = useState<Assessment[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showAddModule, setShowAddModule] = useState(false);
   const [editingSession, setEditingSession] = useState<string | null>(null);
   const [showAddSession, setShowAddSession] = useState<string | null>(null);
@@ -40,12 +54,20 @@ export default function TermDetailPage() {
   const [moveForm, setMoveForm] = useState({ date: "", sequence: 0 });
 
   const load = useCallback(async () => {
-    const [t, sessions] = await Promise.all([
+    setLoading(true);
+    const [t, sessions, sk, covs, assess] = await Promise.all([
       api.getTerm(id),
       api.getSessions({ termId: id }),
+      api.getSkills(id),
+      api.getCoverages({ termId: id }),
+      api.getAssessments(id),
     ]);
     setTerm(t);
     setAllSessions(sessions);
+    setSkills(sk);
+    setCoverages(covs);
+    setAssessments(assess);
+    setLoading(false);
   }, [id]);
 
   useEffect(() => {
@@ -138,12 +160,61 @@ export default function TermDetailPage() {
     load();
   }
 
+  if (loading) {
+    return (
+      <div>
+        <Breadcrumbs items={[{ label: "Terms", href: "/" }, { label: "..." }]} />
+        <div className="space-y-4">
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
+        </div>
+      </div>
+    );
+  }
+
   if (!term) return <p className="text-gray-500">Loading...</p>;
 
   const modules = term.modules ?? [];
 
+  // Compute health stats
+  const matrixSkills = skills.map((s) => ({
+    id: s.id, code: s.code, category: s.category, description: s.description,
+  }));
+  const matrixSessions = allSessions.map((s) => ({
+    id: s.id, code: s.code, title: s.title, sessionType: s.sessionType,
+    date: s.date, status: s.status, moduleId: s.module?.id ?? "",
+    moduleCode: s.module?.code ?? "", moduleSequence: s.module?.sequence ?? 0,
+    sequence: s.sequence,
+  }));
+  const matrixCoverages = coverages.map((c) => ({
+    id: c.id, sessionId: c.sessionId, skillId: c.skillId, level: c.level,
+  }));
+  const healthBar = computeHealthBar(
+    assembleCoverageMatrix(matrixSkills, matrixSessions, matrixCoverages),
+  );
+
+  const scheduledCount = allSessions.filter((s) => s.status === "scheduled").length;
+  const canceledCount = allSessions.filter((s) => s.status === "canceled").length;
+
+  // Recent canceled sessions
+  const recentCanceled = allSessions
+    .filter((s) => s.status === "canceled" && s.canceledAt)
+    .sort((a, b) => (b.canceledAt ?? "").localeCompare(a.canceledAt ?? ""))
+    .slice(0, 5);
+
+  // Upcoming assessment
+  const upcomingAssessments = assessments
+    .filter((a) => a.dueDate)
+    .sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? ""));
+  const nextAssessment = upcomingAssessments[0];
+
   return (
     <div className={`${whatIfSession ? "mr-[420px]" : ""} transition-all`}>
+      <Breadcrumbs
+        items={[{ label: "Terms", href: "/" }, { label: term.name }]}
+      />
+
       <div className="flex justify-between items-start mb-4">
         <div>
           <h1 className="text-2xl font-bold">
@@ -158,7 +229,7 @@ export default function TermDetailPage() {
             {new Date(term.endDate).toLocaleDateString()}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Link
             href={`/terms/${id}/coverage`}
             className="bg-purple-600 text-white px-3 py-1.5 rounded text-sm hover:bg-purple-700"
@@ -184,6 +255,12 @@ export default function TermDetailPage() {
             Calendar
           </Link>
           <Link
+            href={`/terms/${id}/flow`}
+            className="bg-indigo-600 text-white px-3 py-1.5 rounded text-sm hover:bg-indigo-700"
+          >
+            Flow View
+          </Link>
+          <Link
             href={`/terms/${id}/import`}
             className="bg-gray-600 text-white px-3 py-1.5 rounded text-sm hover:bg-gray-700"
           >
@@ -191,6 +268,85 @@ export default function TermDetailPage() {
           </Link>
         </div>
       </div>
+
+      {/* Semester Health Panel */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <div className="bg-white border rounded p-3 text-center">
+          <p className="text-2xl font-bold">{allSessions.length}</p>
+          <p className="text-xs text-gray-500">Total Sessions</p>
+          <p className="text-xs text-gray-400">
+            {scheduledCount} scheduled, {canceledCount} canceled
+          </p>
+        </div>
+        <div className="bg-white border rounded p-3 text-center">
+          <p className="text-2xl font-bold text-green-600">{healthBar.fullyCovered}</p>
+          <p className="text-xs text-gray-500">Skills Fully Covered</p>
+          <p className="text-xs text-gray-400">
+            of {healthBar.total} total ({healthBar.uncovered} uncovered)
+          </p>
+        </div>
+        <div className="bg-white border rounded p-3 text-center">
+          <p className="text-2xl font-bold text-yellow-600">{healthBar.partiallyCovered}</p>
+          <p className="text-xs text-gray-500">Partially Covered</p>
+          {healthBar.total > 0 && (
+            <div className="mt-1 flex h-1.5 rounded-full overflow-hidden bg-gray-100">
+              <div className="bg-green-500" style={{ width: `${(healthBar.fullyCovered / healthBar.total) * 100}%` }} />
+              <div className="bg-yellow-500" style={{ width: `${(healthBar.partiallyCovered / healthBar.total) * 100}%` }} />
+              <div className="bg-red-400" style={{ width: `${(healthBar.uncovered / healthBar.total) * 100}%` }} />
+            </div>
+          )}
+        </div>
+        <div className="bg-white border rounded p-3 text-center">
+          <p className="text-2xl font-bold text-blue-600">
+            {nextAssessment
+              ? new Date(nextAssessment.dueDate!).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+              : "—"}
+          </p>
+          <p className="text-xs text-gray-500">
+            {nextAssessment ? `Next: ${nextAssessment.code}` : "No upcoming assessments"}
+          </p>
+        </div>
+      </div>
+
+      {/* Assessment Timeline */}
+      {upcomingAssessments.length > 0 && (
+        <div className="mb-6 bg-white border rounded p-3">
+          <h3 className="text-sm font-semibold mb-2">Assessment Timeline</h3>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {upcomingAssessments.map((a) => (
+              <div
+                key={a.id}
+                className="flex-shrink-0 border rounded px-3 py-1.5 text-xs"
+              >
+                <AssessmentTypeBadge type={a.assessmentType} />
+                <span className="ml-1 font-medium">{a.code}</span>
+                {a.dueDate && (
+                  <span className="text-gray-400 ml-1">
+                    {new Date(a.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Recent Changes */}
+      {recentCanceled.length > 0 && (
+        <div className="mb-6 bg-red-50 border border-red-200 rounded p-3">
+          <h3 className="text-sm font-semibold text-red-700 mb-1">Recent Cancellations</h3>
+          {recentCanceled.map((s) => (
+            <p key={s.id} className="text-xs text-red-600">
+              <Link href={`/terms/${id}/sessions/${s.id}`} className="hover:underline font-medium">
+                {s.code}
+              </Link>{" "}
+              canceled
+              {s.canceledAt && ` ${new Date(s.canceledAt).toLocaleDateString()}`}
+              {s.canceledReason && ` — ${s.canceledReason}`}
+            </p>
+          ))}
+        </div>
+      )}
 
       {/* Move result banner */}
       {moveResult && (
@@ -224,7 +380,7 @@ export default function TermDetailPage() {
         </div>
       )}
 
-      {/* Modules */}
+      {/* Module Cards + Inline Management */}
       <div className="flex justify-between items-center mb-3">
         <h2 className="text-lg font-semibold">Modules</h2>
         <button
@@ -273,331 +429,347 @@ export default function TermDetailPage() {
       )}
 
       {modules.length === 0 ? (
-        <p className="text-gray-500 text-sm">No modules yet.</p>
+        <div className="bg-white border rounded p-6 text-center text-gray-500">
+          <p className="font-medium mb-1">No modules yet</p>
+          <p className="text-sm">Add modules to organize your course sessions, or import course structure.</p>
+        </div>
       ) : (
         <div className="space-y-4">
-          {modules.map((mod) => (
-            <div key={mod.id} className="bg-white border rounded">
-              <div className="px-4 py-3 border-b flex justify-between items-center">
-                <div>
-                  <span className="font-medium">
-                    {mod.code}: {mod.title}
-                  </span>
-                  <span className="text-gray-400 text-sm ml-2">
-                    ({(mod.sessions ?? []).length} sessions)
-                  </span>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() =>
-                      setShowAddSession(
-                        showAddSession === mod.id ? null : mod.id,
-                      )
-                    }
-                    className="text-blue-600 text-sm hover:underline"
-                  >
-                    Add Session
-                  </button>
-                  <button
-                    onClick={() => deleteModule(mod.id)}
-                    className="text-red-600 text-sm hover:underline"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
+          {modules.map((mod) => {
+            const modSessions = mod.sessions ?? [];
+            const modCoverages = modSessions.flatMap((s) => s.coverages ?? []);
+            const modSkillIds = [...new Set(modCoverages.map((c) => c.skill?.id).filter(Boolean))] as string[];
+            const scheduledInMod = modSessions.filter((s) => s.status === "scheduled").length;
 
-              {showAddSession === mod.id && (
-                <form
-                  onSubmit={(e) => addSession(mod.id, e)}
-                  className="p-3 bg-gray-50 border-b grid grid-cols-3 gap-2"
-                >
-                  <select
-                    value={sessionForm.sessionType}
-                    onChange={(e) =>
-                      setSessionForm({
-                        ...sessionForm,
-                        sessionType: e.target.value as "lecture" | "lab",
-                      })
-                    }
-                    className="border rounded px-2 py-1 text-sm"
-                  >
-                    <option value="lecture">Lecture</option>
-                    <option value="lab">Lab</option>
-                  </select>
-                  <input
-                    value={sessionForm.code}
-                    onChange={(e) =>
-                      setSessionForm({ ...sessionForm, code: e.target.value })
-                    }
-                    placeholder="Code (e.g. lec-05)"
-                    className="border rounded px-2 py-1 text-sm"
-                    required
-                  />
-                  <input
-                    value={sessionForm.title}
-                    onChange={(e) =>
-                      setSessionForm({
-                        ...sessionForm,
-                        title: e.target.value,
-                      })
-                    }
-                    placeholder="Title"
-                    className="border rounded px-2 py-1 text-sm"
-                    required
-                  />
-                  <input
-                    type="date"
-                    value={sessionForm.date}
-                    onChange={(e) =>
-                      setSessionForm({ ...sessionForm, date: e.target.value })
-                    }
-                    className="border rounded px-2 py-1 text-sm"
-                  />
-                  <input
-                    value={sessionForm.description}
-                    onChange={(e) =>
-                      setSessionForm({
-                        ...sessionForm,
-                        description: e.target.value,
-                      })
-                    }
-                    placeholder="Description"
-                    className="border rounded px-2 py-1 text-sm"
-                  />
+            return (
+              <div key={mod.id} className="bg-white border rounded">
+                <div className="px-4 py-3 border-b flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <Link
+                      href={`/terms/${id}/modules/${mod.id}`}
+                      className="font-medium hover:underline"
+                    >
+                      {mod.code}: {mod.title}
+                    </Link>
+                    <span className="text-gray-400 text-xs">
+                      {modSessions.length} sessions &middot; {modSkillIds.length} skills &middot; {scheduledInMod} scheduled
+                    </span>
+                  </div>
                   <div className="flex gap-2">
                     <button
-                      type="submit"
-                      className="bg-blue-600 text-white px-3 py-1 rounded text-sm"
+                      onClick={() =>
+                        setShowAddSession(
+                          showAddSession === mod.id ? null : mod.id,
+                        )
+                      }
+                      className="text-blue-600 text-sm hover:underline"
                     >
-                      Add
+                      Add Session
                     </button>
                     <button
-                      type="button"
-                      onClick={() => setShowAddSession(null)}
-                      className="border px-3 py-1 rounded text-sm"
+                      onClick={() => deleteModule(mod.id)}
+                      className="text-red-600 text-sm hover:underline"
                     >
-                      Cancel
+                      Delete
                     </button>
                   </div>
-                </form>
-              )}
+                </div>
 
-              {(mod.sessions ?? []).length > 0 && (
-                <div className="divide-y">
-                  {(mod.sessions ?? []).map((s) => (
-                    <div key={s.id} className="px-4 py-2">
-                      {editingSession === s.id ? (
-                        <form
-                          onSubmit={(e) => updateSession(s.id, e)}
-                          className="grid grid-cols-3 gap-2"
-                        >
-                          <input
-                            value={sessionForm.code}
-                            onChange={(e) =>
-                              setSessionForm({
-                                ...sessionForm,
-                                code: e.target.value,
-                              })
-                            }
-                            className="border rounded px-2 py-1 text-sm"
-                          />
-                          <input
-                            value={sessionForm.title}
-                            onChange={(e) =>
-                              setSessionForm({
-                                ...sessionForm,
-                                title: e.target.value,
-                              })
-                            }
-                            className="border rounded px-2 py-1 text-sm"
-                          />
-                          <input
-                            type="date"
-                            value={sessionForm.date}
-                            onChange={(e) =>
-                              setSessionForm({
-                                ...sessionForm,
-                                date: e.target.value,
-                              })
-                            }
-                            className="border rounded px-2 py-1 text-sm"
-                          />
-                          <input
-                            value={sessionForm.description ?? ""}
-                            onChange={(e) =>
-                              setSessionForm({
-                                ...sessionForm,
-                                description: e.target.value,
-                              })
-                            }
-                            placeholder="Description"
-                            className="border rounded px-2 py-1 text-sm"
-                          />
-                          <input
-                            value={sessionForm.format ?? ""}
-                            onChange={(e) =>
-                              setSessionForm({
-                                ...sessionForm,
-                                format: e.target.value,
-                              })
-                            }
-                            placeholder="Format"
-                            className="border rounded px-2 py-1 text-sm"
-                          />
-                          <div className="flex gap-2">
-                            <button
-                              type="submit"
-                              className="bg-blue-600 text-white px-2 py-1 rounded text-sm"
-                            >
-                              Save
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEditingSession(null)}
-                              className="border px-2 py-1 rounded text-sm"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </form>
-                      ) : (
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <span
-                              className={`inline-block text-xs px-1.5 py-0.5 rounded mr-2 ${
-                                s.sessionType === "lecture"
-                                  ? "bg-blue-100 text-blue-700"
-                                  : "bg-green-100 text-green-700"
-                              }`}
-                            >
-                              {s.sessionType}
-                            </span>
-                            <span className="font-medium text-sm">
-                              {s.code}: {s.title}
-                            </span>
-                            {s.date && (
-                              <span className="text-gray-400 text-xs ml-2">
-                                {new Date(s.date).toLocaleDateString()}
-                              </span>
-                            )}
-                            {(s.coverages?.length ?? 0) > 0 && (
-                              <span className="text-gray-400 text-xs ml-2">
-                                [{s.coverages!.map((c) => `${c.skill?.code}:${c.level[0].toUpperCase()}`).join(", ")}]
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex gap-2 text-xs">
-                            {s.status === "scheduled" && (
-                              <button
-                                onClick={() => setWhatIfSession(s.id)}
-                                className="text-red-500 hover:underline"
-                              >
-                                What if cancel?
-                              </button>
-                            )}
-                            <button
-                              onClick={() => {
-                                setEditingSession(s.id);
+                {showAddSession === mod.id && (
+                  <form
+                    onSubmit={(e) => addSession(mod.id, e)}
+                    className="p-3 bg-gray-50 border-b grid grid-cols-3 gap-2"
+                  >
+                    <select
+                      value={sessionForm.sessionType}
+                      onChange={(e) =>
+                        setSessionForm({
+                          ...sessionForm,
+                          sessionType: e.target.value as "lecture" | "lab",
+                        })
+                      }
+                      className="border rounded px-2 py-1 text-sm"
+                    >
+                      <option value="lecture">Lecture</option>
+                      <option value="lab">Lab</option>
+                    </select>
+                    <input
+                      value={sessionForm.code}
+                      onChange={(e) =>
+                        setSessionForm({ ...sessionForm, code: e.target.value })
+                      }
+                      placeholder="Code (e.g. lec-05)"
+                      className="border rounded px-2 py-1 text-sm"
+                      required
+                    />
+                    <input
+                      value={sessionForm.title}
+                      onChange={(e) =>
+                        setSessionForm({
+                          ...sessionForm,
+                          title: e.target.value,
+                        })
+                      }
+                      placeholder="Title"
+                      className="border rounded px-2 py-1 text-sm"
+                      required
+                    />
+                    <input
+                      type="date"
+                      value={sessionForm.date}
+                      onChange={(e) =>
+                        setSessionForm({ ...sessionForm, date: e.target.value })
+                      }
+                      className="border rounded px-2 py-1 text-sm"
+                    />
+                    <input
+                      value={sessionForm.description}
+                      onChange={(e) =>
+                        setSessionForm({
+                          ...sessionForm,
+                          description: e.target.value,
+                        })
+                      }
+                      placeholder="Description"
+                      className="border rounded px-2 py-1 text-sm"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="submit"
+                        className="bg-blue-600 text-white px-3 py-1 rounded text-sm"
+                      >
+                        Add
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddSession(null)}
+                        className="border px-3 py-1 rounded text-sm"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {modSessions.length > 0 && (
+                  <div className="divide-y">
+                    {modSessions.map((s) => (
+                      <div key={s.id} className="px-4 py-2">
+                        {editingSession === s.id ? (
+                          <form
+                            onSubmit={(e) => updateSession(s.id, e)}
+                            className="grid grid-cols-3 gap-2"
+                          >
+                            <input
+                              value={sessionForm.code}
+                              onChange={(e) =>
                                 setSessionForm({
-                                  sessionType: s.sessionType,
-                                  code: s.code,
-                                  title: s.title,
-                                  date: s.date
-                                    ? s.date.split("T")[0]
-                                    : "",
-                                  description: s.description ?? "",
-                                  format: s.format ?? "traditional",
-                                });
-                              }}
-                              className="text-blue-600 hover:underline"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => {
-                                setMoveSession(
-                                  moveSession === s.id ? null : s.id,
-                                );
-                                setMoveForm({
-                                  date: s.date
-                                    ? s.date.split("T")[0]
-                                    : "",
-                                  sequence: s.sequence,
-                                });
-                              }}
-                              className="text-orange-600 hover:underline"
-                            >
-                              Move
-                            </button>
-                            <button
-                              onClick={() => deleteSession(s.id)}
-                              className="text-red-600 hover:underline"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      {moveSession === s.id && (
-                        <form
-                          onSubmit={(e) => handleMoveSession(s.id, e)}
-                          className="mt-2 bg-orange-50 border border-orange-200 rounded p-2 flex gap-2 items-end"
-                        >
-                          <div>
-                            <label className="block text-xs font-medium">
-                              New Date
-                            </label>
+                                  ...sessionForm,
+                                  code: e.target.value,
+                                })
+                              }
+                              className="border rounded px-2 py-1 text-sm"
+                            />
+                            <input
+                              value={sessionForm.title}
+                              onChange={(e) =>
+                                setSessionForm({
+                                  ...sessionForm,
+                                  title: e.target.value,
+                                })
+                              }
+                              className="border rounded px-2 py-1 text-sm"
+                            />
                             <input
                               type="date"
-                              value={moveForm.date}
+                              value={sessionForm.date}
                               onChange={(e) =>
-                                setMoveForm({
-                                  ...moveForm,
+                                setSessionForm({
+                                  ...sessionForm,
                                   date: e.target.value,
                                 })
                               }
                               className="border rounded px-2 py-1 text-sm"
                             />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium">
-                              Sequence
-                            </label>
                             <input
-                              type="number"
-                              value={moveForm.sequence}
+                              value={sessionForm.description ?? ""}
                               onChange={(e) =>
-                                setMoveForm({
-                                  ...moveForm,
-                                  sequence: parseInt(e.target.value) || 0,
+                                setSessionForm({
+                                  ...sessionForm,
+                                  description: e.target.value,
                                 })
                               }
-                              className="border rounded px-2 py-1 text-sm w-20"
+                              placeholder="Description"
+                              className="border rounded px-2 py-1 text-sm"
                             />
+                            <input
+                              value={sessionForm.format ?? ""}
+                              onChange={(e) =>
+                                setSessionForm({
+                                  ...sessionForm,
+                                  format: e.target.value,
+                                })
+                              }
+                              placeholder="Format"
+                              className="border rounded px-2 py-1 text-sm"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                type="submit"
+                                className="bg-blue-600 text-white px-2 py-1 rounded text-sm"
+                              >
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingSession(null)}
+                                className="border px-2 py-1 rounded text-sm"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </form>
+                        ) : (
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <span
+                                className={`inline-block text-xs px-1.5 py-0.5 rounded mr-2 ${
+                                  s.sessionType === "lecture"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : "bg-green-100 text-green-700"
+                                }`}
+                              >
+                                {s.sessionType}
+                              </span>
+                              <Link
+                                href={`/terms/${id}/sessions/${s.id}`}
+                                className="font-medium text-sm hover:underline"
+                              >
+                                {s.code}: {s.title}
+                              </Link>
+                              {s.date && (
+                                <span className="text-gray-400 text-xs ml-2">
+                                  {new Date(s.date).toLocaleDateString()}
+                                </span>
+                              )}
+                              {(s.coverages?.length ?? 0) > 0 && (
+                                <span className="text-gray-400 text-xs ml-2">
+                                  [{s.coverages!.map((c) => `${c.skill?.code}:${c.level[0].toUpperCase()}`).join(", ")}]
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex gap-2 text-xs">
+                              {s.status === "scheduled" && (
+                                <button
+                                  onClick={() => setWhatIfSession(s.id)}
+                                  className="text-red-500 hover:underline"
+                                >
+                                  What if cancel?
+                                </button>
+                              )}
+                              <button
+                                onClick={() => {
+                                  setEditingSession(s.id);
+                                  setSessionForm({
+                                    sessionType: s.sessionType,
+                                    code: s.code,
+                                    title: s.title,
+                                    date: s.date
+                                      ? s.date.split("T")[0]
+                                      : "",
+                                    description: s.description ?? "",
+                                    format: s.format ?? "traditional",
+                                  });
+                                }}
+                                className="text-blue-600 hover:underline"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setMoveSession(
+                                    moveSession === s.id ? null : s.id,
+                                  );
+                                  setMoveForm({
+                                    date: s.date
+                                      ? s.date.split("T")[0]
+                                      : "",
+                                    sequence: s.sequence,
+                                  });
+                                }}
+                                className="text-orange-600 hover:underline"
+                              >
+                                Move
+                              </button>
+                              <button
+                                onClick={() => deleteSession(s.id)}
+                                className="text-red-600 hover:underline"
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </div>
-                          <button
-                            type="submit"
-                            className="bg-orange-600 text-white px-3 py-1 rounded text-sm"
+                        )}
+
+                        {moveSession === s.id && (
+                          <form
+                            onSubmit={(e) => handleMoveSession(s.id, e)}
+                            className="mt-2 bg-orange-50 border border-orange-200 rounded p-2 flex gap-2 items-end"
                           >
-                            Move & Show Impact
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setMoveSession(null)}
-                            className="border px-3 py-1 rounded text-sm"
-                          >
-                            Cancel
-                          </button>
-                        </form>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+                            <div>
+                              <label className="block text-xs font-medium">
+                                New Date
+                              </label>
+                              <input
+                                type="date"
+                                value={moveForm.date}
+                                onChange={(e) =>
+                                  setMoveForm({
+                                    ...moveForm,
+                                    date: e.target.value,
+                                  })
+                                }
+                                className="border rounded px-2 py-1 text-sm"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium">
+                                Sequence
+                              </label>
+                              <input
+                                type="number"
+                                value={moveForm.sequence}
+                                onChange={(e) =>
+                                  setMoveForm({
+                                    ...moveForm,
+                                    sequence: parseInt(e.target.value) || 0,
+                                  })
+                                }
+                                className="border rounded px-2 py-1 text-sm w-20"
+                              />
+                            </div>
+                            <button
+                              type="submit"
+                              className="bg-orange-600 text-white px-3 py-1 rounded text-sm"
+                            >
+                              Move & Show Impact
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setMoveSession(null)}
+                              className="border px-3 py-1 rounded text-sm"
+                            >
+                              Cancel
+                            </button>
+                          </form>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 

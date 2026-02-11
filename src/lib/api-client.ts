@@ -17,6 +17,18 @@ async function request<T>(
   return res.json();
 }
 
+async function requestRaw<T>(
+  path: string,
+  options: RequestInit,
+): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, options);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || "Request failed");
+  }
+  return res.json();
+}
+
 // ─── Shared Types ───────────────────────────────────────
 
 export interface Instructor {
@@ -49,6 +61,7 @@ export interface Module {
   title: string;
   description: string | null;
   learningObjectives: string[];
+  notes: string | null;
   sessions?: Session[];
 }
 
@@ -80,6 +93,7 @@ export interface Skill {
   isGlobal: boolean;
   termId: string | null;
   coverages?: Coverage[];
+  assessmentSkills?: Array<{ assessment: Assessment }>;
   _count?: Record<string, number>;
 }
 
@@ -148,6 +162,29 @@ export interface ScenarioComparison {
   scenarioB: WhatIfImpact;
 }
 
+export interface ValidationItem {
+  type: string;
+  message: string;
+  skillId?: string;
+  sessionId?: string;
+  moduleId?: string;
+}
+
+export interface ImpactReport {
+  termId: string;
+  errors: ValidationItem[];
+  warnings: ValidationItem[];
+  info: ValidationItem[];
+  summary: {
+    totalSkills: number;
+    totalSessions: number;
+    totalCoverageEntries: number;
+    errorCount: number;
+    warningCount: number;
+    infoCount: number;
+  };
+}
+
 // ─── API Client ─────────────────────────────────────────
 
 export const api = {
@@ -178,13 +215,14 @@ export const api = {
       body: JSON.stringify(data),
     }),
   getTermImpact: (id: string) =>
-    request<unknown>(`/api/terms/${id}/impact`),
+    request<ImpactReport>(`/api/terms/${id}/impact`),
 
   // Modules
   getModules: (termId?: string) =>
     request<Module[]>(
       `/api/modules${termId ? `?termId=${termId}` : ""}`,
     ),
+  getModule: (id: string) => request<Module>(`/api/modules/${id}`),
   createModule: (data: Partial<Module>) =>
     request<Module>("/api/modules", {
       method: "POST",
@@ -199,6 +237,7 @@ export const api = {
     request<{ deleted: boolean }>(`/api/modules/${id}`, { method: "DELETE" }),
 
   // Skills
+  getSkill: (id: string) => request<Skill>(`/api/skills/${id}`),
   getSkills: (termId?: string) =>
     request<Skill[]>(
       `/api/skills${termId ? `?termId=${termId}` : ""}`,
@@ -217,6 +256,7 @@ export const api = {
     request<{ deleted: boolean }>(`/api/skills/${id}`, { method: "DELETE" }),
 
   // Sessions
+  getSession: (id: string) => request<Session>(`/api/sessions/${id}`),
   getSessions: (params?: { moduleId?: string; termId?: string }) => {
     const qs = new URLSearchParams();
     if (params?.moduleId) qs.set("moduleId", params.moduleId);
@@ -333,4 +373,12 @@ export const api = {
     request<ScenarioComparison>(
       `/api/terms/${termId}/whatif-compare?sessionA=${sessionA}&sessionB=${sessionB}`,
     ),
+
+  // CSV Import
+  importSkillsCsv: (termId: string, csvText: string) =>
+    requestRaw<ImportResult>(`/api/terms/${termId}/import-skills-csv`, {
+      method: "POST",
+      headers: { "Content-Type": "text/csv" },
+      body: csvText,
+    }),
 };
