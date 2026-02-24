@@ -3,30 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { api } from "@/lib/api-client";
-
-interface ValidationItem {
-  type: string;
-  message: string;
-  skillId?: string;
-  sessionId?: string;
-  moduleId?: string;
-}
-
-interface ImpactReport {
-  termId: string;
-  errors: ValidationItem[];
-  warnings: ValidationItem[];
-  info: ValidationItem[];
-  summary: {
-    totalSkills: number;
-    totalSessions: number;
-    totalCoverageEntries: number;
-    errorCount: number;
-    warningCount: number;
-    infoCount: number;
-  };
-}
+import { api, type ImpactReport } from "@/lib/api-client";
 
 export default function ImpactPage() {
   const { id: termId } = useParams<{ id: string }>();
@@ -35,7 +12,7 @@ export default function ImpactPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const r = (await api.getTermImpact(termId)) as ImpactReport;
+    const r = await api.getTermImpact(termId);
     setReport(r);
     setLoading(false);
   }, [termId]);
