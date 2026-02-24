@@ -166,6 +166,12 @@ export default function TermDetailPage() {
             Coverage Matrix
           </Link>
           <Link
+            href={`/terms/${id}/flow`}
+            className="bg-teal-600 text-white px-3 py-1.5 rounded text-sm hover:bg-teal-700"
+          >
+            Flow View
+          </Link>
+          <Link
             href={`/terms/${id}/impact`}
             className="bg-orange-600 text-white px-3 py-1.5 rounded text-sm hover:bg-orange-700"
           >
