@@ -25,6 +25,12 @@ services:
       - "3000:3000"
     environment:
       DATABASE_URL: "postgresql://courseplanner:courseplanner@db:5432/courseplanner?schema=public"
+      # Auth — set real values in docker-compose.override.yml or .env
+      AUTH_SECRET: "changeme-run-openssl-rand-base64-32"
+      GOOGLE_CLIENT_ID: ""
+      GOOGLE_CLIENT_SECRET: ""
+      NEXTAUTH_URL: "http://localhost:3000"
+      ALLOWED_EMAIL: ""
     depends_on:
       db:
         condition: service_healthy

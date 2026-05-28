@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { ok, badRequest, notFound, serverError } from "@/lib/api-helpers";
 import { z } from "zod";
@@ -20,6 +21,14 @@ const cancelSchema = z.object({
   dryRun: z.boolean().optional().default(false),
   force: z.boolean().optional().default(false),
 });
+
+type SessionWithTerm = {
+  id: string;
+  status: string;
+  module: {
+    termId: string;
+  };
+};
 
 export async function POST(
   request: NextRequest,
@@ -54,7 +63,9 @@ export async function POST(
         include: { module: { select: { termId: true } } },
       });
 
-      const targetMap = new Map(targets.map((t) => [t.id, t]));
+      const targetMap = new Map<string, SessionWithTerm>(
+        targets.map((t: SessionWithTerm) => [t.id, t]),
+      );
 
       const errors: string[] = [];
       for (const tid of targetIds) {
@@ -109,7 +120,7 @@ export async function POST(
       return ok({ valid: true, violations: [] });
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Mark session as canceled
       await tx.session.update({
         where: { id },

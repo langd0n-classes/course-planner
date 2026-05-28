@@ -227,8 +227,8 @@ export default function SkillsPage() {
                     </span>
                   </div>
                   <div className="flex items-center gap-3 text-xs text-gray-500">
-                    <span>{s._count.coverages} coverages</span>
-                    <span>{s._count.assessmentSkills} assessments</span>
+                    <span>{s._count?.coverages ?? 0} coverages</span>
+                    <span>{s._count?.assessmentSkills ?? 0} assessments</span>
                     <button
                       onClick={() => {
                         setEditingSkill(s.id);

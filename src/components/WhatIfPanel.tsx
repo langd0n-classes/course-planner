@@ -611,7 +611,7 @@ export default function WhatIfPanel({
                       No ordering violations. Safe to proceed.
                     </div>
                     <button
-                      onClick={confirmCancellation}
+                      onClick={() => confirmCancellation()}
                       className="mt-2 w-full px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm font-medium"
                     >
                       Confirm Cancellation

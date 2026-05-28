@@ -79,8 +79,11 @@ export async function GET(
 
   // GAIE progression
   const gaies: GAIEEntry[] = term.assessments
-    .filter((a) => a.assessmentType === "gaie" && a.progressionStage)
-    .map((a, i) => ({
+    .filter(
+      (a: (typeof term.assessments)[number]) =>
+        a.assessmentType === "gaie" && a.progressionStage,
+    )
+    .map((a: (typeof term.assessments)[number], i: number) => ({
       assessmentId: a.id,
       progressionStage: a.progressionStage as GAIEEntry["progressionStage"],
       date: a.dueDate,
@@ -90,7 +93,7 @@ export async function GET(
 
   // Modules with no skills
   const modulesWithNoSkills = term.modules
-    .filter((m) => {
+    .filter((m: (typeof term.modules)[number]) => {
       const moduleSkills = new Set<string>();
       for (const s of m.sessions) {
         for (const c of s.coverages) {
@@ -99,7 +102,7 @@ export async function GET(
       }
       return moduleSkills.size === 0;
     })
-    .map((m) => ({
+    .map((m: (typeof term.modules)[number]) => ({
       type: "module_no_skills" as const,
       message: `Module "${m.title}" (${m.code}) covers no skills`,
       moduleId: m.id,
