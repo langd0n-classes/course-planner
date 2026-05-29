@@ -11,7 +11,7 @@ import {
 } from "@/lib/api-client";
 
 // The assessments endpoint returns skills as { skill: Skill }[] shape
-interface AssessmentWithSkills extends Assessment {
+interface AssessmentWithSkills extends Omit<Assessment, 'session'> {
   skills: Array<{ skill: Skill }>;
   session: { id: string; code: string; title: string } | null;
 }
