@@ -33,14 +33,16 @@ export async function POST(
     },
   });
 
-  const entries: CoverageEntry[] = allCoverages.map((c) => ({
-    sessionId: c.sessionId,
-    skillId: c.skillId,
-    level: c.level,
-    sessionDate: c.session.date,
-    sessionSequence: c.session.sequence,
-    moduleSequence: c.session.module.sequence,
-  }));
+  const entries: CoverageEntry[] = allCoverages.map(
+    (c: (typeof allCoverages)[number]) => ({
+      sessionId: c.sessionId,
+      skillId: c.skillId,
+      level: c.level,
+      sessionDate: c.session.date,
+      sessionSequence: c.session.sequence,
+      moduleSequence: c.session.module.sequence,
+    }),
+  );
 
   // Compute impact before making the change
   const newDate = parsed.data.date ? new Date(parsed.data.date) : null;

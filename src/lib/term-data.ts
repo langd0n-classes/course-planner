@@ -24,8 +24,8 @@ export async function loadTermData(termId: string): Promise<TermData> {
 
   if (!term) throw new Error("Term not found");
 
-  const sessions = term.modules.flatMap((m) =>
-    m.sessions.map((s) => ({
+  const sessions = term.modules.flatMap((m: (typeof term.modules)[number]) =>
+    m.sessions.map((s: (typeof m.sessions)[number]) => ({
       id: s.id,
       code: s.code,
       title: s.title,
@@ -37,17 +37,18 @@ export async function loadTermData(termId: string): Promise<TermData> {
     })),
   );
 
-  const coverages: CoverageEntry[] = term.modules.flatMap((m) =>
-    m.sessions.flatMap((s) =>
-      s.coverages.map((c) => ({
-        sessionId: s.id,
-        skillId: c.skillId,
-        level: c.level as "introduced" | "practiced" | "assessed",
-        sessionDate: s.date,
-        sessionSequence: s.sequence,
-        moduleSequence: m.sequence,
-      })),
-    ),
+  const coverages: CoverageEntry[] = term.modules.flatMap(
+    (m: (typeof term.modules)[number]) =>
+      m.sessions.flatMap((s: (typeof m.sessions)[number]) =>
+        s.coverages.map((c: (typeof s.coverages)[number]) => ({
+          sessionId: s.id,
+          skillId: c.skillId,
+          level: c.level as "introduced" | "practiced" | "assessed",
+          sessionDate: s.date,
+          sessionSequence: s.sequence,
+          moduleSequence: m.sequence,
+        })),
+      ),
   );
 
   // Get all skills for this term
@@ -55,7 +56,7 @@ export async function loadTermData(termId: string): Promise<TermData> {
     where: { OR: [{ termId }, { isGlobal: true }] },
   });
 
-  const skills = allSkills.map((s) => ({
+  const skills = allSkills.map((s: (typeof allSkills)[number]) => ({
     id: s.id,
     code: s.code,
     description: s.description,

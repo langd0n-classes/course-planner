@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { created, notFound, badRequest } from "@/lib/api-helpers";
 import { z } from "zod";
@@ -48,7 +49,7 @@ export async function POST(
   if (!source) return notFound("Source term not found");
 
   // Clone in a transaction
-  const cloned = await prisma.$transaction(async (tx) => {
+  const cloned = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     // 1. Create the new term
     const newTerm = await tx.term.create({
       data: {
@@ -128,7 +129,7 @@ export async function POST(
           rubric: assessment.rubric ?? undefined,
           progressionStage: assessment.progressionStage,
           skills: {
-            create: assessment.skills.map((s) => ({
+            create: assessment.skills.map((s: (typeof assessment.skills)[number]) => ({
               skillId: s.skillId,
             })),
           },

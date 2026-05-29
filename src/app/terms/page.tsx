@@ -174,6 +174,13 @@ export default function TermsPage() {
         <div className="bg-white rounded-lg border divide-y">
           {terms.map((t) => (
             <div key={t.id} className="px-4 py-3">
+              {(() => {
+                const moduleCount = t._count?.modules ?? 0;
+                const assessmentCount = t._count?.assessments ?? 0;
+                const instructorName = t.instructor?.name ?? "Unknown instructor";
+                const instructorId = t.instructor?.id ?? "";
+
+                return (
               <div className="flex justify-between items-start">
                 <Link
                   href={`/terms/${t.id}`}
@@ -190,9 +197,9 @@ export default function TermsPage() {
                   )}
                 </Link>
                 <div className="flex items-center gap-3 text-sm text-gray-500">
-                  <span>{t._count.modules} modules</span>
-                  <span>{t._count.assessments} assessments</span>
-                  <span>{t.instructor.name}</span>
+                  <span>{moduleCount} modules</span>
+                  <span>{assessmentCount} assessments</span>
+                  <span>{instructorName}</span>
                   <button
                     onClick={() => {
                       setShowClone(showClone === t.id ? null : t.id);
@@ -202,7 +209,7 @@ export default function TermsPage() {
                         name: "",
                         startDate: "",
                         endDate: "",
-                        instructorId: t.instructor.id,
+                        instructorId,
                       });
                     }}
                     className="text-blue-600 hover:underline"
@@ -217,6 +224,8 @@ export default function TermsPage() {
                   </button>
                 </div>
               </div>
+                );
+              })()}
               <div className="text-xs text-gray-400 mt-1">
                 {new Date(t.startDate).toLocaleDateString()} —{" "}
                 {new Date(t.endDate).toLocaleDateString()}

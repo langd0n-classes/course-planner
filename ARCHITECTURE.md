@@ -163,6 +163,19 @@ Instructor ──< Term ──< Module ──< Session ──< Coverage >── 
 
 Both interfaces have mock implementations for development/testing and are registered in `src/services/index.ts`. Real implementations (OpenAI, Anthropic) can be swapped in via environment variables.
 
+## Authentication
+
+- Auth.js (`next-auth` v5) provides Google OAuth for the
+  single-user instructor workflow.
+- Root config lives in `auth.ts`, exporting `auth`,
+  `handlers`, `signIn`, and `signOut`.
+- `src/app/api/auth/[...nextauth]/route.ts` exposes the
+  Auth.js route handlers.
+- `src/proxy.ts` protects app routes and redirects
+  unauthenticated requests to the built-in sign-in page.
+- Sessions use the default JWT strategy; no Prisma auth
+  adapter or extra database tables are required.
+
 ## Domain Rules (Invariants)
 
 Implemented as pure functions in `src/domain/coverage-rules.ts` and `src/domain/whatif.ts`:

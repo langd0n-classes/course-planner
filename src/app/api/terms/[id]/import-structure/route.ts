@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { importStructureSchema } from "@/lib/schemas";
 import { ok, badRequest, notFound, handleZodError, serverError } from "@/lib/api-helpers";
@@ -75,7 +76,9 @@ export async function POST(
       where: { termId },
       select: { code: true },
     });
-    const existingModuleCodes = new Set(existingModules.map((m) => m.code));
+    const existingModuleCodes = new Set(
+      existingModules.map((m: (typeof existingModules)[number]) => m.code),
+    );
     for (const mod of modules) {
       if (existingModuleCodes.has(mod.code)) {
         warnings.push(`Module code already exists: ${mod.code}`);
@@ -86,7 +89,9 @@ export async function POST(
       where: { termId },
       select: { code: true },
     });
-    const existingSkillCodes = new Set(existingSkills.map((s) => s.code));
+    const existingSkillCodes = new Set(
+      existingSkills.map((s: (typeof existingSkills)[number]) => s.code),
+    );
     for (const skill of skills) {
       if (existingSkillCodes.has(skill.code)) {
         warnings.push(`Skill code already exists: ${skill.code}`);
@@ -102,7 +107,7 @@ export async function POST(
 
     // ─── Transactional import ──────────────────────────
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const summary = {
         modules: 0,
         sessions: 0,

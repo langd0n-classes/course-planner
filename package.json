@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npx prisma generate && next build",
+    "build": "npx prisma generate && npx prisma migrate deploy && next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
@@ -21,6 +21,7 @@
   "dependencies": {
     "@prisma/client": "^6.19.2",
     "next": "16.1.6",
+    "next-auth": "^5.0.0-beta.31",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "uuid": "^13.0.0",

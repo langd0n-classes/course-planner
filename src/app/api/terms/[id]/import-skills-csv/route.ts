@@ -108,7 +108,7 @@ export async function POST(
     });
     if (existing.length > 0) {
       return badRequest(
-        `Skill codes already exist: ${existing.map((s) => s.code).join(", ")}`,
+        `Skill codes already exist: ${existing.map((s: (typeof existing)[number]) => s.code).join(", ")}`,
       );
     }
 
