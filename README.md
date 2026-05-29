@@ -32,13 +32,47 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+## Local Development
+
+### Path A: Full stack (recommended for first run)
+
+```bash
+cp .env.example .env
+# edit .env with your values
+podman compose up        # or: docker compose up
+# app is at http://localhost:3000
+```
+
+### Path B: DB only + hot reload (for active development)
+
+```bash
+cp .env.example .env.local
+# edit .env.local — set DATABASE_URL to point at local/containerized DB
+podman compose up db     # or: docker compose up db
+npm install
+npm run dev              # hot-reload dev server at http://localhost:3000
+```
+
+`podman compose` requires Podman 4.x+. On older systems, use
+`podman-compose` (`pip install podman-compose`).
+
 ### Environment Variables
 
-Copy `.env.example` to `.env` and adjust as needed:
+Compose users should copy `.env.example` to `.env`. For local Next.js
+development, `.env.local.example` mirrors the overlapping app/auth
+variables for `.env.local`.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DATABASE_URL` | `postgresql://courseplanner:courseplanner@localhost:5432/courseplanner` | PostgreSQL connection string |
+| `POSTGRES_USER` | `courseplanner` | PostgreSQL username for the `db` service |
+| `POSTGRES_PASSWORD` | `courseplanner` | PostgreSQL password for the `db` service |
+| `POSTGRES_DB` | `courseplanner` | PostgreSQL database name for the `db` service |
+| `DATABASE_URL` | `postgresql://courseplanner:courseplanner@db:5432/courseplanner?schema=public` | App database connection string in the compose network |
+| `AUTH_SECRET` | *(not set)* | Auth secret; generate with `openssl rand -base64 32` |
+| `GOOGLE_CLIENT_ID` | *(not set)* | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | *(not set)* | Google OAuth client secret |
+| `NEXTAUTH_URL` | `http://localhost:3000` | Public app URL for auth callbacks |
+| `ALLOWED_EMAIL` | *(not set)* | Single allowed sign-in email |
 | `OPENAI_API_KEY` | *(not set)* | Future: OpenAI API key |
 | `ANTHROPIC_API_KEY` | *(not set)* | Future: Anthropic API key |
 
