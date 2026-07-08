@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Mock } from "vitest";
 import { NextRequest } from "next/server";
 
 // Mock prisma
@@ -25,7 +26,12 @@ import prisma from "@/lib/prisma";
 import { loadTermData } from "@/lib/term-data";
 import { POST } from "./route";
 
-const mockedPrisma = vi.mocked(prisma);
+// The vi.mock factory above replaces every method with vi.fn(), but the
+// static type of `prisma` is still the generated PrismaClient. Cast the
+// methods we stub to vitest Mocks so mockResolvedValue etc. typecheck.
+const mockFindUnique = prisma.session.findUnique as unknown as Mock;
+const mockFindMany = prisma.session.findMany as unknown as Mock;
+const mockTransaction = prisma.$transaction as unknown as Mock;
 const mockedLoadTermData = vi.mocked(loadTermData);
 
 // Valid v4 UUIDs for testing
@@ -52,7 +58,7 @@ describe("POST /api/sessions/[id]/cancel", () => {
   });
 
   it("returns 404 when session not found", async () => {
-    mockedPrisma.session.findUnique.mockResolvedValue(null);
+    mockFindUnique.mockResolvedValue(null);
 
     const req = makeRequest({ reason: "Snow day" });
     const res = await POST(req, { params: makeParams("nonexistent") });
@@ -63,7 +69,7 @@ describe("POST /api/sessions/[id]/cancel", () => {
   });
 
   it("returns 400 when session is already canceled", async () => {
-    mockedPrisma.session.findUnique.mockResolvedValue({
+    mockFindUnique.mockResolvedValue({
       id: SESSION_1,
       status: "canceled",
       module: { termId: TERM_1 },
@@ -78,7 +84,7 @@ describe("POST /api/sessions/[id]/cancel", () => {
   });
 
   it("cancels session with no redistributions (200)", async () => {
-    mockedPrisma.session.findUnique
+    mockFindUnique
       .mockResolvedValueOnce({
         id: SESSION_1,
         status: "scheduled",
@@ -92,7 +98,7 @@ describe("POST /api/sessions/[id]/cancel", () => {
         coverages: [],
       } as never);
 
-    mockedPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
+    mockTransaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
       return fn({
         session: { update: vi.fn() },
         coverage: { create: vi.fn() },
@@ -106,7 +112,7 @@ describe("POST /api/sessions/[id]/cancel", () => {
   });
 
   it("cancels session with valid redistributions (200)", async () => {
-    mockedPrisma.session.findUnique
+    mockFindUnique
       .mockResolvedValueOnce({
         id: SESSION_1,
         status: "scheduled",
@@ -119,7 +125,7 @@ describe("POST /api/sessions/[id]/cancel", () => {
         coverages: [],
       } as never);
 
-    (mockedPrisma.session as unknown as { findMany: ReturnType<typeof vi.fn> }).findMany.mockResolvedValue([
+    mockFindMany.mockResolvedValue([
       { id: SESSION_2, status: "scheduled", module: { termId: TERM_1 } },
     ]);
 
@@ -147,7 +153,7 @@ describe("POST /api/sessions/[id]/cancel", () => {
       ],
     });
 
-    mockedPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
+    mockTransaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
       return fn({
         session: { update: vi.fn() },
         coverage: { create: vi.fn() },
@@ -166,13 +172,13 @@ describe("POST /api/sessions/[id]/cancel", () => {
   });
 
   it("returns dryRun validation result without canceling", async () => {
-    mockedPrisma.session.findUnique.mockResolvedValueOnce({
+    mockFindUnique.mockResolvedValueOnce({
       id: SESSION_1,
       status: "scheduled",
       module: { termId: TERM_1 },
     } as never);
 
-    (mockedPrisma.session as unknown as { findMany: ReturnType<typeof vi.fn> }).findMany.mockResolvedValue([
+    mockFindMany.mockResolvedValue([
       { id: SESSION_2, status: "scheduled", module: { termId: TERM_1 } },
     ]);
 
@@ -216,17 +222,17 @@ describe("POST /api/sessions/[id]/cancel", () => {
     expect(body.violations).toEqual([]);
 
     // Ensure no transaction was called (no actual cancellation)
-    expect(mockedPrisma.$transaction).not.toHaveBeenCalled();
+    expect(mockTransaction).not.toHaveBeenCalled();
   });
 
   it("returns 400 when redistributions break ordering", async () => {
-    mockedPrisma.session.findUnique.mockResolvedValueOnce({
+    mockFindUnique.mockResolvedValueOnce({
       id: SESSION_1,
       status: "scheduled",
       module: { termId: TERM_1 },
     } as never);
 
-    (mockedPrisma.session as unknown as { findMany: ReturnType<typeof vi.fn> }).findMany.mockResolvedValue([
+    mockFindMany.mockResolvedValue([
       { id: SESSION_2, status: "scheduled", module: { termId: TERM_1 } },
     ]);
 
