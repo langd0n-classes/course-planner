@@ -149,3 +149,31 @@ Decisions made where the requirements were underspecified. Each can be revisited
 - **Import page uses api-client**: The import page was the last holdout using raw `fetch()`. A new `importSkillsCsv` method with `requestRaw` helper was added to api-client to handle the text/csv content type.
 
 - **Impact and assessment pages use shared types**: Local duplicate type definitions in the impact and assessments pages were removed in favor of types imported from `api-client.ts`. New `ImpactReport` and `ValidationItem` types were added to the api-client.
+
+## Phase 2B.2 — Skill Flow Visualization
+
+- **Thread lines are CSS borders, not SVG**: The skill "thread" (design
+  principle #5) is drawn with absolutely-positioned half-width border
+  divs inside each table cell between a skill's first and last coverage.
+  This honors the phase constraint (HTML/CSS only, no SVG/canvas) while
+  still reading as a continuous line. Canceled or simulated-canceled
+  sessions render their thread segment as a dashed red border — the
+  "broken line".
+
+- **Thread span is display-relative**: The line spans first→last coverage
+  among *visible* columns. If a module/canceled filter hides a skill's
+  outermost coverage, the thread shortens accordingly rather than pointing
+  at hidden columns.
+
+- **Flow rows are grouped by category, then code**: The grid sorts skills
+  by category and inserts category divider rows. Skill codes sort
+  lexicographically within a category.
+
+- **What-if overlay is client-side and read-only**: The flow page's
+  "Simulate cancellation" select calls the pure `simulateCancellation`
+  from `src/domain/whatif.ts` on already-fetched data. Nothing persists;
+  no API call is made (design principle #3).
+
+- **Placeholder module groups sort last**: Sessions whose module isn't in
+  the modules list (shouldn't happen, but defensive) get a placeholder
+  group with MAX_SAFE_INTEGER sequence so they appear at the far right.
