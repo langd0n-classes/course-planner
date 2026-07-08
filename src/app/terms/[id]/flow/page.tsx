@@ -9,7 +9,7 @@ import type { FlowCoverageLevel, FlowData } from "./flow-utils";
 import FlowSummary from "@/components/flow/FlowSummary";
 import FlowFilters, { type FlowFiltersState } from "@/components/flow/FlowFilters";
 import FlowGrid from "@/components/flow/FlowGrid";
-import LoadingSkeleton from "@/components/LoadingSkeleton";
+import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 
 export default function TermFlowPage() {
   const { id } = useParams<{ id: string }>();

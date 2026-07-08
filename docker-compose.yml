@@ -7,13 +7,17 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: courseplanner
-      POSTGRES_PASSWORD: courseplanner
-      POSTGRES_DB: courseplanner
+      POSTGRES_USER: ${POSTGRES_USER:-courseplanner}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-courseplanner}
+      POSTGRES_DB: ${POSTGRES_DB:-courseplanner}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U courseplanner"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-courseplanner} -d ${POSTGRES_DB:-courseplanner}",
+        ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -24,7 +28,12 @@ services:
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: "postgresql://courseplanner:courseplanner@db:5432/courseplanner?schema=public"
+      DATABASE_URL: ${DATABASE_URL:-postgresql://courseplanner:courseplanner@db:5432/courseplanner?schema=public}
+      AUTH_SECRET: ${AUTH_SECRET:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      ALLOWED_EMAIL: ${ALLOWED_EMAIL:-}
     depends_on:
       db:
         condition: service_healthy

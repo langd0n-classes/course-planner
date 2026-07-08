@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { api, type ImportResult } from "@/lib/api-client";
 
 type Tab = "calendar" | "structure" | "csv";
 
@@ -116,34 +117,17 @@ export default function ImportPage() {
     setResult(null);
 
     try {
-      let url = "";
-      let body: string;
-      let contentType = "application/json";
+      let data: Record<string, unknown>;
 
       if (tab === "calendar") {
-        url = `/api/terms/${termId}/import-calendar`;
-        body = text;
+        data = await api.importCalendar(termId, JSON.parse(text)) as unknown as Record<string, unknown>;
       } else if (tab === "structure") {
-        url = `/api/terms/${termId}/import-structure`;
-        body = text;
+        data = await api.importStructure(termId, JSON.parse(text)) as unknown as Record<string, unknown>;
       } else {
-        url = `/api/terms/${termId}/import-skills-csv`;
-        body = csvText;
-        contentType = "text/csv";
+        data = await api.importSkillsCsv(termId, csvText) as unknown as Record<string, unknown>;
       }
 
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": contentType },
-        body,
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error + (data.details ? `\n${JSON.stringify(data.details, null, 2)}` : ""));
-      } else {
-        setResult(data);
-      }
+      setResult(data);
     } catch (err) {
       setError((err as Error).message);
     } finally {

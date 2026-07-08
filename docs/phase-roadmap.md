@@ -134,21 +134,37 @@ Split into two parallel sub-phases based on lessons
 from Phase 2A (scope was too large for one session;
 strict file ownership enables parallel execution).
 
-### 2B.1: Coverage Matrix + Content Views (parallel)
+### 2B.1: Coverage Matrix + Content Views (complete)
 
-**Scope:**
-- Coverage matrix fix (show ALL skills, gap visibility,
-  clickable empty cells, health summary)
-- Term dashboard enhancement (health panel, module cards,
-  assessment timeline, recent changes)
-- Module detail view (live editable, reads like an
-  overview document)
-- Session detail view (description, coverage, audit trail)
-- Skill detail view (coverage timeline, assessment links)
-- Navigation (breadcrumbs, loading states, empty states,
-  toasts)
-- Tech debt cleanup (duplicate types, raw fetch() in
-  existing pages)
+**Delivered:**
+- Coverage matrix fix: show ALL skills (was hiding
+  uncovered), health summary bar (fully/partially/
+  uncovered), clickable empty cells with I/P/A popover,
+  gap and at-risk filter buttons, session/skill links
+- Term dashboard: health panel (session/coverage/
+  assessment stats), assessment timeline strip, recent
+  cancellations section, module cards with skill/session
+  counts
+- Module detail view: editable learning objectives,
+  planning notes, sessions with inline-editable
+  descriptions, skills summary table
+- Session detail view: editable description/notes,
+  coverage entries, redistribution audit trail, linked
+  assessments, what-if panel integration
+- Skill detail view: coverage status (I/P/A indicators),
+  timeline visualization, assessment links
+- New domain logic: `coverage-matrix.ts` with
+  `assembleCoverageMatrix`, `computeHealthBar`,
+  `filterMatrixRows` + 12 unit tests
+- Shared components: Breadcrumbs, CoverageBadge,
+  EditableText, LoadingSkeleton, StatusBadge, Toast
+  (context + provider)
+- Schema: `Module.notes` field added with migration
+- Tech debt: import page uses api-client (no raw
+  fetch()), impact/assessments pages use shared types
+  from api-client
+- 61 unit tests passing (12 new coverage-matrix tests)
+- E2E test for content navigation (7 test cases)
 
 **Owns:** All existing pages, api-client.ts, components/
 

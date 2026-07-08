@@ -32,8 +32,8 @@ interface WhatIfPanelProps {
     redistributions: Array<{ skillId: string; level: string; targetSessionId: string }>,
     force?: boolean,
   ) => void;
-  compareSessionId: string | null;
-  onSetCompare: (id: string | null) => void;
+  compareSessionId?: string | null;
+  onSetCompare?: (id: string | null) => void;
 }
 
 export default function WhatIfPanel({
@@ -42,8 +42,8 @@ export default function WhatIfPanel({
   sessions,
   onClose,
   onApplyCancel,
-  compareSessionId,
-  onSetCompare,
+  compareSessionId = null,
+  onSetCompare = () => {},
 }: WhatIfPanelProps) {
   const [impact, setImpact] = useState<WhatIfImpact | null>(null);
   const [comparison, setComparison] = useState<ScenarioComparison | null>(null);
@@ -611,7 +611,7 @@ export default function WhatIfPanel({
                       No ordering violations. Safe to proceed.
                     </div>
                     <button
-                      onClick={confirmCancellation}
+                      onClick={() => confirmCancellation()}
                       className="mt-2 w-full px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm font-medium"
                     >
                       Confirm Cancellation
