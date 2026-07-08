@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 
 import type { FlowCoverageLevel, FlowData } from "@/app/terms/[id]/flow/flow-utils";
+import { computeThreadSpan } from "@/app/terms/[id]/flow/flow-utils";
 
 const LEVEL_BADGE = {
   introduced: { label: "Intro", letter: "I", color: "bg-indigo-50 text-indigo-700" },
@@ -11,9 +13,14 @@ const LEVEL_BADGE = {
 } satisfies Record<FlowCoverageLevel, { label: string; letter: string; color: string }>;
 
 interface FlowGridProps {
+  termId: string;
   data: FlowData;
   onAddCoverage: (skillId: string, sessionId: string, level: FlowCoverageLevel) => Promise<void> | void;
   onRemoveCoverage: (coverageId: string) => Promise<void> | void;
+  /** Session hypothetically canceled by the what-if overlay (read-only). */
+  simulatedSessionId?: string | null;
+  /** Skills flagged at risk by the what-if simulation. */
+  simulatedAtRiskSkillIds?: Set<string>;
 }
 
 interface ActiveCell {
@@ -21,8 +28,16 @@ interface ActiveCell {
   sessionId: string;
 }
 
-export default function FlowGrid({ data, onAddCoverage, onRemoveCoverage }: FlowGridProps) {
+export default function FlowGrid({
+  termId,
+  data,
+  onAddCoverage,
+  onRemoveCoverage,
+  simulatedSessionId = null,
+  simulatedAtRiskSkillIds,
+}: FlowGridProps) {
   const [activeCell, setActiveCell] = useState<ActiveCell | null>(null);
+  const [hoveredSessionId, setHoveredSessionId] = useState<string | null>(null);
   const [mutating, setMutating] = useState(false);
 
   const moduleGroups = useMemo(() => {
@@ -32,7 +47,7 @@ export default function FlowGrid({ data, onAddCoverage, onRemoveCoverage }: Flow
         moduleId: string;
         moduleCode: string;
         moduleTitle: string;
-        sessions: typeof data.sessions;
+        sessions: FlowData["sessions"];
       }
     >();
 
@@ -53,7 +68,10 @@ export default function FlowGrid({ data, onAddCoverage, onRemoveCoverage }: Flow
     return Array.from(map.values());
   }, [data.sessions]);
 
-  const sessionIdSet = useMemo(() => new Set(data.sessions.map((session) => session.sessionId)), [data.sessions]);
+  const threadSpans = useMemo(
+    () => data.rows.map((row) => computeThreadSpan(row.cells)),
+    [data.rows],
+  );
 
   const skillBorderClass = (status: string) => {
     if (status === "complete") return "border-l-4 border-green-500";
@@ -104,8 +122,19 @@ export default function FlowGrid({ data, onAddCoverage, onRemoveCoverage }: Flow
     );
   }
 
+  const columnHighlight = (sessionId: string) =>
+    hoveredSessionId === sessionId ? "bg-blue-50" : "";
+
+  const simulatedColumn = (sessionId: string) =>
+    simulatedSessionId === sessionId
+      ? "border-x-2 border-dashed border-red-400"
+      : "";
+
   return (
-    <div className="overflow-auto bg-white border rounded">
+    <div
+      className="overflow-auto bg-white border rounded"
+      onMouseLeave={() => setHoveredSessionId(null)}
+    >
       <table className="min-w-full border-collapse">
         <thead className="bg-gray-50">
           <tr>
@@ -116,7 +145,7 @@ export default function FlowGrid({ data, onAddCoverage, onRemoveCoverage }: Flow
               <th
                 key={group.moduleId}
                 colSpan={group.sessions.length}
-                className="px-3 py-2 text-center text-xs font-semibold text-gray-500"
+                className="px-3 py-2 text-center text-xs font-semibold text-gray-500 border-l-2 border-gray-200"
               >
                 <div className="text-sm font-semibold text-gray-700">
                   {group.moduleCode}
@@ -130,14 +159,22 @@ export default function FlowGrid({ data, onAddCoverage, onRemoveCoverage }: Flow
             {data.sessions.map((session) => (
               <th
                 key={session.sessionId}
+                onMouseEnter={() => setHoveredSessionId(session.sessionId)}
                 className={`px-2 py-2 text-center text-xs font-medium uppercase ${
                   session.isCanceled ? "bg-red-50 text-red-500" : ""
-                }`}
+                } ${columnHighlight(session.sessionId)} ${simulatedColumn(session.sessionId)}`}
               >
                 <div className="flex flex-col items-center gap-1">
-                  <span className="text-sm text-gray-800">{session.code}</span>
+                  <Link
+                    href={`/terms/${termId}/sessions/${session.sessionId}`}
+                    className="text-sm text-gray-800 hover:text-blue-600 hover:underline"
+                  >
+                    {session.code}
+                  </Link>
                   <span className="text-[10px] tracking-wide text-gray-500">
                     {session.sessionType}
+                    {session.isCanceled ? " · canceled" : ""}
+                    {simulatedSessionId === session.sessionId ? " · simulated" : ""}
                   </span>
                   {session.date && (
                     <span className="text-[10px] text-gray-400">
@@ -160,112 +197,180 @@ export default function FlowGrid({ data, onAddCoverage, onRemoveCoverage }: Flow
               </td>
             </tr>
           )}
-          {data.rows.map((row) => (
-            <tr
-              key={row.skill.id}
-              className="group hover:bg-yellow-50 transition-colors"
-            >
-              <th
-                className={`sticky left-0 z-10 bg-white px-3 py-2 text-left text-sm font-semibold ${skillBorderClass(
-                  row.coverageStatus,
-                )}`}
-              >
-                <div>{row.skill.code}</div>
-                <div className="text-xs text-gray-500">
-                  {row.skill.description || row.skill.code}
-                </div>
-                {row.coverageStatus === "none" && (
-                  <div className="text-[10px] uppercase text-red-500 tracking-wide mt-1">
-                    NOT COVERED
-                  </div>
-                )}
-              </th>
-              {row.cells.map((cell) => {
-                const session = data.sessions.find((sessionData) => sessionData.sessionId === cell.sessionId);
-                const filled = cell.entries.length > 0;
-                const active = isCellActive(row.skill.id, cell.sessionId);
-                return (
-                  <td
-                    key={`${row.skill.id}-${cell.sessionId}`}
-                    className={`relative px-2 py-3 text-center text-sm border border-transparent transition-colors cursor-pointer hover:bg-blue-50 ${
-                      cell.isCanceled
-                        ? "bg-red-50 text-red-600"
-                        : "bg-white text-gray-700"
-                    }`}
-                    onClick={() => focusCell(row.skill.id, cell.sessionId)}
+          {data.rows.map((row, rowIndex) => {
+            const span = threadSpans[rowIndex];
+            const previousCategory = rowIndex > 0 ? data.rows[rowIndex - 1].category : null;
+            const showCategoryDivider = row.category !== previousCategory;
+            const simulatedAtRisk = simulatedAtRiskSkillIds?.has(row.skill.id) ?? false;
+            return (
+              <FlowRowGroup key={row.skill.id} showCategoryDivider={showCategoryDivider} category={row.category} columnCount={data.sessions.length + 1}>
+                <tr className="group hover:bg-yellow-50 transition-colors">
+                  <th
+                    className={`sticky left-0 z-10 bg-white px-3 py-2 text-left text-sm font-semibold ${skillBorderClass(
+                      row.coverageStatus,
+                    )}`}
                   >
-                    {filled ? (
-                      <div className="flex flex-wrap justify-center gap-1">
-                        {cell.levels.map((level) => (
-                          <span
-                            key={level}
-                            className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                              LEVEL_BADGE[level].color
+                    <Link
+                      href={`/terms/${termId}/skills/${row.skill.id}`}
+                      className="hover:text-blue-600 hover:underline"
+                    >
+                      {row.skill.code}
+                    </Link>
+                    <div className="text-xs text-gray-500 font-normal max-w-[16rem] truncate">
+                      {row.skill.description || row.skill.code}
+                    </div>
+                    {row.coverageStatus === "none" && (
+                      <div className="text-[10px] uppercase text-red-500 tracking-wide mt-1">
+                        NOT COVERED
+                      </div>
+                    )}
+                    {simulatedAtRisk && (
+                      <div className="text-[10px] uppercase text-orange-600 tracking-wide mt-1">
+                        ⚠ At risk if canceled
+                      </div>
+                    )}
+                  </th>
+                  {row.cells.map((cell, cellIndex) => {
+                    const session = data.sessions[cellIndex];
+                    const filled = cell.entries.length > 0;
+                    const active = isCellActive(row.skill.id, cell.sessionId);
+                    const inThread = span !== null && cellIndex >= span.start && cellIndex <= span.end;
+                    const threadBroken = cell.isCanceled || cell.sessionId === simulatedSessionId;
+                    return (
+                      <td
+                        key={`${row.skill.id}-${cell.sessionId}`}
+                        onMouseEnter={() => setHoveredSessionId(cell.sessionId)}
+                        className={`relative px-2 py-3 text-center text-sm border border-transparent transition-colors cursor-pointer hover:bg-blue-100 ${
+                          cell.isCanceled ? "bg-red-50 text-red-600" : "text-gray-700"
+                        } ${columnHighlight(cell.sessionId)} ${simulatedColumn(cell.sessionId)}`}
+                        onClick={() => focusCell(row.skill.id, cell.sessionId)}
+                      >
+                        {/* Skill thread: the horizontal line flowing through the
+                            semester (design principle #5). Broken (dashed red)
+                            where the session is canceled or simulated-canceled. */}
+                        {inThread && span !== null && cellIndex > span.start && (
+                          <div
+                            aria-hidden
+                            className={`absolute top-1/2 left-0 w-1/2 -translate-y-1/2 ${
+                              threadBroken
+                                ? "border-t-2 border-dashed border-red-300"
+                                : "border-t-2 border-gray-300"
                             }`}
-                          >
-                            {LEVEL_BADGE[level].letter}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-xs text-gray-400">—</div>
-                    )}
-                    {active && (
-                      <div className="absolute left-1/2 top-1/2 z-10 w-48 -translate-x-1/2 -translate-y-1/2 rounded border border-gray-200 bg-white p-3 shadow-lg space-y-2 text-left text-xs">
-                        {filled ? (
-                          <>
-                            <div className="text-gray-800 font-semibold">
-                              {row.skill.code} · {session?.code ?? "Session"}
-                            </div>
-                            {cell.entries.map((entry) => (
-                              <div key={entry.id} className="flex items-center justify-between">
-                                <span className="uppercase font-semibold tracking-wide text-[10px]">
-                                  {LEVEL_BADGE[entry.level].label}
-                                </span>
-                                <button
-                                  disabled={mutating}
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    handleRemove(entry.id);
-                                  }}
-                                  className="text-red-600 text-[10px] font-semibold hover:underline"
-                                >
-                                  Remove
-                                </button>
-                              </div>
-                            ))}
-                          </>
-                        ) : (
-                          <>
-                            <div className="text-gray-800 font-semibold">
-                              Add coverage
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {(Object.keys(LEVEL_BADGE) as FlowCoverageLevel[]).map((level) => (
-                                <button
-                                  key={level}
-                                  disabled={mutating}
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    handleAdd(row.skill.id, cell.sessionId, level);
-                                  }}
-                                  className="inline-flex items-center justify-center rounded border border-gray-200 px-2 py-1 text-[11px] font-semibold text-gray-700 hover:bg-gray-100 disabled:opacity-50"
-                                >
-                                  {LEVEL_BADGE[level].letter}
-                                </button>
-                              ))}
-                            </div>
-                          </>
+                          />
                         )}
-                      </div>
-                    )}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
+                        {inThread && span !== null && cellIndex < span.end && (
+                          <div
+                            aria-hidden
+                            className={`absolute top-1/2 right-0 w-1/2 -translate-y-1/2 ${
+                              threadBroken
+                                ? "border-t-2 border-dashed border-red-300"
+                                : "border-t-2 border-gray-300"
+                            }`}
+                          />
+                        )}
+                        {filled ? (
+                          <div className="relative flex flex-wrap justify-center gap-1">
+                            {cell.levels.map((level) => (
+                              <span
+                                key={level}
+                                className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                  LEVEL_BADGE[level].color
+                                } ${threadBroken ? "opacity-50 line-through" : ""}`}
+                              >
+                                {LEVEL_BADGE[level].letter}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="relative text-xs text-gray-400">
+                            {inThread ? "" : "—"}
+                          </div>
+                        )}
+                        {active && (
+                          <div className="absolute left-1/2 top-1/2 z-20 w-48 -translate-x-1/2 -translate-y-1/2 rounded border border-gray-200 bg-white p-3 shadow-lg space-y-2 text-left text-xs">
+                            {filled ? (
+                              <>
+                                <div className="text-gray-800 font-semibold">
+                                  {row.skill.code} · {session?.code ?? "Session"}
+                                </div>
+                                {cell.entries.map((entry) => (
+                                  <div key={entry.id} className="flex items-center justify-between">
+                                    <span className="uppercase font-semibold tracking-wide text-[10px]">
+                                      {LEVEL_BADGE[entry.level].label}
+                                    </span>
+                                    <button
+                                      disabled={mutating}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        handleRemove(entry.id);
+                                      }}
+                                      className="text-red-600 text-[10px] font-semibold hover:underline"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                ))}
+                              </>
+                            ) : (
+                              <>
+                                <div className="text-gray-800 font-semibold">
+                                  Add coverage
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  {(Object.keys(LEVEL_BADGE) as FlowCoverageLevel[]).map((level) => (
+                                    <button
+                                      key={level}
+                                      disabled={mutating}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        handleAdd(row.skill.id, cell.sessionId, level);
+                                      }}
+                                      className="inline-flex items-center justify-center rounded border border-gray-200 px-2 py-1 text-[11px] font-semibold text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+                                    >
+                                      {LEVEL_BADGE[level].letter}
+                                    </button>
+                                  ))}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              </FlowRowGroup>
+            );
+          })}
         </tbody>
       </table>
     </div>
+  );
+}
+
+function FlowRowGroup({
+  showCategoryDivider,
+  category,
+  columnCount,
+  children,
+}: {
+  showCategoryDivider: boolean;
+  category: string;
+  columnCount: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <>
+      {showCategoryDivider && (
+        <tr className="bg-gray-100">
+          <th colSpan={columnCount} className="p-0 text-left">
+            <div className="sticky left-0 w-fit px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              {category}
+            </div>
+          </th>
+        </tr>
+      )}
+      {children}
+    </>
   );
 }
