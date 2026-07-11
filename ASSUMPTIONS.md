@@ -217,3 +217,18 @@ Decisions made where the requirements were underspecified. Each can be revisited
   toggling "hide canceled sessions" is a display preference, not a claim
   that the term has fewer cancellations. Previously these were re-derived
   from the filtered session list, so hiding canceled sessions zeroed them.
+
+## Phase 2C — External-System Exports
+
+- **Module overview DOCX layout stays generic**: The Blackboard-targeted
+  module overview uses a plain course-agnostic document structure: module
+  heading, optional description, learning objectives list, ordered session
+  blocks (title, type/date, description, compact skill coverage), then a
+  linked-assessments section. No institution branding or LMS template
+  scaffolding is embedded.
+
+- **Module export assessments are session-linked only**: Because modules do
+  not own assessments directly in the schema, the module overview export
+  treats "linked assessments" as assessments attached to sessions within
+  that module. Term-level assessments outside the module's sessions are not
+  pulled into the module overview.

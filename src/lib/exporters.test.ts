@@ -153,13 +153,19 @@ const moduleOverviewInput = (): ModuleOverviewInput => ({
 });
 
 function getDocParagraphs(doc: File): Paragraph[] {
-  return doc.documentWrapper.document.body.root.filter(
-    (child): child is Paragraph => child instanceof Paragraph,
+  const body = (doc as unknown as {
+    documentWrapper: { document: { body: { root: unknown[] } } };
+  }).documentWrapper.document.body;
+
+  return body.root.filter(
+    (child: unknown): child is Paragraph => child instanceof Paragraph,
   );
 }
 
 function getParagraphText(paragraph: Paragraph): string {
-  const text = paragraph.root.flatMap((node) => {
+  const text = (
+    paragraph as unknown as { root: unknown[] }
+  ).root.flatMap((node) => {
     if (!node || typeof node !== "object" || !("root" in node)) return [];
     const childRoot = (node as { root?: unknown[] }).root;
     if (!Array.isArray(childRoot)) return [];
@@ -175,7 +181,7 @@ function getParagraphText(paragraph: Paragraph): string {
 }
 
 function getStyleValue(paragraph: Paragraph): string | null {
-  for (const node of paragraph.root) {
+  for (const node of (paragraph as unknown as { root: unknown[] }).root) {
     if (!node || typeof node !== "object" || !("rootKey" in node)) continue;
     if ((node as { rootKey?: string }).rootKey !== "w:pPr") continue;
     const props = (node as { root?: unknown[] }).root;
@@ -191,7 +197,7 @@ function getStyleValue(paragraph: Paragraph): string | null {
 }
 
 function isNumberedParagraph(paragraph: Paragraph): boolean {
-  return paragraph.root.some((node) => {
+  return (paragraph as unknown as { root: unknown[] }).root.some((node) => {
     if (!node || typeof node !== "object" || !("rootKey" in node)) return false;
     if ((node as { rootKey?: string }).rootKey !== "w:pPr") return false;
     const props = (node as { root?: unknown[] }).root;

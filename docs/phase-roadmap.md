@@ -207,18 +207,25 @@ strict file ownership enables parallel execution).
 
 **Issue:** #5 (build prompt attached as comment)
 
-### 2C: External-System Exports (after 2B)
+### 2C: External-System Exports (complete)
 
-**Scope (deferred from original 2B):**
-- Blackboard module overview (.docx)
-- Term summary (markdown, for instructor reference)
-- Session/lecture prompt (for GenAI content generation)
+**Delivered:**
+- `src/lib/exporters.ts` export builders for:
+  - term summary markdown
+  - module overview DOCX
+  - session GenAI prompt text
+- Export routes:
+  - `GET /api/terms/[id]/export/summary`
+  - `GET /api/modules/[id]/export-overview`
+  - `GET /api/sessions/[id]/export-prompt`
+- DOCX packaging via `docx` for Blackboard-compatible module overview downloads
+- API route tests for module overview and session prompt exports
+- Minimal secondary download controls on the term, module, and session detail pages via the shared api-client download path
 
-Exports are a "failure state" (design principle #2) and
-don't block the workspace experience. Deferred to keep
-2B focused on in-app views.
+Exports remain a "failure state" (design principle #2): they are present as
+small secondary actions, not a separate workspace.
 
-**Issue:** #6 (build prompt not yet written)
+**Issue:** #6
 
 **Depends on:** Phase 2B complete (#4, #5).
 

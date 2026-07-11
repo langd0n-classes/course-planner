@@ -13,7 +13,7 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  const module = await prisma.module.findUnique({
+  const moduleRecord = await prisma.module.findUnique({
     where: { id },
     include: {
       term: {
@@ -37,10 +37,10 @@ export async function GET(
     },
   });
 
-  if (!module) return notFound("Module not found");
+  if (!moduleRecord) return notFound("Module not found");
 
   const assessmentMap = new Map<string, ModuleOverviewInput["assessments"][number]>();
-  for (const session of module.sessions) {
+  for (const session of moduleRecord.sessions) {
     for (const assessment of session.assessments) {
       assessmentMap.set(assessment.id, {
         code: assessment.code,
@@ -53,12 +53,12 @@ export async function GET(
 
   const docx = await buildModuleOverviewDocx({
     module: {
-      code: module.code,
-      title: module.title,
-      description: module.description,
-      learningObjectives: module.learningObjectives,
+      code: moduleRecord.code,
+      title: moduleRecord.title,
+      description: moduleRecord.description,
+      learningObjectives: moduleRecord.learningObjectives,
     },
-    sessions: module.sessions.map((session) => ({
+    sessions: moduleRecord.sessions.map((session) => ({
       code: session.code,
       title: session.title,
       sessionType: session.sessionType,
@@ -74,12 +74,12 @@ export async function GET(
     assessments: [...assessmentMap.values()].sort((a, b) => a.code.localeCompare(b.code)),
   });
 
-  return new NextResponse(docx, {
+  return new NextResponse(new Uint8Array(docx), {
     headers: {
       "Content-Type":
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "Content-Disposition": `attachment; filename="${exportFilename(
-        `${module.term.courseCode}-${module.code}-${module.title}-overview`,
+        `${moduleRecord.term.courseCode}-${moduleRecord.code}-${moduleRecord.title}-overview`,
         "docx",
       )}"`,
     },
