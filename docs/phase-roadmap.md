@@ -170,9 +170,30 @@ strict file ownership enables parallel execution).
 
 **Issue:** #4 (build prompt attached as comment)
 
-### 2B.2: Skill Flow Visualization (parallel)
+### 2B.2: Skill Flow Visualization (complete)
 
-**Scope:**
+**Delivered:**
+- Skill flow grid (`/terms/[id]/flow`): skills as rows
+  grouped by category, sessions as columns grouped by
+  module, I/P/A coverage badges
+- Skill thread lines: horizontal line from each skill's
+  first to last coverage; dashed red (broken) across
+  canceled sessions — design principle #5's signature
+  visual
+- Gap visibility: uncovered skills with red left border +
+  NOT COVERED label; partial coverage yellow
+- Canceled sessions: tinted columns, dimmed/struck badges
+- Interactions: row + column hover highlighting, click
+  cell to add/remove coverage, session/skill headers link
+  to detail pages
+- Filters: category, module, gaps-only, show/hide canceled
+- Summary bar: skills health, session counts, at-risk count
+- Stretch goal shipped: read-only what-if cancellation
+  overlay (pure `simulateCancellation`, impact summary,
+  dashed simulated column, at-risk row flags)
+- flow-utils unit tests (68 total suite tests)
+
+**Scope (original):**
 - Skill flow grid: skills as rows, sessions grouped by
   module as columns, coverage level dots
 - Gap visibility (uncovered skills as prominent empty

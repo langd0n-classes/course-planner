@@ -2,7 +2,7 @@
 
 type CoverageLevel = "introduced" | "practiced" | "assessed";
 
-const LEVEL_STYLES: Record<CoverageLevel, string> = {
+export const COVERAGE_LEVEL_STYLES: Record<CoverageLevel, string> = {
   introduced: "bg-yellow-100 text-yellow-800",
   practiced: "bg-blue-100 text-blue-800",
   assessed: "bg-green-100 text-green-800",
@@ -28,7 +28,7 @@ export default function CoverageBadge({
   size = "sm",
 }: CoverageBadgeProps) {
   const sizeClass = size === "sm" ? "text-xs px-1.5 py-0.5" : "text-sm px-2 py-1";
-  const base = `inline-block font-bold rounded ${LEVEL_STYLES[level]} ${sizeClass}`;
+  const base = `inline-block font-bold rounded ${COVERAGE_LEVEL_STYLES[level]} ${sizeClass}`;
 
   if (onClick) {
     return (
@@ -47,7 +47,7 @@ export default function CoverageBadge({
 
 export function CoverageLevelLabel({ level }: { level: CoverageLevel }) {
   return (
-    <span className={`inline-block text-xs px-1.5 py-0.5 rounded ${LEVEL_STYLES[level]}`}>
+    <span className={`inline-block text-xs px-1.5 py-0.5 rounded ${COVERAGE_LEVEL_STYLES[level]}`}>
       {level}
     </span>
   );
