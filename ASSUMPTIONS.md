@@ -232,3 +232,16 @@ Decisions made where the requirements were underspecified. Each can be revisited
   treats "linked assessments" as assessments attached to sessions within
   that module. Term-level assessments outside the module's sessions are not
   pulled into the module overview.
+
+## Roadmap Reprioritization (2026-07-11)
+
+- **Real AI integration (originally Phase 3) is pushed to last**: operator
+  decision — `MockAiPlanner` is sufficient until the bulk of the UI/
+  general-feature work is done; no reason to pay AI design/cost/latency
+  complexity before the workflows it would enhance are settled. See
+  `docs/phase-roadmap.md`'s "Roadmap ordering" note for the full merged
+  sequence, which also folds in 5 feature ideas from an unscoped
+  `gpt-5.6-sol` ideation pass (persistent planning branches, course-memory
+  loop, capacity/workload budgets, evidence-backed alignment, prerequisite
+  readiness) plus 2 architecture debts it flagged (temporal ordering via
+  sequence not date; skill-ownership inconsistency on term clone).

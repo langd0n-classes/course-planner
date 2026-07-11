@@ -231,30 +231,114 @@ small secondary actions, not a separate workspace.
 
 ---
 
-## Phase 3: AI Integration (future)
+## Roadmap ordering (updated 2026-07-11)
 
-**Goal:** Replace mock AI with real providers.
+The phases below merge the original roadmap (3/4/5) with ideas from an
+unscoped `gpt-5.6-sol` ideation pass (`docs/plans/open-ended-feature-ideas.md`
+on `explore/sol-open-ended-ideas`) into one priority order. **Operator
+decision:** real AI integration (originally Phase 3) is pushed to last —
+`MockAiPlanner` is sufficient until the UI/general-feature surface is mostly
+built out; there's no reason to pay AI design/cost/latency complexity before
+the workflows it would enhance are themselves settled.
 
-**Scope (tentative):**
-- Real AiPlanner implementation (Claude/Anthropic)
-- Redistribution suggestions powered by actual course
-  context
-- Coverage gap analysis with pedagogical reasoning
-- Contextual chat for course design consultation
-- Content review against pedagogical principles
-
-**Depends on:** Phase 2B. Manual workflows must be
-correct before automating them with AI.
-
-**No build prompt written yet.** Design depends on the
-state of the app after Phase 2B.
+Two architecture debts, flagged during the Sol ideation pass, should be
+resolved before the phases that depend on them (called out inline below —
+don't let them become load-bearing bugs in newer, bigger features):
+- **Temporal ordering isn't truly temporal**: coverage validation sorts by
+  module/session *sequence*, with date only as a tiebreaker, so a session
+  can move to a different date without its effective pedagogical order
+  changing. Relevant to any phase reasoning about "what order did things
+  really happen in."
+- **Skill ownership on term clone is inconsistent**: term imports create
+  term-scoped skills, but cloning reuses every coverage/assessment skill ID
+  as-is, so a cloned term can point at skills owned by its source term.
+  Relevant to any phase that builds on top of cloning (course-memory, most
+  directly).
 
 ---
 
-## Phase 4: Content Authoring (future)
+## Phase 3: Prerequisite Readiness
 
-**Goal:** The app becomes where instructors BUILD course
-content, not just plan it.
+**Goal:** Turn the existing `Skill.prerequisites` field (in the schema,
+currently unused by planning logic) into an operational dependency graph.
+
+**Scope (tentative):**
+- Show where a session relies on skills not yet introduced/sufficiently
+  practiced
+- Identify bottleneck skills
+- Include downstream readiness failures in move/cancellation simulations
+  (e.g. canceling an early session can make later sessions pedagogically
+  premature even if that session's own coverage totals look fine)
+- Deepens design principle #5 (skills flow through the semester) across
+  skills, not just within one skill's I→P→A levels — complements the flow
+  view rather than duplicating it
+
+No real AI needed — deterministic graph traversal and readiness rules.
+Builds directly on the flow visualization just shipped (#5/#8).
+
+**Depends on:** resolving the temporal-ordering debt above first — a
+prerequisite graph is meaningless if session order isn't trustworthy.
+
+**No build prompt written yet.**
+
+---
+
+## Phase 4: Capacity & Workload Budgets
+
+**Goal:** Add feasibility signals alongside the existing coverage/gap
+signals — a structurally "healthy" plan can still be unteachable (three
+major assessments landing together, a canceled lecture's content dumped
+into a session with no room for it).
+
+**Scope (tentative):**
+- Estimated/observed effort on sessions, activities, assessments (student
+  prep/completion time, in-class minutes, instructor grading load)
+- Weekly load bands; flag overloaded weeks, assessment pileups,
+  implausibly dense sessions
+- Extend redistribution validation to ask "can this session absorb the
+  work?", not just "does ordering remain valid?"
+
+No real AI needed. Stretches the current mostly-count-based health model
+into a feasibility dimension — a deliberate, worthwhile stretch.
+
+**No build prompt written yet.**
+
+---
+
+## Phase 5: Workspace Continuity — Planning Branches & Course Memory
+
+**Goal:** The two largest workspace-depth ideas from the ideation pass,
+grouped because they're both about the app remembering/simulating across
+time rather than just within a single edit.
+
+**Scope (tentative):**
+- **Persistent planning branches**: generalize the single-session
+  cancellation preview (design principle #3, what-if before commit) into
+  named, persistent scenarios — multiple tentative changes, compared
+  against the live plan, applied whole or in part. The fullest expression
+  of the what-if principle.
+- **Course-memory loop**: structured post-use reflection per session/
+  assessment/module (what happened, timing variance, keep/revise/retire),
+  surfaced as an "adaptation inbox" during term cloning. `priorArt` and
+  `clonedFromId` already exist in the schema and are barely consumed today
+  — this closes that gap rather than opening a new one.
+
+No real AI required for either; mock AI could later populate a branch
+proposal or reflection prompt, but the workflows are valuable without it.
+
+**Depends on:** resolving the skill-ownership-on-clone debt above — the
+course-memory loop's clone-adaptation workflow would otherwise inherit
+that inconsistency.
+
+**No build prompt written yet.**
+
+---
+
+## Phase 6: Content Authoring
+
+**Goal:** The app becomes where instructors BUILD course content, not
+just plan it. (Originally Phase 4 — unchanged, still the long-term vision
+described in the design principles.)
 
 **Scope (tentative):**
 - In-app assignment authoring (with AI assistance)
@@ -263,12 +347,39 @@ content, not just plan it.
 - Template system for common content patterns
 - Integration with notebook formats (Jupyter/Otter)
 
-**No build prompt written yet.** This is the long-term
-vision described in the design principles.
+**No build prompt written yet.**
 
 ---
 
-## Phase 5: History, Search, Collaboration (future)
+## Phase 7: Evidence-Backed Alignment
+
+**Goal:** Replace the implicit assumption that an I/P/A label proves
+alignment with a traceable chain: learning objective → skill → learning
+activity → assessment → rubric criterion. Today, adding an "assessed"
+badge can make the matrix look healthy even if the assessment doesn't
+meaningfully elicit that skill — this measures bookkeeping completeness,
+not alignment quality.
+
+**Scope (tentative):**
+- Coverage entries carry a brief rationale/evidence reference
+- Distinguish declared coverage vs. activity-backed vs.
+  assessment-linkage-without-rubric vs. unmapped objectives
+- Primary experience stays an interactive alignment view, not an
+  accreditation export (principle #2 still applies if an institution
+  eventually needs one)
+
+Largest and most decision-heavy of the ideation-pass ideas (rubric
+criteria as first-class entities? how much evidence counts as verified?
+configurable taxonomies beyond I/P/A?) — placed after the more concretely
+scoped phases above.
+
+**No build prompt written yet.**
+
+---
+
+## Phase 8: History, Search, Collaboration
+
+**Goal:** unchanged from the original Phase 5.
 
 **Scope (tentative):**
 - Cross-term search (find sessions by topic across all
@@ -280,3 +391,25 @@ vision described in the design principles.
 - Real-time collaboration
 
 **No build prompt written yet.**
+
+---
+
+## Phase 9: AI Integration
+
+**Goal:** Replace mock AI with real providers. (Originally Phase 3 —
+deliberately moved last; see the ordering note above.)
+
+**Scope (tentative):**
+- Real AiPlanner implementation (Claude/Anthropic)
+- Redistribution suggestions powered by actual course
+  context
+- Coverage gap analysis with pedagogical reasoning
+- Contextual chat for course design consultation
+- Content review against pedagogical principles
+
+**Depends on:** the bulk of the UI/general-feature phases above.
+`MockAiPlanner` remains the default per design principle #8 until real
+integration is explicitly opted into.
+
+**No build prompt written yet.** Design depends on the state of the app
+once the phases above are further along.
