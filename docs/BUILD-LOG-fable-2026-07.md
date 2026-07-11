@@ -85,3 +85,80 @@ container-generating the client. The `vercel-build` split is the one call
 made on indirect evidence (commit message "run prisma migrate deploy on
 every Vercel build"); if the app is actually deployed some other way, the
 extra script is harmless.
+
+---
+
+## Stage 1a — Skill Flow refresh (`feat/5-skill-flow-visualization`, PR #8)
+
+### The situation
+
+PR #8 already implemented issue #5 (2026-02-24) but was never merged and
+had gone stale: based on pre-2B.1 main, it also violated the parallel-
+session file-ownership rules (added its own nav button to the term page
+and its own `LoadingSkeleton`, both owned by #4/2B.1). `mergeable_state`
+was unknown; in practice it conflicted on `LoadingSkeleton.tsx` and
+double-added the Flow View nav button.
+
+**Decision: refresh the existing PR rather than rebuild.** The core
+implementation (data transform, grid, filters, summary) was sound and
+review-shaped; throwing it away to re-derive ~90% of the same code would
+be waste. Merged `origin/main` in (merge commit — no history rewrite on a
+shared branch), resolved in favor of main's shared components, and merged
+`fix/green-baseline` so the PR's CI can be green while PR #13 waits for
+review. Recorded trade-off: PR #8's diff temporarily includes the
+baseline fix; it disappears once #13 merges.
+
+### Gap analysis vs issue #5 acceptance criteria (before this session)
+
+Missing: column hover highlight; session/skill header navigation;
+canceled-column dots dimmed/struck; rows grouped by category; and the
+what-if overlay stretch goal. Beyond the checklist, the actual
+principle-#5 visual ("skills are horizontal lines... when a session is
+canceled, the lines break") wasn't there — the grid had dots but no
+lines, so cancellation didn't visibly *break* anything.
+
+### What I built
+
+- **Skill thread lines** — per-row span from first to last coverage
+  (`computeThreadSpan`, pure + tested), drawn as CSS half-borders through
+  each cell; dashed red across canceled/simulated columns. This is the
+  "broken line" from the design principles. *Alternative rejected:* SVG
+  overlay — cleaner lines, but the phase constraint says HTML/CSS only,
+  and an SVG positioned over a scrolling table is fragile.
+- **Column hover** via `hoveredSessionId` state (row hover stays pure
+  CSS). *Alternative rejected:* CSS-only `:has()` column highlight —
+  supported in modern browsers but table-column `:has()` selectors get
+  hairy with sticky headers; state is simpler to reason about.
+- **Header links** to session/skill detail pages (those pages exist now
+  — they didn't when PR #8 was written).
+- **Category grouping** — rows sorted category-then-code with divider
+  rows (per the issue's row-header spec).
+- **What-if overlay (stretch goal)** — "Simulate cancellation" select on
+  the flow page; maps API data to the domain `TermData` shape and calls
+  `simulateCancellation` client-side. Simulated column gets dashed red
+  borders, at-risk rows get a flag, summary bar shows health before/after
+  and new violations. Read-only by construction (pure function, no API).
+- **Type honesty fixes** exposed by main's evolved types (`Module.notes`,
+  `FlowSessionInfo` vs raw `Session` grouping, `CoverageEntry` enrichment
+  for `computeCoverageHealth`).
+
+### Verification
+
+- typecheck clean, `npm test` 68/68 (7 new flow tests), eslint clean on
+  flow files (fixed one exhaustive-deps warning).
+- `next build` — verified before push (see PR).
+
+### Known-shaky / candid notes
+
+- **Not visually eyeballed in a browser.** The auth proxy added by the
+  OAuth PR gates every page and API route behind Google sign-in, which
+  also silently broke the existing Playwright e2e suite (it seeds data
+  through unauthenticated API calls). Structural/unit coverage is good,
+  but CSS-level rendering (sticky headers + thread line alignment) is
+  unverified. Flagged as a Stage 3 candidate: dev/test auth bypass +
+  e2e repair — without it, *no* UI work on this app can be honestly
+  verified end-to-end.
+- Hover-column state updates re-render the full grid (~2400 cells at
+  DS-100 scale). React reconciliation should absorb it; if not,
+  memoizing rows on `hoveredSessionId` transitions is the fix. Chose not
+  to pre-optimize.
