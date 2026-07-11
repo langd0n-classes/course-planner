@@ -8,6 +8,12 @@
  */
 
 import {
+  Document,
+  HeadingLevel,
+  Packer,
+  Paragraph,
+} from "docx";
+import {
   assembleCoverageMatrix,
   computeHealthBar,
   getSkillHealthStatus,
@@ -168,11 +174,11 @@ export interface ModuleOverviewInput {
     date: string | null;
     description: string | null;
     status: string;
-  }>;
-  skillCoverages: Array<{
-    skillCode: string;
-    skillDescription: string;
-    level: CoverageLevel;
+    skillCoverages: Array<{
+      skillCode: string;
+      skillDescription: string;
+      level: CoverageLevel;
+    }>;
   }>;
   assessments: Array<{
     code: string;
@@ -188,77 +194,130 @@ const LEVEL_HEADINGS: Array<{ level: CoverageLevel; heading: string }> = [
   { level: "assessed", heading: "Assessed" },
 ];
 
-export function buildModuleOverviewText(input: ModuleOverviewInput): string {
-  const { module, sessions, skillCoverages, assessments } = input;
-  const lines: string[] = [];
+function compactSkillCoverage(
+  skillCoverages: ModuleOverviewInput["sessions"][number]["skillCoverages"],
+): string {
+  const byLevel = LEVEL_HEADINGS.map(({ level, heading }) => {
+    const codes = [...new Set(
+      skillCoverages
+        .filter((entry) => entry.level === level)
+        .map((entry) => entry.skillCode),
+    )].sort();
 
-  lines.push(`${module.code}: ${module.title}`);
-  lines.push("");
+    return codes.length > 0 ? `${heading} ${codes.join(", ")}` : null;
+  }).filter((value): value is string => Boolean(value));
+
+  return byLevel.length > 0 ? byLevel.join("; ") : "No skill coverage linked.";
+}
+
+export function buildModuleOverviewDocxDocument(
+  input: ModuleOverviewInput,
+): Document {
+  const { module, sessions, assessments } = input;
+  const children: Paragraph[] = [
+    new Paragraph({
+      text: `${module.code}: ${module.title}`,
+      heading: HeadingLevel.HEADING_1,
+    }),
+  ];
+
   if (module.description) {
-    lines.push(module.description);
-    lines.push("");
+    children.push(new Paragraph({ text: module.description }));
   }
 
-  lines.push("Learning objectives");
+  children.push(
+    new Paragraph({
+      text: "Learning Objectives",
+      heading: HeadingLevel.HEADING_2,
+    }),
+  );
+
   if (module.learningObjectives.length === 0) {
-    lines.push("None recorded.");
-  }
-  module.learningObjectives.forEach((objective, index) => {
-    lines.push(`${index + 1}. ${objective}`);
-  });
-  lines.push("");
-
-  lines.push("Sessions");
-  if (sessions.length === 0) {
-    lines.push("No sessions in this module.");
-  }
-  sessions.forEach((session) => {
-    const date = session.date ? `, ${formatDate(session.date)}` : "";
-    const canceled = session.status === "canceled" ? " [canceled]" : "";
-    lines.push(
-      `- ${session.code}: ${session.title} (${session.sessionType}${date})${canceled}`,
-    );
-    if (session.description) {
-      lines.push(`  ${session.description}`);
-    }
-  });
-  lines.push("");
-
-  lines.push("Skills covered in this module");
-  if (skillCoverages.length === 0) {
-    lines.push("No skills covered.");
+    children.push(new Paragraph({ text: "No learning objectives recorded." }));
   } else {
-    LEVEL_HEADINGS.forEach(({ level, heading }) => {
-      const atLevel = skillCoverages.filter((entry) => entry.level === level);
-      if (atLevel.length === 0) return;
-      const unique = new Map(
-        atLevel.map((entry) => [entry.skillCode, entry.skillDescription]),
+    module.learningObjectives.forEach((objective) => {
+      children.push(
+        new Paragraph({
+          text: objective,
+          bullet: { level: 0 },
+        }),
       );
-      lines.push(`${heading}:`);
-      [...unique.entries()]
-        .sort(([a], [b]) => a.localeCompare(b))
-        .forEach(([code, description]) => {
-          lines.push(`- ${code}: ${description}`);
-        });
     });
   }
-  lines.push("");
 
-  lines.push("Assessments");
-  if (assessments.length === 0) {
-    lines.push("No assessments linked to this module.");
+  children.push(
+    new Paragraph({
+      text: "Sessions",
+      heading: HeadingLevel.HEADING_2,
+    }),
+  );
+
+  if (sessions.length === 0) {
+    children.push(new Paragraph({ text: "No sessions in this module." }));
+  } else {
+    sessions.forEach((session) => {
+      const canceledLabel = session.status === "canceled" ? " [Canceled]" : "";
+
+      children.push(
+        new Paragraph({
+          text: `${session.code}: ${session.title}${canceledLabel}`,
+          heading: HeadingLevel.HEADING_3,
+        }),
+      );
+
+      const details = [
+        `Type: ${session.sessionType}`,
+        `Date: ${session.date ? formatDate(session.date) : "undated"}`,
+      ];
+      children.push(new Paragraph({ text: details.join(" | ") }));
+
+      if (session.description) {
+        children.push(new Paragraph({ text: session.description }));
+      }
+
+      children.push(
+        new Paragraph({
+          text: `Skill coverage: ${compactSkillCoverage(session.skillCoverages)}`,
+        }),
+      );
+    });
   }
-  assessments.forEach((assessment) => {
-    const due = assessment.dueDate
-      ? `, due ${formatDate(assessment.dueDate)}`
-      : "";
-    lines.push(
-      `- ${assessment.code}: ${assessment.title} (${assessment.assessmentType}${due})`,
-    );
-  });
-  lines.push("");
 
-  return lines.join("\n");
+  children.push(
+    new Paragraph({
+      text: "Linked Assessments",
+      heading: HeadingLevel.HEADING_2,
+    }),
+  );
+
+  if (assessments.length === 0) {
+    children.push(new Paragraph({ text: "No linked assessments." }));
+  } else {
+    assessments.forEach((assessment) => {
+      const due = assessment.dueDate
+        ? `, due ${formatDate(assessment.dueDate)}`
+        : "";
+      children.push(
+        new Paragraph({
+          text: `${assessment.code}: ${assessment.title} (${assessment.assessmentType}${due})`,
+        }),
+      );
+    });
+  }
+
+  return new Document({
+    sections: [
+      {
+        children,
+      },
+    ],
+  });
+}
+
+export async function buildModuleOverviewDocx(
+  input: ModuleOverviewInput,
+): Promise<Buffer> {
+  return Packer.toBuffer(buildModuleOverviewDocxDocument(input));
 }
 
 // ─── Session prompt (plain text, outside GenAI chat) ────
@@ -358,7 +417,10 @@ export function buildSessionPromptText(input: SessionPromptInput): string {
 // ─── Filenames ──────────────────────────────────────────
 
 /** Sanitized, descriptive filename for an export download. */
-export function exportFilename(base: string, extension: "md" | "txt"): string {
+export function exportFilename(
+  base: string,
+  extension: "md" | "txt" | "docx",
+): string {
   const slug = base
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")

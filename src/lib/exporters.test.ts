@@ -1,12 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
   buildTermSummaryMarkdown,
-  buildModuleOverviewText,
+  buildModuleOverviewDocx,
+  buildModuleOverviewDocxDocument,
   buildSessionPromptText,
   type TermSummaryInput,
   type ModuleOverviewInput,
   type SessionPromptInput,
 } from "./exporters";
+import { Paragraph, type File } from "docx";
 
 const termSummaryInput = (): TermSummaryInput => ({
   term: {
@@ -128,6 +130,10 @@ const moduleOverviewInput = (): ModuleOverviewInput => ({
       date: "2026-01-20",
       description: "First session.",
       status: "scheduled",
+      skillCoverages: [
+        { skillCode: "A01", skillDescription: "Write expressions", level: "introduced" },
+        { skillCode: "A02", skillDescription: "Use variables", level: "practiced" },
+      ],
     },
     {
       code: "lab-01",
@@ -136,57 +142,131 @@ const moduleOverviewInput = (): ModuleOverviewInput => ({
       date: null,
       description: null,
       status: "canceled",
+      skillCoverages: [
+        { skillCode: "A01", skillDescription: "Write expressions", level: "practiced" },
+      ],
     },
-  ],
-  skillCoverages: [
-    { skillCode: "A01", skillDescription: "Write expressions", level: "introduced" },
-    { skillCode: "A01", skillDescription: "Write expressions", level: "practiced" },
-    { skillCode: "A02", skillDescription: "Use variables", level: "practiced" },
   ],
   assessments: [
     { code: "GAIE-01", title: "First assignment", assessmentType: "gaie", dueDate: "2026-02-01" },
   ],
 });
 
-describe("buildModuleOverviewText", () => {
-  it("contains numbered learning objectives and the session list", () => {
-    const text = buildModuleOverviewText(moduleOverviewInput());
+function getDocParagraphs(doc: File): Paragraph[] {
+  return doc.documentWrapper.document.body.root.filter(
+    (child): child is Paragraph => child instanceof Paragraph,
+  );
+}
 
-    expect(text).toContain("LM-01");
-    expect(text).toContain("1. Understand variables");
-    expect(text).toContain("2. Run programs");
-    expect(text).toContain("lec-01");
-    expect(text).toContain("(lecture");
-    expect(text).toContain("Setup lab");
-    expect(text).toMatch(/canceled/i);
+function getParagraphText(paragraph: Paragraph): string {
+  const text = paragraph.root.flatMap((node) => {
+    if (!node || typeof node !== "object" || !("root" in node)) return [];
+    const childRoot = (node as { root?: unknown[] }).root;
+    if (!Array.isArray(childRoot)) return [];
+    return childRoot.flatMap((entry) => {
+      if (!entry || typeof entry !== "object" || !("rootKey" in entry)) return [];
+      if ((entry as { rootKey?: string }).rootKey !== "w:t") return [];
+      const parts = (entry as { root?: unknown[] }).root;
+      return Array.isArray(parts) ? parts.filter((part): part is string => typeof part === "string") : [];
+    });
   });
 
-  it("groups skills by coverage level", () => {
-    const text = buildModuleOverviewText(moduleOverviewInput());
-    expect(text).toContain("Introduced:");
-    expect(text).toContain("Practiced:");
-    // A01 appears under both introduced and practiced
-    const practicedSection = text.slice(text.indexOf("Practiced:"));
-    expect(practicedSection).toContain("A01");
-    expect(practicedSection).toContain("A02");
+  return text.join("");
+}
+
+function getStyleValue(paragraph: Paragraph): string | null {
+  for (const node of paragraph.root) {
+    if (!node || typeof node !== "object" || !("rootKey" in node)) continue;
+    if ((node as { rootKey?: string }).rootKey !== "w:pPr") continue;
+    const props = (node as { root?: unknown[] }).root;
+    if (!Array.isArray(props)) continue;
+    for (const prop of props) {
+      if (!prop || typeof prop !== "object" || !("rootKey" in prop)) continue;
+      if ((prop as { rootKey?: string }).rootKey !== "w:pStyle") continue;
+      const attr = (prop as { root?: Array<{ root?: { val?: { value?: string } } }> }).root?.[0];
+      return attr?.root?.val?.value ?? null;
+    }
+  }
+  return null;
+}
+
+function isNumberedParagraph(paragraph: Paragraph): boolean {
+  return paragraph.root.some((node) => {
+    if (!node || typeof node !== "object" || !("rootKey" in node)) return false;
+    if ((node as { rootKey?: string }).rootKey !== "w:pPr") return false;
+    const props = (node as { root?: unknown[] }).root;
+    return Array.isArray(props)
+      ? props.some(
+          (prop) =>
+            !!prop &&
+            typeof prop === "object" &&
+            "rootKey" in prop &&
+            (prop as { rootKey?: string }).rootKey === "w:numPr",
+        )
+      : false;
+  });
+}
+
+describe("buildModuleOverviewDocxDocument", () => {
+  it("builds headings, numbered objectives, and session blocks", () => {
+    const doc = buildModuleOverviewDocxDocument(moduleOverviewInput());
+    const paragraphs = getDocParagraphs(doc).filter((paragraph) => getParagraphText(paragraph));
+    const texts = paragraphs.map(getParagraphText);
+
+    expect(texts).toContain("LM-01: Foundations");
+    expect(texts).toContain("Getting started with programming.");
+    expect(texts).toContain("Learning Objectives");
+    expect(texts).toContain("Understand variables");
+    expect(texts).toContain("Run programs");
+    expect(texts).toContain("Sessions");
+    expect(texts).toContain("lec-01: Intro");
+    expect(texts).toContain("lab-01: Setup lab [Canceled]");
+    expect(texts).toContain("First session.");
+
+    expect(getStyleValue(paragraphs[0])).toBe("Heading1");
+    expect(texts.filter((text) => text === "Learning Objectives")).toHaveLength(1);
+
+    const objectiveParagraphs = paragraphs.filter((paragraph) =>
+      ["Understand variables", "Run programs"].includes(getParagraphText(paragraph)),
+    );
+    expect(objectiveParagraphs).toHaveLength(2);
+    expect(objectiveParagraphs.every(isNumberedParagraph)).toBe(true);
   });
 
-  it("contains no markdown heading/emphasis syntax", () => {
-    const text = buildModuleOverviewText(moduleOverviewInput());
-    expect(text).not.toMatch(/^#/m);
-    expect(text).not.toContain("**");
+  it("includes compact per-session skill coverage and linked assessments", () => {
+    const doc = buildModuleOverviewDocxDocument(moduleOverviewInput());
+    const texts = getDocParagraphs(doc)
+      .map(getParagraphText)
+      .filter(Boolean);
+
+    expect(texts).toContain("Skill coverage: Introduced A01; Practiced A02");
+    expect(texts).toContain("Skill coverage: Practiced A01");
+    expect(texts).toContain("Linked Assessments");
+    expect(texts).toContain("GAIE-01: First assignment (gaie, due 2026-02-01)");
   });
 
-  it("handles a module with no sessions or skills", () => {
-    const text = buildModuleOverviewText({
+  it("handles a module with no sessions or objectives", () => {
+    const doc = buildModuleOverviewDocxDocument({
       module: { code: "LM-09", title: "Empty", description: null, learningObjectives: [] },
       sessions: [],
-      skillCoverages: [],
       assessments: [],
     });
-    expect(text).toContain("LM-09");
-    expect(text).toContain("No sessions");
-    expect(text).toContain("No skills");
+    const texts = getDocParagraphs(doc)
+      .map(getParagraphText)
+      .filter(Boolean);
+    expect(texts).toContain("LM-09: Empty");
+    expect(texts).toContain("No learning objectives recorded.");
+    expect(texts).toContain("No sessions in this module.");
+    expect(texts).toContain("No linked assessments.");
+  });
+});
+
+describe("buildModuleOverviewDocx", () => {
+  it("packs the module overview into a docx buffer", async () => {
+    const buffer = await buildModuleOverviewDocx(moduleOverviewInput());
+
+    expect(Buffer.isBuffer(buffer)).toBe(true);
+    expect(buffer.subarray(0, 2).toString()).toBe("PK");
   });
 });
 
