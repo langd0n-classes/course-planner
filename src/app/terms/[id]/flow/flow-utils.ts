@@ -359,7 +359,7 @@ export function buildFlowData(input: FlowDataInput): FlowData {
       })),
       cells.flatMap((cell) => cell.entries.map((entry) => ({
         id: entry.id, sessionId: cell.sessionId, skillId: skill.id, level: entry.level,
-      })),
+      }))),
     )[0];
 
     return {
