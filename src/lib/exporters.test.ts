@@ -4,6 +4,7 @@ import {
   buildModuleOverviewDocx,
   buildModuleOverviewDocxDocument,
   buildSessionPromptText,
+  OBJECTIVES_NUMBERING_REFERENCE,
   type TermSummaryInput,
   type ModuleOverviewInput,
   type SessionPromptInput,
@@ -196,7 +197,7 @@ function getStyleValue(paragraph: Paragraph): string | null {
   return null;
 }
 
-function isNumberedParagraph(paragraph: Paragraph): boolean {
+function hasNumPr(paragraph: Paragraph): boolean {
   return (paragraph as unknown as { root: unknown[] }).root.some((node) => {
     if (!node || typeof node !== "object" || !("rootKey" in node)) return false;
     if ((node as { rootKey?: string }).rootKey !== "w:pPr") return false;
@@ -211,6 +212,37 @@ function isNumberedParagraph(paragraph: Paragraph): boolean {
         )
       : false;
   });
+}
+
+/**
+ * `w:numPr` alone doesn't distinguish a numbered list from a bulleted one --
+ * both are "numbering" in OOXML. This checks the actual level format
+ * (`w:numFmt`) registered on the document for the given abstract-numbering
+ * reference, so a test can assert "numbered" and mean it.
+ */
+function hasDecimalNumbering(doc: File, reference: string): boolean {
+  const abstractNum = (
+    doc as unknown as {
+      numbering: { abstractNumberingMap: Map<string, { root: unknown[] }> };
+    }
+  ).numbering.abstractNumberingMap.get(reference);
+  if (!abstractNum) return false;
+
+  const level = abstractNum.root.find(
+    (node): node is { rootKey: string; root: unknown[] } =>
+      !!node &&
+      typeof node === "object" &&
+      "rootKey" in node &&
+      (node as { rootKey?: string }).rootKey === "w:lvl",
+  );
+  const numFmt = level?.root.find(
+    (node): node is { rootKey: string; root: Array<{ root?: { val?: string } }> } =>
+      !!node &&
+      typeof node === "object" &&
+      "rootKey" in node &&
+      (node as { rootKey?: string }).rootKey === "w:numFmt",
+  );
+  return numFmt?.root[0]?.root?.val === "decimal";
 }
 
 describe("buildModuleOverviewDocxDocument", () => {
@@ -236,7 +268,10 @@ describe("buildModuleOverviewDocxDocument", () => {
       ["Understand variables", "Run programs"].includes(getParagraphText(paragraph)),
     );
     expect(objectiveParagraphs).toHaveLength(2);
-    expect(objectiveParagraphs.every(isNumberedParagraph)).toBe(true);
+    expect(objectiveParagraphs.every(hasNumPr)).toBe(true);
+    // hasNumPr alone would also pass for a bulleted list -- assert the
+    // actual registered format is decimal, not a bullet glyph.
+    expect(hasDecimalNumbering(doc, OBJECTIVES_NUMBERING_REFERENCE)).toBe(true);
   });
 
   it("includes compact per-session skill coverage and linked assessments", () => {

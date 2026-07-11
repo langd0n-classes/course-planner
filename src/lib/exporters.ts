@@ -10,9 +10,12 @@
 import {
   Document,
   HeadingLevel,
+  LevelFormat,
   Packer,
   Paragraph,
 } from "docx";
+
+export const OBJECTIVES_NUMBERING_REFERENCE = "module-overview-objectives";
 import {
   assembleCoverageMatrix,
   computeHealthBar,
@@ -239,7 +242,7 @@ export function buildModuleOverviewDocxDocument(
       children.push(
         new Paragraph({
           text: objective,
-          bullet: { level: 0 },
+          numbering: { reference: OBJECTIVES_NUMBERING_REFERENCE, level: 0 },
         }),
       );
     });
@@ -306,6 +309,21 @@ export function buildModuleOverviewDocxDocument(
   }
 
   return new Document({
+    numbering: {
+      config: [
+        {
+          reference: OBJECTIVES_NUMBERING_REFERENCE,
+          levels: [
+            {
+              level: 0,
+              format: LevelFormat.DECIMAL,
+              text: "%1.",
+              alignment: "start",
+            },
+          ],
+        },
+      ],
+    },
     sections: [
       {
         children,
