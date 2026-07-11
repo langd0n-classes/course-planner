@@ -17,12 +17,10 @@ inline before any chunk should be executed; review before use.
 - GitHub issue #6 could not be fetched because `api.github.com` was unreachable, including after the repository-prescribed fallback. This plan therefore uses the issue scope supplied in the request. Any additional GitHub-only acceptance criteria should be checked before converting this plan into a build prompt.
 - No schema migration appears necessary for the three requested exports.
 
-## Recommended decisions before coding
+## Decisions — RESOLVED 2026-07-11
 
-Two decisions need human confirmation because they materially determine the output contract:
-
-1. **Blackboard document structure.** Confirm whether Blackboard expects a particular institutional heading hierarchy, table layout, or import template. Recommended default: a generic `.docx` with module title/description, learning objectives, and ordered session overview. Do not add Blackboard-specific XML packaging or institution-specific language without an actual requirement.
-2. **Private planning notes.** Confirm whether `Module.notes` and `Session.notes` belong in exports. Recommended default: exclude them because Phase 2B labels them planning notes, while exports leave the instructor’s private workspace.
+1. **Blackboard document structure.** Blackboard only imports `.docx` as documents — there is no Blackboard-specific package/template format to target, so the format constraint is simply "must be `.docx`, not `.md` or `.pdf`." Content/layout is entirely our call. DS100 has a decent existing overview doc worth using as a rough reference for the starter layout, but do not build institution- or course-specific structure into the app — a generic `.docx` (module title/description, learning objectives, ordered session overview) is correct for Phase 2C; a starter/reference template is optional polish, not a requirement.
+2. **Private planning notes.** Confirmed: `Module.notes` and `Session.notes` are excluded from all three exports. They are private workspace content, not export content.
 
 The following can be assumed and recorded in `ASSUMPTIONS.md` unless the issue says otherwise:
 
