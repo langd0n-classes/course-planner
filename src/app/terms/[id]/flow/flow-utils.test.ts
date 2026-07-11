@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { buildFlowData, computeThreadSpan } from "./flow-utils";
+import {
+  buildFlowData,
+  computeThreadSpan,
+  doesThreadBreakAtCell,
+  summarizeFilteredFlowData,
+  uniqueAtRiskSkillIds,
+} from "./flow-utils";
 import type { FlowCell } from "./flow-utils";
 import type { Module, Session, Skill, Coverage } from "@/lib/api-client";
 
@@ -194,6 +200,63 @@ describe("computeThreadSpan", () => {
 
   it("handles an empty cell list", () => {
     expect(computeThreadSpan([])).toBeNull();
+  });
+});
+
+describe("cancellation indicators", () => {
+  it("excludes safely backed-up skills from what-if at-risk indicators", () => {
+    expect(
+      uniqueAtRiskSkillIds([
+        { skillId: "unique", uniqueCoverage: true },
+        { skillId: "backed-up", uniqueCoverage: false },
+      ]),
+    ).toEqual(new Set(["unique"]));
+  });
+
+  it("breaks a thread only when canceling the cell removes its only level", () => {
+    const cells = [
+      makeCell(1, { sessionId: "s1" }),
+      makeCell(0, { sessionId: "s2", isCanceled: true }),
+      makeCell(1, { sessionId: "s3" }),
+    ];
+    expect(doesThreadBreakAtCell(cells, 1, null)).toBe(false);
+
+    const dependentCells = [
+      makeCell(1, { sessionId: "s1" }),
+      makeCell(1, { sessionId: "s2" }),
+    ];
+    dependentCells[1].entries[0].level = "practiced";
+    expect(doesThreadBreakAtCell(dependentCells, 1, "s2")).toBe(true);
+  });
+});
+
+describe("summarizeFilteredFlowData", () => {
+  it("recomputes coverage summary from the rows and sessions still visible", () => {
+    const flow = buildFlowData({
+      modules: [{ id: "m1", termId: "t1", sequence: 1, code: "M1", title: "One", description: null, learningObjectives: [], notes: null }],
+      sessions: [
+        { id: "s1", moduleId: "m1", sequence: 1, sessionType: "lecture", code: "L1", title: "One", date: null, description: null, format: null, notes: null, status: "scheduled", canceledAt: null, canceledReason: null },
+        { id: "s2", moduleId: "m1", sequence: 2, sessionType: "lecture", code: "L2", title: "Two", date: null, description: null, format: null, notes: null, status: "scheduled", canceledAt: null, canceledReason: null },
+      ],
+      skills: [{ id: "sk1", code: "SK1", category: "A", description: "", isGlobal: false, termId: "t1" }],
+      coverages: [
+        { id: "c1", sessionId: "s1", skillId: "sk1", level: "introduced", notes: null },
+        { id: "c2", sessionId: "s2", skillId: "sk1", level: "practiced", notes: null },
+        { id: "c3", sessionId: "s2", skillId: "sk1", level: "assessed", notes: null },
+      ],
+    });
+    const filtered = {
+      rows: flow.rows.map((row) => ({ ...row, cells: row.cells.slice(0, 1) })),
+      sessions: flow.sessions.slice(0, 1),
+    };
+
+    expect(summarizeFilteredFlowData(filtered)).toMatchObject({
+      totalSkills: 1,
+      fullyCovered: 0,
+      partiallyCovered: 1,
+      uncovered: 0,
+      totalSessions: 1,
+    });
   });
 });
 

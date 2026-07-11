@@ -177,3 +177,21 @@ Decisions made where the requirements were underspecified. Each can be revisited
 - **Placeholder module groups sort last**: Sessions whose module isn't in
   the modules list (shouldn't happen, but defensive) get a placeholder
   group with MAX_SAFE_INTEGER sequence so they appear at the far right.
+
+### Skill Flow Review Fixes
+
+- **A broken flow thread represents lost unique coverage**: A canceled or
+  simulated-canceled column is dashed red only when that cell contains a
+  coverage level with no other available coverage for the same skill. Showing
+  a break merely because an unrelated canceled session lies between two
+  badges incorrectly implies the skill depended on that session; showing a
+  break for duplicated coverage would likewise overstate cancellation impact.
+  This aligns the line with the what-if unique-coverage signal while retaining
+  normal lines for safely backed-up coverage.
+
+- **Flow health borders use coverage-matrix status**: Flow's legacy
+  `complete`/`partial`/`none` remains for its existing filters and labels,
+  while the border color is driven by the canonical
+  `fully_covered`/`partially_covered`/`uncovered` status calculated through
+  `getSkillHealthStatus`. The models are equivalent for the I/P/A health
+  rule, so no separate visual status mapping is needed.

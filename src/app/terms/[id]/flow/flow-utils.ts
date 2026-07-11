@@ -1,5 +1,11 @@
 import { computeCoverageHealth } from "@/domain/whatif";
 import type { CoverageEntry } from "@/domain/coverage-rules";
+import {
+  assembleCoverageMatrix,
+  computeHealthBar,
+  getSkillHealthStatus,
+  type HealthStatus,
+} from "@/domain/coverage-matrix";
 import { Module, Session, Skill, Coverage } from "@/lib/api-client";
 
 export type FlowCoverageLevel = Coverage["level"];
@@ -24,6 +30,7 @@ export interface FlowRow {
   category: string;
   cells: FlowCell[];
   coverageStatus: FlowCoverageStatus;
+  healthStatus: HealthStatus;
 }
 
 export interface FlowSessionInfo {
@@ -148,6 +155,119 @@ export function computeThreadSpan(
   return start === -1 ? null : { start, end };
 }
 
+/**
+ * A cancellation breaks a thread only when it removes a level the skill
+ * needs, not merely because an unrelated session falls between two badges.
+ */
+export function doesThreadBreakAtCell(
+  cells: FlowCell[],
+  cellIndex: number,
+  simulatedSessionId: string | null,
+): boolean {
+  const cell = cells[cellIndex];
+  if (!cell || (!cell.isCanceled && cell.sessionId !== simulatedSessionId)) return false;
+
+  return cell.entries.some((entry) =>
+    !cells.some(
+      (other) =>
+        other.sessionId !== cell.sessionId &&
+        !other.isCanceled &&
+        other.sessionId !== simulatedSessionId &&
+        other.entries.some((candidate) => candidate.level === entry.level),
+    ),
+  );
+}
+
+/** Returns only cancellation impacts that lose a skill's sole level coverage. */
+export function uniqueAtRiskSkillIds(
+  atRiskSkills: Array<{ skillId: string; uniqueCoverage: boolean }>,
+): Set<string> {
+  return new Set(
+    atRiskSkills.filter((skill) => skill.uniqueCoverage).map((skill) => skill.skillId),
+  );
+}
+
+/** Rebuild visible-grid summary using the canonical coverage-matrix health rules. */
+export function summarizeFilteredFlowData(
+  data: Pick<FlowData, "rows" | "sessions">,
+): FlowSummary {
+  const matrixRows = assembleCoverageMatrix(
+    data.rows.map((row) => ({
+      id: row.skill.id,
+      code: row.skill.code,
+      category: row.skill.category,
+      description: row.skill.description,
+    })),
+    data.sessions.map((session) => ({
+      id: session.sessionId,
+      code: session.code,
+      title: session.title,
+      sessionType: session.sessionType,
+      date: session.date,
+      status: session.status,
+      moduleId: session.moduleId,
+      moduleCode: session.moduleCode,
+      moduleSequence: session.session.module?.sequence ?? 0,
+      sequence: session.session.sequence,
+    })),
+    data.rows.flatMap((row) =>
+      row.cells.flatMap((cell) =>
+        cell.entries.map((entry) => ({
+          id: entry.id,
+          skillId: row.skill.id,
+          sessionId: cell.sessionId,
+          level: entry.level,
+        })),
+      ),
+    ),
+  );
+  const health = computeHealthBar(matrixRows);
+  const canceledSessionIds = new Set(
+    data.sessions.filter((session) => session.isCanceled).map((session) => session.sessionId),
+  );
+  const coverageEntries: CoverageEntry[] = data.rows.flatMap((row) =>
+    row.cells.flatMap((cell) =>
+      cell.entries.map((entry) => {
+        const session = data.sessions.find((candidate) => candidate.sessionId === cell.sessionId);
+        return {
+          skillId: row.skill.id,
+          sessionId: cell.sessionId,
+          level: entry.level,
+          sessionDate: session?.date ? new Date(session.date) : null,
+          sessionSequence: session?.session.sequence ?? 0,
+          moduleSequence: session?.session.module?.sequence ?? 0,
+        };
+      }),
+    ),
+  );
+
+  const skillsAtRiskFromCancellations = new Set<string>();
+  matrixRows.forEach((row) => {
+    row.coverageBySession.forEach((entries, sessionId) => {
+      if (!canceledSessionIds.has(sessionId)) return;
+      if (entries.some((entry) => !row.levels.has(entry.level))) {
+        skillsAtRiskFromCancellations.add(row.skill.id);
+      }
+    });
+  });
+
+  return {
+    totalSkills: health.total,
+    fullyCovered: health.fullyCovered,
+    partiallyCovered: health.partiallyCovered,
+    uncovered: health.uncovered,
+    totalSessions: data.sessions.length,
+    scheduledSessions: data.sessions.length - canceledSessionIds.size,
+    canceledSessions: canceledSessionIds.size,
+    skillsAtRiskFromCancellations: skillsAtRiskFromCancellations.size,
+    coverageHealth: computeCoverageHealth(
+      coverageEntries,
+      data.rows.map((row) => row.skill.id),
+      canceledSessionIds,
+    ),
+  };
+}
+
 export function buildFlowData(input: FlowDataInput): FlowData {
   const { modules, sessions, skills, coverages } = input;
 
@@ -229,11 +349,25 @@ export function buildFlowData(input: FlowDataInput): FlowData {
         ? "partial"
         : "none";
 
+    const matrixRow = assembleCoverageMatrix(
+      [{ id: skill.id, code: skill.code, category: skill.category, description: skill.description }],
+      orderedSessionInfos.map((session) => ({
+        id: session.sessionId, code: session.code, title: session.title,
+        sessionType: session.sessionType, date: session.date, status: session.status,
+        moduleId: session.moduleId, moduleCode: session.moduleCode,
+        moduleSequence: session.session.module?.sequence ?? 0, sequence: session.session.sequence,
+      })),
+      cells.flatMap((cell) => cell.entries.map((entry) => ({
+        id: entry.id, sessionId: cell.sessionId, skillId: skill.id, level: entry.level,
+      })),
+    )[0];
+
     return {
       skill,
       category: skill.category,
       cells,
       coverageStatus,
+      healthStatus: getSkillHealthStatus(matrixRow),
     };
   });
 

@@ -7,7 +7,7 @@ import { api } from "@/lib/api-client";
 import type { Module, Session, Skill, Coverage } from "@/lib/api-client";
 import { simulateCancellation } from "@/domain/whatif";
 import type { TermData } from "@/domain/whatif";
-import { buildFlowData } from "./flow-utils";
+import { buildFlowData, summarizeFilteredFlowData, uniqueAtRiskSkillIds } from "./flow-utils";
 import type { FlowCoverageLevel, FlowData } from "./flow-utils";
 import FlowSummary from "@/components/flow/FlowSummary";
 import FlowFilters, { type FlowFiltersState } from "@/components/flow/FlowFilters";
@@ -61,20 +61,58 @@ export default function TermFlowPage() {
     refresh();
   }, [refresh]);
 
+  const setFlowFromRaw = useCallback((nextRaw: RawTermData) => {
+    setRaw(nextRaw);
+    setFlowData(buildFlowData(nextRaw));
+  }, []);
+
   const handleAddCoverage = useCallback(
     async (skillId: string, sessionId: string, level: FlowCoverageLevel) => {
-      await api.createCoverage({ skillId, sessionId, level });
-      refresh();
+      if (!raw) throw new Error("Flow data is not loaded yet.");
+      const optimisticCoverage: Coverage = {
+        id: `optimistic-${crypto.randomUUID()}`,
+        skillId,
+        sessionId,
+        level,
+        notes: null,
+      };
+      const optimisticRaw = {
+        ...raw,
+        coverages: [...raw.coverages, optimisticCoverage],
+      };
+      setFlowFromRaw(optimisticRaw);
+      try {
+        const coverage = await api.createCoverage({ skillId, sessionId, level });
+        setFlowFromRaw({
+          ...optimisticRaw,
+          coverages: optimisticRaw.coverages.map((entry) =>
+            entry.id === optimisticCoverage.id ? coverage : entry,
+          ),
+        });
+      } catch (error) {
+        setFlowFromRaw(raw);
+        throw error;
+      }
     },
-    [refresh],
+    [raw, setFlowFromRaw],
   );
 
   const handleRemoveCoverage = useCallback(
     async (coverageId: string) => {
-      await api.deleteCoverage(coverageId);
-      refresh();
+      if (!raw) throw new Error("Flow data is not loaded yet.");
+      const optimisticRaw = {
+        ...raw,
+        coverages: raw.coverages.filter((coverage) => coverage.id !== coverageId),
+      };
+      setFlowFromRaw(optimisticRaw);
+      try {
+        await api.deleteCoverage(coverageId);
+      } catch (error) {
+        setFlowFromRaw(raw);
+        throw error;
+      }
     },
-    [refresh],
+    [raw, setFlowFromRaw],
   );
 
   // Read-only what-if overlay: simulate canceling a session using the pure
@@ -121,7 +159,7 @@ export default function TermFlowPage() {
 
   const simulatedAtRiskSkillIds = useMemo(() => {
     if (!simulation) return undefined;
-    return new Set(simulation.atRiskSkills.map((skill) => skill.skillId));
+    return uniqueAtRiskSkillIds(simulation.atRiskSkills);
   }, [simulation]);
 
   const filteredFlowData = useMemo(() => {
@@ -143,11 +181,12 @@ export default function TermFlowPage() {
         cells: row.cells.filter((cell) => visibleSessionIds.has(cell.sessionId)),
       }));
 
-    return {
+    const filtered = {
       ...flowData,
       sessions: visibleSessions,
       rows,
     };
+    return { ...filtered, summary: summarizeFilteredFlowData(filtered) };
   }, [filters, flowData]);
 
   const displayData = filteredFlowData ?? flowData;
@@ -214,8 +253,8 @@ export default function TermFlowPage() {
             <div className="bg-orange-50 border border-orange-200 rounded px-4 py-3 text-sm text-orange-900 flex flex-wrap gap-4">
               <span className="font-semibold">What-if (not saved):</span>
               <span>
-                {simulation.atRiskSkills.length} skill
-                {simulation.atRiskSkills.length === 1 ? "" : "s"} at risk
+                {simulatedAtRiskSkillIds?.size ?? 0} skill
+                {(simulatedAtRiskSkillIds?.size ?? 0) === 1 ? "" : "s"} at risk
               </span>
               <span>
                 fully covered {simulation.healthBefore.fullyCovered} →{" "}

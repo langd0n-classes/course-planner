@@ -4,12 +4,15 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 
 import type { FlowCoverageLevel, FlowData } from "@/app/terms/[id]/flow/flow-utils";
-import { computeThreadSpan } from "@/app/terms/[id]/flow/flow-utils";
+import { computeThreadSpan, doesThreadBreakAtCell } from "@/app/terms/[id]/flow/flow-utils";
+import type { HealthStatus } from "@/domain/coverage-matrix";
+import { COVERAGE_LEVEL_STYLES } from "@/components/CoverageBadge";
+import { useToast } from "@/components/Toast";
 
 const LEVEL_BADGE = {
-  introduced: { label: "Intro", letter: "I", color: "bg-indigo-50 text-indigo-700" },
-  practiced: { label: "Practice", letter: "P", color: "bg-amber-50 text-amber-700" },
-  assessed: { label: "Assess", letter: "A", color: "bg-emerald-50 text-emerald-800" },
+  introduced: { label: "Intro", letter: "I", color: COVERAGE_LEVEL_STYLES.introduced },
+  practiced: { label: "Practice", letter: "P", color: COVERAGE_LEVEL_STYLES.practiced },
+  assessed: { label: "Assess", letter: "A", color: COVERAGE_LEVEL_STYLES.assessed },
 } satisfies Record<FlowCoverageLevel, { label: string; letter: string; color: string }>;
 
 interface FlowGridProps {
@@ -36,6 +39,7 @@ export default function FlowGrid({
   simulatedSessionId = null,
   simulatedAtRiskSkillIds,
 }: FlowGridProps) {
+  const { showToast } = useToast();
   const [activeCell, setActiveCell] = useState<ActiveCell | null>(null);
   const [hoveredSessionId, setHoveredSessionId] = useState<string | null>(null);
   const [mutating, setMutating] = useState(false);
@@ -73,9 +77,9 @@ export default function FlowGrid({
     [data.rows],
   );
 
-  const skillBorderClass = (status: string) => {
-    if (status === "complete") return "border-l-4 border-green-500";
-    if (status === "partial") return "border-l-4 border-yellow-400";
+  const skillBorderClass = (status: HealthStatus) => {
+    if (status === "fully_covered") return "border-l-4 border-green-500";
+    if (status === "partially_covered") return "border-l-4 border-yellow-400";
     return "border-l-4 border-red-500";
   };
 
@@ -97,6 +101,7 @@ export default function FlowGrid({
       setActiveCell(null);
     } catch (error) {
       console.error("Add coverage failed", error);
+      showToast((error as Error).message || "Unable to add coverage.", "error");
     } finally {
       setMutating(false);
     }
@@ -109,6 +114,7 @@ export default function FlowGrid({
       setActiveCell(null);
     } catch (error) {
       console.error("Remove coverage failed", error);
+      showToast((error as Error).message || "Unable to remove coverage.", "error");
     } finally {
       setMutating(false);
     }
@@ -207,7 +213,7 @@ export default function FlowGrid({
                 <tr className="group hover:bg-yellow-50 transition-colors">
                   <th
                     className={`sticky left-0 z-10 bg-white px-3 py-2 text-left text-sm font-semibold ${skillBorderClass(
-                      row.coverageStatus,
+                      row.healthStatus,
                     )}`}
                   >
                     <Link
@@ -235,7 +241,11 @@ export default function FlowGrid({
                     const filled = cell.entries.length > 0;
                     const active = isCellActive(row.skill.id, cell.sessionId);
                     const inThread = span !== null && cellIndex >= span.start && cellIndex <= span.end;
-                    const threadBroken = cell.isCanceled || cell.sessionId === simulatedSessionId;
+                    const threadBroken = doesThreadBreakAtCell(
+                      row.cells,
+                      cellIndex,
+                      simulatedSessionId,
+                    );
                     return (
                       <td
                         key={`${row.skill.id}-${cell.sessionId}`}
@@ -249,24 +259,10 @@ export default function FlowGrid({
                             semester (design principle #5). Broken (dashed red)
                             where the session is canceled or simulated-canceled. */}
                         {inThread && span !== null && cellIndex > span.start && (
-                          <div
-                            aria-hidden
-                            className={`absolute top-1/2 left-0 w-1/2 -translate-y-1/2 ${
-                              threadBroken
-                                ? "border-t-2 border-dashed border-red-300"
-                                : "border-t-2 border-gray-300"
-                            }`}
-                          />
+                          <ThreadLine side="left" broken={threadBroken} />
                         )}
                         {inThread && span !== null && cellIndex < span.end && (
-                          <div
-                            aria-hidden
-                            className={`absolute top-1/2 right-0 w-1/2 -translate-y-1/2 ${
-                              threadBroken
-                                ? "border-t-2 border-dashed border-red-300"
-                                : "border-t-2 border-gray-300"
-                            }`}
-                          />
+                          <ThreadLine side="right" broken={threadBroken} />
                         )}
                         {filled ? (
                           <div className="relative flex flex-wrap justify-center gap-1">
@@ -288,36 +284,33 @@ export default function FlowGrid({
                         )}
                         {active && (
                           <div className="absolute left-1/2 top-1/2 z-20 w-48 -translate-x-1/2 -translate-y-1/2 rounded border border-gray-200 bg-white p-3 shadow-lg space-y-2 text-left text-xs">
-                            {filled ? (
-                              <>
-                                <div className="text-gray-800 font-semibold">
-                                  {row.skill.code} · {session?.code ?? "Session"}
+                            <>
+                              <div className="text-gray-800 font-semibold">
+                                {filled
+                                  ? `${row.skill.code} · ${session?.code ?? "Session"}`
+                                  : "Add coverage"}
+                              </div>
+                              {filled && cell.entries.map((entry) => (
+                                <div key={entry.id} className="flex items-center justify-between">
+                                  <span className="uppercase font-semibold tracking-wide text-[10px]">
+                                    {LEVEL_BADGE[entry.level].label}
+                                  </span>
+                                  <button
+                                    disabled={mutating}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      handleRemove(entry.id);
+                                    }}
+                                    className="text-red-600 text-[10px] font-semibold hover:underline"
+                                  >
+                                    Remove
+                                  </button>
                                 </div>
-                                {cell.entries.map((entry) => (
-                                  <div key={entry.id} className="flex items-center justify-between">
-                                    <span className="uppercase font-semibold tracking-wide text-[10px]">
-                                      {LEVEL_BADGE[entry.level].label}
-                                    </span>
-                                    <button
-                                      disabled={mutating}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        handleRemove(entry.id);
-                                      }}
-                                      className="text-red-600 text-[10px] font-semibold hover:underline"
-                                    >
-                                      Remove
-                                    </button>
-                                  </div>
-                                ))}
-                              </>
-                            ) : (
-                              <>
-                                <div className="text-gray-800 font-semibold">
-                                  Add coverage
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                  {(Object.keys(LEVEL_BADGE) as FlowCoverageLevel[]).map((level) => (
+                              ))}
+                              <div className="flex flex-wrap gap-2">
+                                {(Object.keys(LEVEL_BADGE) as FlowCoverageLevel[])
+                                  .filter((level) => !cell.levels.includes(level))
+                                  .map((level) => (
                                     <button
                                       key={level}
                                       disabled={mutating}
@@ -330,9 +323,8 @@ export default function FlowGrid({
                                       {LEVEL_BADGE[level].letter}
                                     </button>
                                   ))}
-                                </div>
-                              </>
-                            )}
+                              </div>
+                            </>
                           </div>
                         )}
                       </td>
@@ -372,5 +364,16 @@ function FlowRowGroup({
       )}
       {children}
     </>
+  );
+}
+
+function ThreadLine({ side, broken }: { side: "left" | "right"; broken: boolean }) {
+  return (
+    <div
+      aria-hidden
+      className={`absolute top-1/2 ${side === "left" ? "left-0" : "right-0"} w-1/2 -translate-y-1/2 ${
+        broken ? "border-t-2 border-dashed border-red-300" : "border-t-2 border-gray-300"
+      }`}
+    />
   );
 }
