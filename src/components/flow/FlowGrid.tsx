@@ -241,6 +241,16 @@ export default function FlowGrid({
                     const filled = cell.entries.length > 0;
                     const active = isCellActive(row.skill.id, cell.sessionId);
                     const inThread = span !== null && cellIndex >= span.start && cellIndex <= span.end;
+                    // Two distinct signals: a badge dims/strikes whenever ITS
+                    // OWN session is canceled/simulated, regardless of whether
+                    // the skill has backup coverage elsewhere ("this entry no
+                    // longer counts"). The connecting thread LINE only shows
+                    // broken/red when the skill's flow is genuinely at risk
+                    // -- i.e. this was its only coverage at that level (see
+                    // doesThreadBreakAtCell) -- since that's a claim about
+                    // the skill, not about this one cell.
+                    const cellIsCanceled =
+                      cell.isCanceled || cell.sessionId === simulatedSessionId;
                     const threadBroken = doesThreadBreakAtCell(
                       row.cells,
                       cellIndex,
@@ -271,7 +281,7 @@ export default function FlowGrid({
                                 key={level}
                                 className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                                   LEVEL_BADGE[level].color
-                                } ${threadBroken ? "opacity-50 line-through" : ""}`}
+                                } ${cellIsCanceled ? "opacity-50 line-through" : ""}`}
                               >
                                 {LEVEL_BADGE[level].letter}
                               </span>

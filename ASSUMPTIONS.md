@@ -195,3 +195,25 @@ Decisions made where the requirements were underspecified. Each can be revisited
   `fully_covered`/`partially_covered`/`uncovered` status calculated through
   `getSkillHealthStatus`. The models are equivalent for the I/P/A health
   rule, so no separate visual status mapping is needed.
+
+- **Badge strike-through vs. thread-line breakage are different signals**:
+  A coverage badge dims/strikes whenever its own session is
+  canceled/simulated, regardless of whether the skill has backup coverage
+  elsewhere -- it means "this entry no longer counts." The connecting
+  thread *line* only renders broken/red when the skill's flow is genuinely
+  at risk (its sole coverage at that level), via `doesThreadBreakAtCell`.
+  A skill with redundant coverage on a canceled session now shows a
+  struck-through badge on a still-unbroken thread line -- the badge tells
+  you "this specific entry is gone," the line tells you "the skill is
+  fine." Previously both used the same (too-lenient) signal.
+
+- **Filtered-view summary reuses the full term's cancellation stats**:
+  `summarizeFilteredFlowData` recomputes only the skill-health counts
+  (fully/partially/uncovered) from the currently-visible rows -- each row's
+  `healthStatus` was already computed against the full term in
+  `buildFlowData`, so filtering which cells are *displayed* doesn't change
+  it. `canceledSessions`, `skillsAtRiskFromCancellations`, and the other
+  session-scope numbers come from the unfiltered summary unchanged:
+  toggling "hide canceled sessions" is a display preference, not a claim
+  that the term has fewer cancellations. Previously these were re-derived
+  from the filtered session list, so hiding canceled sessions zeroed them.

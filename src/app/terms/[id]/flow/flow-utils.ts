@@ -2,7 +2,6 @@ import { computeCoverageHealth } from "@/domain/whatif";
 import type { CoverageEntry } from "@/domain/coverage-rules";
 import {
   assembleCoverageMatrix,
-  computeHealthBar,
   getSkillHealthStatus,
   type HealthStatus,
 } from "@/domain/coverage-matrix";
@@ -187,84 +186,39 @@ export function uniqueAtRiskSkillIds(
   );
 }
 
-/** Rebuild visible-grid summary using the canonical coverage-matrix health rules. */
+/**
+ * Rebuild the skill-health portion of the summary from the currently-visible
+ * (filtered) rows. Each row's `healthStatus` was already computed against
+ * the full, unfiltered term in `buildFlowData` -- filtering only changes
+ * which rows/cells are *displayed*, not a skill's actual coverage state --
+ * so we simply re-tally it rather than recomputing coverage from scratch.
+ *
+ * Session-scope numbers (canceledSessions, skillsAtRiskFromCancellations,
+ * etc.) are intentionally taken from `fullSummary` unchanged: those describe
+ * facts about the term, not the display filters. Toggling "hide canceled
+ * sessions" is a display preference, not a claim that the term has fewer
+ * cancellations -- deriving these from the filtered session list previously
+ * zeroed them out whenever canceled sessions were hidden.
+ */
 export function summarizeFilteredFlowData(
-  data: Pick<FlowData, "rows" | "sessions">,
+  data: Pick<FlowData, "rows">,
+  fullSummary: FlowSummary,
 ): FlowSummary {
-  const matrixRows = assembleCoverageMatrix(
-    data.rows.map((row) => ({
-      id: row.skill.id,
-      code: row.skill.code,
-      category: row.skill.category,
-      description: row.skill.description,
-    })),
-    data.sessions.map((session) => ({
-      id: session.sessionId,
-      code: session.code,
-      title: session.title,
-      sessionType: session.sessionType,
-      date: session.date,
-      status: session.status,
-      moduleId: session.moduleId,
-      moduleCode: session.moduleCode,
-      moduleSequence: session.session.module?.sequence ?? 0,
-      sequence: session.session.sequence,
-    })),
-    data.rows.flatMap((row) =>
-      row.cells.flatMap((cell) =>
-        cell.entries.map((entry) => ({
-          id: entry.id,
-          skillId: row.skill.id,
-          sessionId: cell.sessionId,
-          level: entry.level,
-        })),
-      ),
-    ),
-  );
-  const health = computeHealthBar(matrixRows);
-  const canceledSessionIds = new Set(
-    data.sessions.filter((session) => session.isCanceled).map((session) => session.sessionId),
-  );
-  const coverageEntries: CoverageEntry[] = data.rows.flatMap((row) =>
-    row.cells.flatMap((cell) =>
-      cell.entries.map((entry) => {
-        const session = data.sessions.find((candidate) => candidate.sessionId === cell.sessionId);
-        return {
-          skillId: row.skill.id,
-          sessionId: cell.sessionId,
-          level: entry.level,
-          sessionDate: session?.date ? new Date(session.date) : null,
-          sessionSequence: session?.session.sequence ?? 0,
-          moduleSequence: session?.session.module?.sequence ?? 0,
-        };
-      }),
-    ),
-  );
-
-  const skillsAtRiskFromCancellations = new Set<string>();
-  matrixRows.forEach((row) => {
-    row.coverageBySession.forEach((entries, sessionId) => {
-      if (!canceledSessionIds.has(sessionId)) return;
-      if (entries.some((entry) => !row.levels.has(entry.level))) {
-        skillsAtRiskFromCancellations.add(row.skill.id);
-      }
-    });
+  let fullyCovered = 0;
+  let partiallyCovered = 0;
+  let uncovered = 0;
+  data.rows.forEach((row) => {
+    if (row.healthStatus === "fully_covered") fullyCovered++;
+    else if (row.healthStatus === "partially_covered") partiallyCovered++;
+    else uncovered++;
   });
 
   return {
-    totalSkills: health.total,
-    fullyCovered: health.fullyCovered,
-    partiallyCovered: health.partiallyCovered,
-    uncovered: health.uncovered,
-    totalSessions: data.sessions.length,
-    scheduledSessions: data.sessions.length - canceledSessionIds.size,
-    canceledSessions: canceledSessionIds.size,
-    skillsAtRiskFromCancellations: skillsAtRiskFromCancellations.size,
-    coverageHealth: computeCoverageHealth(
-      coverageEntries,
-      data.rows.map((row) => row.skill.id),
-      canceledSessionIds,
-    ),
+    ...fullSummary,
+    totalSkills: data.rows.length,
+    fullyCovered,
+    partiallyCovered,
+    uncovered,
   };
 }
 

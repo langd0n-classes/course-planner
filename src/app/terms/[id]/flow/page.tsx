@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { api } from "@/lib/api-client";
@@ -66,11 +66,18 @@ export default function TermFlowPage() {
     setFlowData(buildFlowData(nextRaw));
   }, []);
 
+  // Tracks optimistic coverage ids removed by the user before their
+  // create-call resolved (see handleRemoveCoverage). Without this, the
+  // create's eventual resolution would resurrect the entry the user just
+  // removed -- it has no way to know a remove happened in the meantime.
+  const canceledOptimisticIds = useRef(new Set<string>());
+
   const handleAddCoverage = useCallback(
     async (skillId: string, sessionId: string, level: FlowCoverageLevel) => {
       if (!raw) throw new Error("Flow data is not loaded yet.");
+      const optimisticId = `optimistic-${crypto.randomUUID()}`;
       const optimisticCoverage: Coverage = {
-        id: `optimistic-${crypto.randomUUID()}`,
+        id: optimisticId,
         skillId,
         sessionId,
         level,
@@ -83,13 +90,20 @@ export default function TermFlowPage() {
       setFlowFromRaw(optimisticRaw);
       try {
         const coverage = await api.createCoverage({ skillId, sessionId, level });
+        if (canceledOptimisticIds.current.delete(optimisticId)) {
+          // Removed locally while the create was in flight -- undo it on
+          // the server instead of writing it back into local state.
+          await api.deleteCoverage(coverage.id).catch(() => undefined);
+          return;
+        }
         setFlowFromRaw({
           ...optimisticRaw,
           coverages: optimisticRaw.coverages.map((entry) =>
-            entry.id === optimisticCoverage.id ? coverage : entry,
+            entry.id === optimisticId ? coverage : entry,
           ),
         });
       } catch (error) {
+        canceledOptimisticIds.current.delete(optimisticId);
         setFlowFromRaw(raw);
         throw error;
       }
@@ -100,6 +114,18 @@ export default function TermFlowPage() {
   const handleRemoveCoverage = useCallback(
     async (coverageId: string) => {
       if (!raw) throw new Error("Flow data is not loaded yet.");
+      if (coverageId.startsWith("optimistic-")) {
+        // Nothing persisted yet -- mark it canceled so the pending add
+        // cleans up on the server instead of resurrecting it, and drop it
+        // locally now without calling an API for an id the server doesn't
+        // know about.
+        canceledOptimisticIds.current.add(coverageId);
+        setFlowFromRaw({
+          ...raw,
+          coverages: raw.coverages.filter((coverage) => coverage.id !== coverageId),
+        });
+        return;
+      }
       const optimisticRaw = {
         ...raw,
         coverages: raw.coverages.filter((coverage) => coverage.id !== coverageId),
@@ -186,7 +212,7 @@ export default function TermFlowPage() {
       sessions: visibleSessions,
       rows,
     };
-    return { ...filtered, summary: summarizeFilteredFlowData(filtered) };
+    return { ...filtered, summary: summarizeFilteredFlowData(filtered, flowData.summary) };
   }, [filters, flowData]);
 
   const displayData = filteredFlowData ?? flowData;

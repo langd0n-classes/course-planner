@@ -231,32 +231,65 @@ describe("cancellation indicators", () => {
 });
 
 describe("summarizeFilteredFlowData", () => {
-  it("recomputes coverage summary from the rows and sessions still visible", () => {
-    const flow = buildFlowData({
+  const twoSkillFlow = () =>
+    buildFlowData({
       modules: [{ id: "m1", termId: "t1", sequence: 1, code: "M1", title: "One", description: null, learningObjectives: [], notes: null }],
       sessions: [
         { id: "s1", moduleId: "m1", sequence: 1, sessionType: "lecture", code: "L1", title: "One", date: null, description: null, format: null, notes: null, status: "scheduled", canceledAt: null, canceledReason: null },
-        { id: "s2", moduleId: "m1", sequence: 2, sessionType: "lecture", code: "L2", title: "Two", date: null, description: null, format: null, notes: null, status: "scheduled", canceledAt: null, canceledReason: null },
+        { id: "s2", moduleId: "m1", sequence: 2, sessionType: "lecture", code: "L2", title: "Two", date: null, description: null, format: null, notes: null, status: "canceled", canceledAt: null, canceledReason: null },
       ],
-      skills: [{ id: "sk1", code: "SK1", category: "A", description: "", isGlobal: false, termId: "t1" }],
+      skills: [
+        { id: "sk1", code: "SK1", category: "A", description: "", isGlobal: false, termId: "t1" },
+        { id: "sk2", code: "SK2", category: "B", description: "", isGlobal: false, termId: "t1" },
+      ],
       coverages: [
         { id: "c1", sessionId: "s1", skillId: "sk1", level: "introduced", notes: null },
-        { id: "c2", sessionId: "s2", skillId: "sk1", level: "practiced", notes: null },
-        { id: "c3", sessionId: "s2", skillId: "sk1", level: "assessed", notes: null },
+        { id: "c2", sessionId: "s1", skillId: "sk1", level: "practiced", notes: null },
+        { id: "c3", sessionId: "s1", skillId: "sk1", level: "assessed", notes: null },
+        // sk2's only coverage is on the canceled session -- at risk.
+        { id: "c4", sessionId: "s2", skillId: "sk2", level: "introduced", notes: null },
       ],
     });
+
+  it("tallies skill health from the filtered rows' precomputed status, not by re-deriving from visible cells", () => {
+    const flow = twoSkillFlow();
+    // Simulate a category filter narrowing to just sk1's row; cells are also
+    // sliced (as the "hide canceled" session filter does), but that must
+    // not change sk1's health tally since coverageStatus/healthStatus were
+    // already computed against the full term.
     const filtered = {
-      rows: flow.rows.map((row) => ({ ...row, cells: row.cells.slice(0, 1) })),
-      sessions: flow.sessions.slice(0, 1),
+      rows: flow.rows
+        .filter((row) => row.skill.code === "SK1")
+        .map((row) => ({ ...row, cells: row.cells.slice(0, 1) })),
     };
 
-    expect(summarizeFilteredFlowData(filtered)).toMatchObject({
+    expect(summarizeFilteredFlowData(filtered, flow.summary)).toMatchObject({
       totalSkills: 1,
-      fullyCovered: 0,
-      partiallyCovered: 1,
+      fullyCovered: 1,
+      partiallyCovered: 0,
       uncovered: 0,
-      totalSessions: 1,
     });
+  });
+
+  it("keeps cancellation stats from the full term when canceled sessions are filtered out of the rows shown", () => {
+    const flow = twoSkillFlow();
+    expect(flow.summary.canceledSessions).toBe(1);
+    expect(flow.summary.skillsAtRiskFromCancellations).toBe(1);
+
+    // "Hide canceled sessions" removes the canceled session's cells from
+    // every row, but the term still had a cancellation and sk2 is still at
+    // risk -- those facts must survive the filter.
+    const filtered = {
+      rows: flow.rows.map((row) => ({
+        ...row,
+        cells: row.cells.filter((cell) => !cell.isCanceled),
+      })),
+    };
+    const summary = summarizeFilteredFlowData(filtered, flow.summary);
+
+    expect(summary.canceledSessions).toBe(1);
+    expect(summary.skillsAtRiskFromCancellations).toBe(1);
+    expect(summary.totalSessions).toBe(flow.summary.totalSessions);
   });
 });
 
