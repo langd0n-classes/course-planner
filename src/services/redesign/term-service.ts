@@ -93,3 +93,51 @@ async function assertCalendarInstitution(
     throw new DomainInvariantError("Term Academic Calendar must belong to the selected Institution");
   }
 }
+
+export type UpdateTermInput = {
+  academicCalendarId?: string;
+  code?: string;
+  name?: string;
+  startDate?: Date;
+  endDate?: Date;
+  meetingPattern?: unknown;
+};
+
+export async function updateTerm(db: RedesignDb, termId: string, input: UpdateTermInput) {
+  return db.$transaction(async (tx) => {
+    const term = await tx.term.findUnique({ where: { id: termId } });
+    if (!term) throw new DomainInvariantError("Term not found");
+    if (term.status === "closed") {
+      throw new DomainInvariantError("Closed Terms are read-only");
+    }
+
+    if (input.academicCalendarId) {
+      await assertCalendarInstitution(tx, input.academicCalendarId, term.institutionId);
+    }
+
+    return tx.term.update({
+      where: { id: termId },
+      data: {
+        academicCalendarId: input.academicCalendarId,
+        code: input.code,
+        name: input.name,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        meetingPattern: input.meetingPattern,
+      },
+    });
+  });
+}
+
+// Term deletion is the ordinary archive lifecycle action (design §2 "Archive
+// versus hard removal"): the frozen contract exposes no separate guarded
+// hard-removal command for Term, so DELETE sets archivedAt rather than
+// physically removing rows that historical Sessions/Coverage may reference.
+export async function archiveTerm(db: RedesignDb, termId: string) {
+  return db.$transaction(async (tx) => {
+    const term = await tx.term.findUnique({ where: { id: termId } });
+    if (!term) throw new DomainInvariantError("Term not found");
+    if (term.archivedAt) return term;
+    return tx.term.update({ where: { id: termId }, data: { archivedAt: new Date() } });
+  });
+}
