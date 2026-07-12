@@ -1,12 +1,12 @@
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
-const db = prisma as any;
+const db = prisma;
 
 async function main() {
   console.log("Seeding redesign foundation data...");
 
-  await db.$transaction(async (tx: any) => {
+  await db.$transaction(async (tx) => {
     await tx.artifact.deleteMany();
     await tx.assessmentTopic.deleteMany();
     await tx.coverage.deleteMany();
@@ -211,6 +211,14 @@ async function main() {
     data: { currentVersionId: deliveredVersion.id },
   });
 
+  // Path A: create the Term first, then create its TermLearningModule as a
+  // second operation. TermLearningModule's compound FK to Term is
+  // [termId, courseId] -> [id, courseId]; nesting the create under
+  // Term.create fails because Prisma cannot resolve courseId for the
+  // compound relation before the parent Term row exists. Creating the Term
+  // and the TermLearningModule in separate calls (same instructorId/courseId
+  // already known) avoids the nested-write ordering problem without
+  // simplifying the compound keys.
   const term = await db.term.create({
     data: {
       courseId: course.id,
@@ -220,19 +228,10 @@ async function main() {
       name: "Spring 2026",
       startDate: new Date("2026-01-20"),
       endDate: new Date("2026-05-08"),
+      status: "active",
       meetingPattern: {
         days: ["tuesday", "thursday"],
         lectureTime: "14:00-15:15",
-      },
-      learningModules: {
-        create: {
-          learningModuleId: lm.id,
-          learningModuleVersionId: plannedVersion.id,
-          deliveredLearningModuleVersionId: deliveredVersion.id,
-          courseId: course.id,
-          sequence: 1,
-          notes: "Planned and delivered pins intentionally differ.",
-        },
       },
       calendarSlots: {
         create: [
@@ -242,6 +241,17 @@ async function main() {
             label: "First class",
             academicCalendarEventId: academicCalendar.events[0].id,
             source: "seed",
+            instructionalCapacity: "normal",
+            capacitySource: "baseline",
+          },
+          {
+            date: new Date("2026-02-12"),
+            slotType: "class_day",
+            label: "Class before Presidents' Day weekend",
+            source: "seed",
+            instructionalCapacity: "reduced_engagement",
+            capacitySource: "heuristic",
+            capacityReason: "Long weekend before the holiday reduces attendance.",
           },
           {
             date: new Date("2026-02-16"),
@@ -250,27 +260,61 @@ async function main() {
             academicCalendarEventId: academicCalendar.events[1].id,
             source: "seed",
           },
+          {
+            date: new Date("2026-01-22"),
+            slotType: "class_day",
+            label: "Recovery day",
+            source: "seed",
+            instructionalCapacity: "recovery",
+            capacitySource: "instructor_override",
+            capacityReason: "Instructor flagged this session to recover lost time.",
+          },
         ],
       },
     },
-    include: { learningModules: true },
+  });
+
+  const termLearningModule = await db.termLearningModule.create({
+    data: {
+      termId: term.id,
+      learningModuleId: lm.id,
+      learningModuleVersionId: plannedVersion.id,
+      deliveredLearningModuleVersionId: deliveredVersion.id,
+      courseId: course.id,
+      sequence: 1,
+      notes: "Planned and delivered pins intentionally differ.",
+    },
   });
 
   const session = await db.session.create({
     data: {
       termId: term.id,
-      termLearningModuleId: term.learningModules[0].id,
+      termLearningModuleId: termLearningModule.id,
       sequence: 1,
       sessionType: "lecture",
       code: "lec-01",
       title: "Probability Foundations",
       date: new Date("2026-01-20"),
+      instructionalMode: "standard",
       coverages: {
         create: {
           topicVersionId: topicVersion.id,
           level: "introduced",
         },
       },
+    },
+  });
+
+  await db.session.create({
+    data: {
+      termId: term.id,
+      termLearningModuleId: termLearningModule.id,
+      sequence: 2,
+      sessionType: "lecture",
+      code: "lec-02",
+      title: "Recovery: Probability Foundations continued",
+      date: new Date("2026-01-22"),
+      instructionalMode: "recovery",
     },
   });
 

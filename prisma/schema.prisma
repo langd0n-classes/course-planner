@@ -46,18 +46,44 @@ enum CoverageLevel {
   assessed
 }
 
-enum AssessmentType {
-  gaie
-  assignment
-  exam
-  project
-}
-
 enum SlotType {
   class_day
   holiday
   finals
   break_day
+}
+
+enum TermStatus {
+  planned
+  active
+  closed
+}
+
+// Advisory-only signal for how a calendar day is expected to function
+// instructionally (e.g. reduced attendance around a holiday weekend).
+// Separate from SlotType, which records what the day *is* on the calendar.
+enum InstructionalCapacity {
+  normal
+  reduced_engagement
+  recovery
+  assessment_period
+}
+
+enum CapacitySource {
+  baseline
+  heuristic
+  instructor_override
+}
+
+// Advisory-only signal for what kind of teaching a Session is, separate
+// from the lecture/lab SessionType.
+enum InstructionalMode {
+  standard
+  recovery
+  review
+  buffer
+  assessment
+  other
 }
 
 enum ArtifactType {
@@ -367,6 +393,8 @@ model Term {
   endDate            DateTime  @map("end_date") @db.Date
   meetingPattern     Json?     @map("meeting_pattern") @db.JsonB
   clonedFromId       String?   @map("cloned_from_id") @db.Uuid
+  status             TermStatus @default(planned)
+  closedAt           DateTime? @map("closed_at")
   archivedAt         DateTime? @map("archived_at")
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
@@ -423,6 +451,7 @@ model Session {
   format               String?
   notes                String?       @db.Text
   status               SessionStatus @default(scheduled)
+  instructionalMode    InstructionalMode @default(standard) @map("instructional_mode")
   canceledAt           DateTime?     @map("canceled_at")
   canceledReason       String?       @map("canceled_reason") @db.Text
   archivedAt           DateTime?     @map("archived_at")
@@ -477,7 +506,7 @@ model Assessment {
   termId              String         @map("term_id") @db.Uuid
   code                String
   title               String
-  assessmentType      AssessmentType @map("assessment_type")
+  assessmentType      String         @map("assessment_type")
   description         String?        @db.Text
   studentInstructions String?        @map("student_instructions") @db.Text
   sessionId           String?        @map("session_id") @db.Uuid
@@ -516,6 +545,9 @@ model CalendarSlot {
   slotType                SlotType @map("slot_type")
   label                   String?
   source                  String?
+  instructionalCapacity   InstructionalCapacity @default(normal) @map("instructional_capacity")
+  capacitySource          CapacitySource         @default(baseline) @map("capacity_source")
+  capacityReason          String?  @map("capacity_reason") @db.Text
   createdAt               DateTime @default(now()) @map("created_at")
   updatedAt               DateTime @updatedAt @map("updated_at")
 

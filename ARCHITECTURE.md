@@ -243,3 +243,34 @@ Pure functions for matrix assembly:
 ## E2E Testing
 
 Playwright E2E tests live in `e2e/`. Config: `playwright.config.ts`. Run with `npm run e2e`.
+
+## Redesign branch: legacy quarantine (Phase A.1)
+
+The above describes the Module/Skill product on `main`. The `redesign`
+branch lineage (see `docs/plans/course-lm-topic-redesign-v2.md`) replaces
+that data model; `main` keeps shipping independently until Phase B lands.
+
+On the redesign branch, every route that queried the removed `Module`,
+`Skill`, or `AssessmentSkill` models, or removed/renamed fields
+(`Term.instructor`, `Term.courseCode`, `Term.modules`, old
+`Session.module`, old `Artifact.moduleId`), is quarantined:
+
+- **Canonical paths** (listed in `CanonicalRoute`, `src/lib/redesign-contract.ts`)
+  return a typed `501 not_implemented` via `notImplemented()` in
+  `src/app/api/redesign-stub.ts`. These are Phase B's job to implement.
+- **Obsolete paths** (old Module/Skill CRUD, old JSON/CSV import routes, the
+  old artifact export route, the ad-hoc calendar import route) return an
+  explicit `410 legacy_route_retired` via `retired()` in the same file, and
+  are never added to `CanonicalRoute`.
+- `src/app/page.tsx` — the one server-rendered page that queried removed
+  Prisma fields directly — is a minimal static shell rather than the real
+  homepage.
+- `src/lib/api-client.ts` is kept as explicitly-legacy (documented in-file)
+  for Lane C to replace; it's self-contained TypeScript with no Prisma
+  import, so it still compiles, but nothing on the redesign branch should
+  add new usages of it.
+
+Client pages under `src/app/terms/*` and `src/app/skills/*` still call the
+legacy `api-client.ts` against these now-retired/stubbed routes; they are
+not rewritten here (Lane C owns that UI work) and will show errors or
+placeholders until Phase B implements the canonical handlers.

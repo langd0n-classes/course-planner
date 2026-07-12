@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- structural Prisma test doubles */
 import { describe, expect, it } from "vitest";
 import { createArtifact } from "./artifact-service";
 import { createCourse } from "./course-service";

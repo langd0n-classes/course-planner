@@ -224,6 +224,30 @@ don't block the workspace experience. Deferred to keep
 
 ---
 
+## Redesign track: Course/LearningModule/Topic (supersedes Phases 3-5 planning)
+
+`main` keeps shipping the Module/Skill product above. In parallel, the
+`redesign` branch lineage replaces that data model per
+`docs/plans/course-lm-topic-redesign-v2.md`. See that document for the full
+chunked implementation plan (§5) and amendments (§9, §10).
+
+- **Phase A** (issue #18): schema + revision subsystem + REST contract
+  freeze. Landed, but Gate 0 review found the seed failed, the frozen
+  contract was missing collection/operational surfaces, several routes
+  still compiled against the removed Module/Skill schema, and
+  `AssessmentType` violated the generic-app rule.
+- **Phase A.1 refreeze gate** (this build): fixes the seed (Path A: create
+  `Term` then `TermLearningModule` as a second write), makes
+  `assessmentType` a generic string, adds explicit Term lifecycle and
+  advisory-only calendar capacity/Session instructional-mode fields,
+  expands the frozen contract to the full Plan/Run surface, and quarantines
+  every schema-incompatible legacy route as either a typed 501 stub or an
+  explicit `410 legacy_route_retired` response. See v2.2 in the plan doc
+  (§10) for details. Phase B (UI, handler logic, calendar heuristics,
+  import codecs, AI) does not start until this gate passes review.
+
+---
+
 ## Phase 3: AI Integration (future)
 
 **Goal:** Replace mock AI with real providers.
