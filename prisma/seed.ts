@@ -1,585 +1,319 @@
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
+const db = prisma as any;
 
 async function main() {
-  console.log("Seeding database...");
+  console.log("Seeding redesign foundation data...");
 
-  // Clean existing data
-  await prisma.assessmentSkill.deleteMany();
-  await prisma.artifact.deleteMany();
-  await prisma.coverage.deleteMany();
-  await prisma.assessment.deleteMany();
-  await prisma.session.deleteMany();
-  await prisma.module.deleteMany();
-  await prisma.skill.deleteMany();
-  await prisma.term.deleteMany();
-  await prisma.instructor.deleteMany();
+  await db.$transaction(async (tx: any) => {
+    await tx.artifact.deleteMany();
+    await tx.assessmentTopic.deleteMany();
+    await tx.coverage.deleteMany();
+    await tx.assessment.deleteMany();
+    await tx.sessionPriorArt.deleteMany();
+    await tx.session.deleteMany();
+    await tx.calendarSlot.deleteMany();
+    await tx.termLearningModule.deleteMany();
+    await tx.term.deleteMany();
+    await tx.topicPrerequisite.deleteMany();
+    await tx.learningModuleVersionTopic.deleteMany();
+    await tx.topic.updateMany({ data: { currentVersionId: null } });
+    await tx.learningModule.updateMany({ data: { currentVersionId: null } });
+    await tx.topicVersion.deleteMany();
+    await tx.learningModuleVersion.deleteMany();
+    await tx.topic.deleteMany();
+    await tx.learningModule.deleteMany();
+    await tx.courseInstitution.deleteMany();
+    await tx.course.deleteMany();
+    await tx.instructorCalendarOverride.deleteMany();
+    await tx.academicCalendarEvent.deleteMany();
+    await tx.academicCalendar.deleteMany();
+    await tx.instructorInstitution.deleteMany();
+    await tx.institution.deleteMany();
+    await tx.instructor.deleteMany();
+  });
 
-  // ─── Instructors ─────────────────────────────────────
-  const alice = await prisma.instructor.create({
+  const instructor = await db.instructor.create({
     data: {
       name: "Alice Chen",
-      email: "alice.chen@bu.edu",
+      email: "alice.chen@example.edu",
     },
   });
 
-  const bob = await prisma.instructor.create({
+  const institution = await db.institution.create({
     data: {
-      name: "Bob Martinez",
-      email: "bob.martinez@bu.edu",
+      name: "Example University",
+      shortName: "EXU",
+      canonicalUri: "https://example.edu",
+      instructors: {
+        create: {
+          instructorId: instructor.id,
+          status: "active",
+          isDefault: true,
+        },
+      },
     },
   });
 
-  console.log(`Created instructors: ${alice.name}, ${bob.name}`);
-
-  // ─── Skills (global) ────────────────────────────────
-  const skills = await Promise.all([
-    prisma.skill.create({
-      data: {
-        code: "A01",
-        category: "Foundations",
-        description: "Write and execute Python expressions",
-        isGlobal: true,
-      },
-    }),
-    prisma.skill.create({
-      data: {
-        code: "A02",
-        category: "Foundations",
-        description: "Use variables to store and retrieve values",
-        isGlobal: true,
-      },
-    }),
-    prisma.skill.create({
-      data: {
-        code: "A03",
-        category: "Foundations",
-        description: "Use conditional logic (if/elif/else)",
-        isGlobal: true,
-      },
-    }),
-    prisma.skill.create({
-      data: {
-        code: "A04",
-        category: "Foundations",
-        description: "Write and call functions with parameters",
-        isGlobal: true,
-      },
-    }),
-    prisma.skill.create({
-      data: {
-        code: "B01",
-        category: "Data Manipulation",
-        description: "Load data into a pandas DataFrame",
-        isGlobal: true,
-      },
-    }),
-    prisma.skill.create({
-      data: {
-        code: "B02",
-        category: "Data Manipulation",
-        description: "Filter and select rows/columns in a DataFrame",
-        isGlobal: true,
-      },
-    }),
-    prisma.skill.create({
-      data: {
-        code: "B03",
-        category: "Data Manipulation",
-        description: "Handle missing data appropriately",
-        isGlobal: true,
-      },
-    }),
-    prisma.skill.create({
-      data: {
-        code: "C01",
-        category: "Visualization",
-        description: "Create basic plots with matplotlib",
-        isGlobal: true,
-      },
-    }),
-    prisma.skill.create({
-      data: {
-        code: "C02",
-        category: "Visualization",
-        description: "Choose appropriate chart types for data",
-        isGlobal: true,
-      },
-    }),
-    prisma.skill.create({
-      data: {
-        code: "D01",
-        category: "Analysis",
-        description: "Compute descriptive statistics",
-        isGlobal: true,
-      },
-    }),
-    prisma.skill.create({
-      data: {
-        code: "D02",
-        category: "Analysis",
-        description: "Perform basic hypothesis testing",
-        isGlobal: true,
-      },
-    }),
-    prisma.skill.create({
-      data: {
-        code: "E01",
-        category: "Communication",
-        description: "Write clear data analysis narratives",
-        isGlobal: true,
-      },
-    }),
-  ]);
-
-  console.log(`Created ${skills.length} skills`);
-
-  const skillMap = new Map(skills.map((s) => [s.code, s]));
-
-  // ─── Term: Spring 2026 (Alice) ──────────────────────
-  const s26 = await prisma.term.create({
+  const academicCalendar = await db.academicCalendar.create({
     data: {
-      instructorId: alice.id,
+      institutionId: institution.id,
+      name: "Spring 2026",
+      academicYear: "2025-2026",
+      version: 1,
+      sourceUri: "https://example.edu/calendars/spring-2026",
+      publishedAt: new Date("2025-10-01T00:00:00Z"),
+      events: {
+        create: [
+          {
+            eventType: "term_start",
+            startsOn: new Date("2026-01-20"),
+            endsOn: new Date("2026-01-20"),
+            label: "Spring term starts",
+          },
+          {
+            eventType: "holiday",
+            startsOn: new Date("2026-02-16"),
+            endsOn: new Date("2026-02-16"),
+            label: "Presidents' Day",
+          },
+        ],
+      },
+    },
+    include: { events: true },
+  });
+
+  const serial = await db.instructor.update({
+    where: { id: instructor.id },
+    data: { nextCourseSerial: { increment: 1 } },
+    select: { nextCourseSerial: true },
+  });
+
+  const course = await db.course.create({
+    data: {
+      instructorId: instructor.id,
+      shortId: (serial.nextCourseSerial - 1).toString().padStart(3, "0"),
+      title: "Data Science Foundations",
+      number: "DS 1XX",
+      numberIsPlaceholder: true,
+      description: "Seeded redesign course used by Phase A tests.",
+      institutions: {
+        create: { institutionId: institution.id },
+      },
+    },
+  });
+
+  const lm = await db.learningModule.create({
+    data: {
+      courseId: course.id,
+      stableCode: "LM-PROB",
+    },
+  });
+
+  const topic = await db.topic.create({
+    data: {
+      courseId: course.id,
+      learningModuleId: lm.id,
+      stableCode: "TOPIC-PROB-1",
+    },
+  });
+
+  const unassignedTopic = await db.topic.create({
+    data: {
+      courseId: course.id,
+      learningModuleId: null,
+      stableCode: "TOPIC-BACKLOG-1",
+    },
+  });
+
+  const topicVersion = await db.topicVersion.create({
+    data: {
+      topicId: topic.id,
+      revision: 1,
+      title: "Probability 1",
+      category: "Uncertainty",
+      description: "Use probability language for uncertain events.",
+      createdByInstructorId: instructor.id,
+      publishedAt: new Date("2025-12-01T00:00:00Z"),
+    },
+  });
+  await db.topic.update({
+    where: { id: topic.id },
+    data: { currentVersionId: topicVersion.id },
+  });
+
+  const unassignedTopicVersion = await db.topicVersion.create({
+    data: {
+      topicId: unassignedTopic.id,
+      revision: 1,
+      title: "Backlog Topic",
+      category: "Unassigned",
+      description: "Seeded topic with nullable learningModuleId.",
+      createdByInstructorId: instructor.id,
+    },
+  });
+  await db.topic.update({
+    where: { id: unassignedTopic.id },
+    data: { currentVersionId: unassignedTopicVersion.id },
+  });
+
+  const plannedVersion = await db.learningModuleVersion.create({
+    data: {
+      learningModuleId: lm.id,
+      revision: 1,
+      title: "Probability Foundations",
+      description: "Initial planned probability module.",
+      studentDescription: "You will reason about uncertainty.",
+      learningObjectives: ["Describe random events", "Apply simple probability rules"],
+      notes: "Planned at term start.",
+      defaultSequence: 1,
+      changeSummary: "Initial seed version",
+      createdByInstructorId: instructor.id,
+      publishedAt: new Date("2025-12-01T00:00:00Z"),
+      topics: {
+        create: {
+          topicVersionId: topicVersion.id,
+          sequence: 1,
+        },
+      },
+    },
+  });
+
+  const deliveredVersion = await db.learningModuleVersion.create({
+    data: {
+      learningModuleId: lm.id,
+      revision: 2,
+      title: "Probability Foundations",
+      description: "Delivered version after adding more simulation framing.",
+      studentDescription: "You will reason about uncertainty using simulation.",
+      learningObjectives: [
+        "Describe random events",
+        "Apply simple probability rules",
+        "Connect probability to simulation",
+      ],
+      notes: "Delivered pointer seed round-trip.",
+      defaultSequence: 1,
+      changeSummary: "Added simulation emphasis during delivery",
+      createdByInstructorId: instructor.id,
+      publishedAt: new Date("2026-02-01T00:00:00Z"),
+      topics: {
+        create: {
+          topicVersionId: topicVersion.id,
+          sequence: 1,
+        },
+      },
+    },
+  });
+
+  await db.learningModule.update({
+    where: { id: lm.id },
+    data: { currentVersionId: deliveredVersion.id },
+  });
+
+  const term = await db.term.create({
+    data: {
+      courseId: course.id,
+      institutionId: institution.id,
+      academicCalendarId: academicCalendar.id,
       code: "S26",
       name: "Spring 2026",
       startDate: new Date("2026-01-20"),
       endDate: new Date("2026-05-08"),
-      courseCode: "DS-100",
       meetingPattern: {
         days: ["tuesday", "thursday"],
         lectureTime: "14:00-15:15",
-        labDay: "wednesday",
-        labTime: "10:00-11:50",
       },
-      holidays: [
-        { date: "2026-01-19", label: "MLK Jr. Day" },
-        { date: "2026-02-16", label: "Presidents' Day" },
-        {
-          start: "2026-03-07",
-          end: "2026-03-15",
-          label: "Spring Recess",
+      learningModules: {
+        create: {
+          learningModuleId: lm.id,
+          learningModuleVersionId: plannedVersion.id,
+          deliveredLearningModuleVersionId: deliveredVersion.id,
+          courseId: course.id,
+          sequence: 1,
+          notes: "Planned and delivered pins intentionally differ.",
         },
-        { date: "2026-04-20", label: "Patriots' Day" },
-      ],
+      },
+      calendarSlots: {
+        create: [
+          {
+            date: new Date("2026-01-20"),
+            slotType: "class_day",
+            label: "First class",
+            academicCalendarEventId: academicCalendar.events[0].id,
+            source: "seed",
+          },
+          {
+            date: new Date("2026-02-16"),
+            slotType: "holiday",
+            label: "Presidents' Day",
+            academicCalendarEventId: academicCalendar.events[1].id,
+            source: "seed",
+          },
+        ],
+      },
     },
+    include: { learningModules: true },
   });
 
-  // Module 1: Programming Basics
-  const mod1 = await prisma.module.create({
+  const session = await db.session.create({
     data: {
-      termId: s26.id,
-      sequence: 0,
-      code: "LM-01",
-      title: "Programming Basics",
-      description: "Introduction to Python programming fundamentals",
-      learningObjectives: [
-        "Write basic Python expressions",
-        "Use variables and data types",
-        "Apply conditional logic",
-      ],
-    },
-  });
-
-  const lec01 = await prisma.session.create({
-    data: {
-      moduleId: mod1.id,
-      sequence: 0,
+      termId: term.id,
+      termLearningModuleId: term.learningModules[0].id,
+      sequence: 1,
       sessionType: "lecture",
       code: "lec-01",
-      title: "Welcome & Python Expressions",
+      title: "Probability Foundations",
       date: new Date("2026-01-20"),
-      description: "Course overview, Python basics, REPL usage",
-      format: "traditional",
-    },
-  });
-
-  const lec02 = await prisma.session.create({
-    data: {
-      moduleId: mod1.id,
-      sequence: 1,
-      sessionType: "lecture",
-      code: "lec-02",
-      title: "Variables and Types",
-      date: new Date("2026-01-22"),
-      description: "Variable assignment, type system, string operations",
-      format: "traditional",
-    },
-  });
-
-  const lab01 = await prisma.session.create({
-    data: {
-      moduleId: mod1.id,
-      sequence: 2,
-      sessionType: "lab",
-      code: "lab-01",
-      title: "Python Fundamentals Lab",
-      date: new Date("2026-01-21"),
-      description: "Hands-on practice with expressions and variables",
-      format: "traditional",
-    },
-  });
-
-  const lec03 = await prisma.session.create({
-    data: {
-      moduleId: mod1.id,
-      sequence: 3,
-      sessionType: "lecture",
-      code: "lec-03",
-      title: "Conditionals and Functions",
-      date: new Date("2026-01-27"),
-      description: "if/elif/else, function definitions, parameters",
-      format: "traditional",
-    },
-  });
-
-  const lab02 = await prisma.session.create({
-    data: {
-      moduleId: mod1.id,
-      sequence: 4,
-      sessionType: "lab",
-      code: "lab-02",
-      title: "Functions & Control Flow Lab",
-      date: new Date("2026-01-28"),
-      description: "Practice writing functions and conditionals",
-      format: "traditional",
-    },
-  });
-
-  // Module 2: Tabular Data
-  const mod2 = await prisma.module.create({
-    data: {
-      termId: s26.id,
-      sequence: 1,
-      code: "LM-02",
-      title: "Tabular Data",
-      description: "Working with structured data using pandas",
-      learningObjectives: [
-        "Load and inspect datasets",
-        "Filter and transform DataFrames",
-        "Handle missing values",
-      ],
-    },
-  });
-
-  const lec04 = await prisma.session.create({
-    data: {
-      moduleId: mod2.id,
-      sequence: 0,
-      sessionType: "lecture",
-      code: "lec-04",
-      title: "Introduction to pandas",
-      date: new Date("2026-01-29"),
-      description: "DataFrames, Series, loading CSV files",
-      format: "traditional",
-    },
-  });
-
-  const lec05 = await prisma.session.create({
-    data: {
-      moduleId: mod2.id,
-      sequence: 1,
-      sessionType: "lecture",
-      code: "lec-05",
-      title: "Data Selection & Filtering",
-      date: new Date("2026-02-03"),
-      description: "loc/iloc, boolean indexing, query method",
-      format: "traditional",
-    },
-  });
-
-  const lab03 = await prisma.session.create({
-    data: {
-      moduleId: mod2.id,
-      sequence: 2,
-      sessionType: "lab",
-      code: "lab-03",
-      title: "pandas Practice Lab",
-      date: new Date("2026-02-04"),
-      description: "Hands-on DataFrame manipulation",
-      format: "traditional",
-    },
-  });
-
-  const lec06 = await prisma.session.create({
-    data: {
-      moduleId: mod2.id,
-      sequence: 3,
-      sessionType: "lecture",
-      code: "lec-06",
-      title: "Missing Data & Data Cleaning",
-      date: new Date("2026-02-05"),
-      description: "NaN handling, dropna, fillna, data type conversion",
-      format: "flipped",
-    },
-  });
-
-  // Module 3: Visualization
-  const mod3 = await prisma.module.create({
-    data: {
-      termId: s26.id,
-      sequence: 2,
-      code: "LM-03",
-      title: "Visualization",
-      description: "Creating effective data visualizations",
-      learningObjectives: [
-        "Create plots with matplotlib",
-        "Choose appropriate chart types",
-        "Communicate findings visually",
-      ],
-    },
-  });
-
-  const lec07 = await prisma.session.create({
-    data: {
-      moduleId: mod3.id,
-      sequence: 0,
-      sessionType: "lecture",
-      code: "lec-07",
-      title: "matplotlib Basics",
-      date: new Date("2026-02-10"),
-      description: "Figure, axes, basic plot types, customization",
-      format: "traditional",
-    },
-  });
-
-  const lec08 = await prisma.session.create({
-    data: {
-      moduleId: mod3.id,
-      sequence: 1,
-      sessionType: "lecture",
-      code: "lec-08",
-      title: "Choosing Visualizations",
-      date: new Date("2026-02-12"),
-      description:
-        "Chart type selection, best practices, data-to-viz mapping",
-      format: "traditional",
-    },
-  });
-
-  // ─── Coverage entries ───────────────────────────────
-  // Module 1 coverage
-  await prisma.coverage.createMany({
-    data: [
-      // lec-01: Introduce A01, A02
-      { sessionId: lec01.id, skillId: skillMap.get("A01")!.id, level: "introduced" },
-      { sessionId: lec01.id, skillId: skillMap.get("A02")!.id, level: "introduced" },
-      // lec-02: Practice A01, Introduce A02 more
-      { sessionId: lec02.id, skillId: skillMap.get("A01")!.id, level: "practiced" },
-      { sessionId: lec02.id, skillId: skillMap.get("A02")!.id, level: "practiced" },
-      // lab-01: Practice A01, A02
-      { sessionId: lab01.id, skillId: skillMap.get("A01")!.id, level: "practiced" },
-      { sessionId: lab01.id, skillId: skillMap.get("A02")!.id, level: "practiced" },
-      // lec-03: Introduce A03, A04
-      { sessionId: lec03.id, skillId: skillMap.get("A03")!.id, level: "introduced" },
-      { sessionId: lec03.id, skillId: skillMap.get("A04")!.id, level: "introduced" },
-      // lab-02: Practice A03, A04
-      { sessionId: lab02.id, skillId: skillMap.get("A03")!.id, level: "practiced" },
-      { sessionId: lab02.id, skillId: skillMap.get("A04")!.id, level: "practiced" },
-
-      // Module 2 coverage
-      { sessionId: lec04.id, skillId: skillMap.get("B01")!.id, level: "introduced" },
-      { sessionId: lec05.id, skillId: skillMap.get("B02")!.id, level: "introduced" },
-      { sessionId: lec05.id, skillId: skillMap.get("B01")!.id, level: "practiced" },
-      { sessionId: lab03.id, skillId: skillMap.get("B01")!.id, level: "practiced" },
-      { sessionId: lab03.id, skillId: skillMap.get("B02")!.id, level: "practiced" },
-      { sessionId: lec06.id, skillId: skillMap.get("B03")!.id, level: "introduced" },
-
-      // Module 3 coverage
-      { sessionId: lec07.id, skillId: skillMap.get("C01")!.id, level: "introduced" },
-      { sessionId: lec08.id, skillId: skillMap.get("C02")!.id, level: "introduced" },
-      { sessionId: lec08.id, skillId: skillMap.get("C01")!.id, level: "practiced" },
-    ],
-  });
-
-  console.log("Created coverage entries");
-
-  // ─── Assessments ────────────────────────────────────
-  const gaie1 = await prisma.assessment.create({
-    data: {
-      termId: s26.id,
-      code: "GAIE-01",
-      title: "GenAI Exercise: Python Basics",
-      assessmentType: "gaie",
-      description: "Copy-paste stage: use AI to generate basic Python code",
-      sessionId: lab02.id,
-      dueDate: new Date("2026-01-30"),
-      progressionStage: "copy-paste",
-      skills: {
-        create: [
-          { skillId: skillMap.get("A01")!.id },
-          { skillId: skillMap.get("A02")!.id },
-        ],
-      },
-    },
-  });
-
-  const gaie2 = await prisma.assessment.create({
-    data: {
-      termId: s26.id,
-      code: "GAIE-02",
-      title: "GenAI Exercise: Data Wrangling",
-      assessmentType: "gaie",
-      description: "Modify stage: adapt AI-generated pandas code",
-      sessionId: lab03.id,
-      dueDate: new Date("2026-02-06"),
-      progressionStage: "modify",
-      skills: {
-        create: [
-          { skillId: skillMap.get("B01")!.id },
-          { skillId: skillMap.get("B02")!.id },
-        ],
-      },
-    },
-  });
-
-  await prisma.assessment.create({
-    data: {
-      termId: s26.id,
-      code: "midterm",
-      title: "Midterm Exam",
-      assessmentType: "exam",
-      description: "Covers modules 1-3",
-      dueDate: new Date("2026-03-05"),
-      skills: {
-        create: [
-          { skillId: skillMap.get("A01")!.id },
-          { skillId: skillMap.get("A02")!.id },
-          { skillId: skillMap.get("A03")!.id },
-          { skillId: skillMap.get("B01")!.id },
-          { skillId: skillMap.get("B02")!.id },
-          { skillId: skillMap.get("C01")!.id },
-        ],
-      },
-    },
-  });
-
-  await prisma.assessment.create({
-    data: {
-      termId: s26.id,
-      code: "proj-01",
-      title: "Data Analysis Project",
-      assessmentType: "project",
-      description: "End-to-end data analysis on a real dataset",
-      dueDate: new Date("2026-04-24"),
-      skills: {
-        create: [
-          { skillId: skillMap.get("B01")!.id },
-          { skillId: skillMap.get("B02")!.id },
-          { skillId: skillMap.get("C01")!.id },
-          { skillId: skillMap.get("C02")!.id },
-          { skillId: skillMap.get("D01")!.id },
-          { skillId: skillMap.get("E01")!.id },
-        ],
-      },
-    },
-  });
-
-  console.log("Created assessments");
-
-  // ─── Sample Artifacts ───────────────────────────────
-  await prisma.artifact.create({
-    data: {
-      parentType: "assessment",
-      assessmentId: gaie1.id,
-      artifactType: "notebook",
-      filename: "GAIE01.ipynb",
-      template: "gaie-notebook",
-      metadata: { otterGrader: true },
-    },
-  });
-
-  await prisma.artifact.create({
-    data: {
-      parentType: "assessment",
-      assessmentId: gaie2.id,
-      artifactType: "notebook",
-      filename: "GAIE02.ipynb",
-      template: "gaie-notebook",
-      metadata: { otterGrader: true },
-    },
-  });
-
-  await prisma.artifact.create({
-    data: {
-      parentType: "session",
-      sessionId: lec01.id,
-      artifactType: "slides",
-      filename: "lec-01-slides.pdf",
-      template: "lecture-slides",
-    },
-  });
-
-  console.log("Created artifacts");
-
-  // ─── Term: Fall 2025 (Bob — different course) ──────
-  const f25 = await prisma.term.create({
-    data: {
-      instructorId: bob.id,
-      code: "F25",
-      name: "Fall 2025",
-      startDate: new Date("2025-09-02"),
-      endDate: new Date("2025-12-19"),
-      courseCode: "CS-200",
-      meetingPattern: {
-        days: ["monday", "wednesday", "friday"],
-        lectureTime: "09:00-09:50",
-      },
-      holidays: [
-        { date: "2025-09-01", label: "Labor Day" },
-        { date: "2025-10-13", label: "Indigenous People's Day" },
-        {
-          start: "2025-11-26",
-          end: "2025-11-30",
-          label: "Thanksgiving Recess",
+      coverages: {
+        create: {
+          topicVersionId: topicVersion.id,
+          level: "introduced",
         },
-      ],
+      },
     },
   });
 
-  const mod4 = await prisma.module.create({
+  await db.assessment.create({
     data: {
-      termId: f25.id,
-      sequence: 0,
-      code: "M-01",
-      title: "Algorithms Introduction",
-      description: "Big-O notation, basic sorting and searching",
+      termId: term.id,
+      sessionId: session.id,
+      code: "quiz-01",
+      title: "Probability Check",
+      assessmentType: "assignment",
+      dueDate: new Date("2026-01-27"),
+      topics: {
+        create: {
+          topicVersionId: topicVersion.id,
+        },
+      },
     },
   });
 
-  await prisma.session.create({
+  await db.artifact.create({
     data: {
-      moduleId: mod4.id,
-      sequence: 0,
-      sessionType: "lecture",
-      code: "lec-01",
-      title: "Algorithm Analysis",
-      date: new Date("2025-09-03"),
-      description: "Big-O notation, best/worst/average case",
-      format: "traditional",
+      parentType: "learning_module_version",
+      learningModuleVersionId: plannedVersion.id,
+      artifactType: "slides",
+      sourceType: "external_uri",
+      title: "Probability intro deck",
+      uri: "https://docs.example.edu/probability-intro",
+      mimeType: "text/html",
     },
   });
 
-  await prisma.session.create({
-    data: {
-      moduleId: mod4.id,
-      sequence: 1,
-      sessionType: "lecture",
-      code: "lec-02",
-      title: "Sorting Algorithms",
-      date: new Date("2025-09-05"),
-      description: "Bubble sort, selection sort, insertion sort",
-      format: "traditional",
-    },
-  });
-
-  console.log(`Created Bob's term: ${f25.name}`);
-  console.log("Seed complete!");
+  console.log("Seeded redesign foundation data:");
+  console.log(`- Course ${course.shortId}: ${course.title}`);
+  console.log(`- Planned LM version: ${plannedVersion.id}`);
+  console.log(`- Delivered LM version: ${deliveredVersion.id}`);
+  console.log(`- Unassigned topic: ${unassignedTopic.stableCode}`);
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
+  .catch((error) => {
+    console.error(error);
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

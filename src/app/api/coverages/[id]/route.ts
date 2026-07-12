@@ -1,29 +1,16 @@
-import { NextRequest } from "next/server";
-import prisma from "@/lib/prisma";
-import { updateCoverageSchema } from "@/lib/schemas";
-import { ok, notFound, handleZodError } from "@/lib/api-helpers";
+import { notImplemented } from "../../redesign-stub";
+import type { GetCoverageResponse, UpdateCoverageRequest, UpdateCoverageResponse } from "@/lib/redesign-contract";
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params;
-  const body = await request.json();
-  const parsed = updateCoverageSchema.safeParse(body);
-  if (!parsed.success) return handleZodError(parsed.error);
+export type { GetCoverageResponse, UpdateCoverageRequest, UpdateCoverageResponse };
 
-  const coverage = await prisma.coverage.update({
-    where: { id },
-    data: parsed.data,
-  });
-  return ok(coverage);
+export async function GET() {
+  return notImplemented("/api/coverages/[id]");
 }
 
-export async function DELETE(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params;
-  await prisma.coverage.delete({ where: { id } });
-  return ok({ deleted: true });
+export async function PATCH() {
+  return notImplemented("/api/coverages/[id]");
+}
+
+export async function DELETE() {
+  return notImplemented("/api/coverages/[id]");
 }
