@@ -38,6 +38,9 @@ Read these files before doing any work in this repo:
   `prisma format`, tests that touch the DB) **inside a container** with a stable
   base image (e.g. `node:22-bookworm`, glibc 2.36) — repo bind-mounted, networked
   to the Postgres container. Do not spend turns retrying prisma on the host.
+  The repo's `db:*` npm scripts (`npm run db:migrate`, `db:seed`, `db:reset`,
+  `db:generate`) all shell out to `npx prisma`, so run **those** inside the
+  container too, not on the host.
 
 ## Key rules
 
@@ -167,3 +170,26 @@ These patterns caused bugs and rework. Follow them:
 - Append to `ASSUMPTIONS.md` when making design decisions
 - Append to `ARCHITECTURE.md` when adding new subsystems
 - Keep `docs/phase-roadmap.md` updated as phases complete
+
+## Commit attribution (agent commits)
+
+Agent commits combine three things — all three on every attributable commit:
+
+1. **Author = `langdon-bot`.** Include the bot gitconfig; do NOT set it globally:
+   `git -c include.path=~/loc-resources/auth/langdon-bot.gitconfig commit …`
+2. **Trailer block** at the end of the commit body:
+   ```
+   AI-Attribution: <AI-A|AI-E|AI-C|AI-G>  (https://langd0n.com/ai-attribution)
+   Co-authored-by: langdon <1832177+langdon@users.noreply.github.com>
+   Co-Authored-By: <PARENT-AGENT> / Claude <model> <noreply@anthropic.com>
+   ```
+   - `<PARENT-AGENT>` = the orchestrator that produced the work (e.g. `AICP`, or
+     the parent agent's name). Mandatory so AI commits trace back to their source.
+   - `<model>` = the actual model (e.g. `Claude Opus 4.8`).
+   - `AI-Attribution` level per the framework — default `AI-G` for autonomous
+     runs, `AI-C` for interactive human-directed sessions.
+   - **Do NOT append a `Claude-Session:` link** — it leaks an internal session
+     identifier into public history for no benefit.
+3. Minimal/mechanical edits (typo, format) need no attribution trailers.
+- Stage explicit paths; never `git add -A` / `git add .`. Check `git status`
+  before committing.
