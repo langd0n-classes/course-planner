@@ -1,5 +1,5 @@
 import CourseIndexPage from "@/components/redesign/CourseIndexPage";
 
-export default function HomePage() {
+export default function CoursesPage() {
   return <CourseIndexPage />;
 }
