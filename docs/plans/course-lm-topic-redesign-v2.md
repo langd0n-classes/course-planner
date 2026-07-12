@@ -1217,3 +1217,119 @@ The audit found several local/internal assumptions beyond Artifact:
 
 6. **Remote Artifact access model.**  
    Recommendation: v1 of remote resources stores URI, type, title, and optional metadata only. OAuth-backed Google/OneDrive inspection, permission validation, and link refresh should be a later connector phase; the initial UI should warn that course-planner cannot guarantee student access.
+
+## 9. Amendment v2.1 — operator feedback (2026-07-11)
+
+This section records operator decisions and two design changes made after the
+v2 read-through. Where it conflicts with sections 1–8, **v2.1 governs**. Both
+changes are additive: they do not disturb the immutable-revision architecture.
+
+### 9.0 Operator sign-off resolutions
+
+- **Q2 (course number):** accepted as recommended — nonblank display number with
+  `numberIsPlaceholder` for `1XX`/`TBD`. No third nullable state.
+- **Q2 corollary — identity model (clarification, not a change).** Course identity
+  is the arbitrary UUID `Course.id`; the human handle is the composite
+  `@@unique([instructorId, shortId])` (operator + system-generated short ID).
+  **Title is deliberately not unique and must never be promoted to a key.** The
+  only name-uniqueness in the schema is `Institution.@@unique([name])`, which is a
+  constraint on institution name, not a primary key. Implementers must not
+  "simplify" any model to a title/name primary key.
+- **Q5 (Blackboard baseline):** target is **Blackboard Ultra SaaS** (Ultra, not
+  Original; cloud SaaS, not self-hosted Learn). No exact build number is required
+  or meaningful — Ultra SaaS is continuously deployed. Compatibility is pinned
+  empirically via dated fixtures (e.g. `blackboard-ultra-2026.04`), established
+  when the operator provides a sandbox to test against. Chunk 9 remains blocked on
+  that sandbox access but does not block core schema work.
+- **Q1, Q3, Q4, Q6:** accepted as recommended.
+
+### 9.1 Topics have a life independent of Learning Modules
+
+**Motivation.** The operator designs a course topic-first: dump the full topic
+list, order it, work out the progression (e.g. Probability 1 → 2 → 3), and only
+then design Learning Modules and place topics into them. LM ownership is a
+*delivery-time* fact, not a design-time prerequisite. The symmetric case also
+holds: a Learning Module must be creatable and viewable with no topics yet.
+
+**Change.**
+
+- **`Topic.learningModuleId` becomes nullable.** `null` = unassigned ("in the
+  backlog"). A Topic still belongs to *at most* one Learning Module, and on
+  delivery to *exactly* one — but at design time it may float unassigned. The
+  compound relation `[learningModuleId, courseId] → [id, courseId]` becomes an
+  **optional** relation (Prisma does not enforce the FK when the nullable side is
+  null; `courseId` remains required, so the Topic is always Course-scoped).
+- **Course-scoped topic browser.** Topics are listed and editable at the Course
+  level regardless of LM assignment, including an explicit **Unassigned** bucket,
+  and the view must function when zero Learning Modules exist. LM assignment is an
+  editable property of the Topic, not a precondition of its existence.
+- **Progression without LMs.** `TopicPrerequisite` (topic→topic, Course-scoped,
+  no LM dependency) already expresses the design-time progression (Prob 1 → 2 →
+  3). The topic-first view must wire the prerequisite editor, so ordering and
+  progression can be authored on unassigned topics before any LM exists.
+- **Empty Learning Modules.** Already supported by the schema (an LM version may
+  have zero `LearningModuleVersionTopic` rows; `currentVersionId` is nullable).
+  The UI must allow creating and viewing an LM with no topics.
+
+Design principle #5 (as revised in v2 §3) stands; the "each Topic belongs to one
+Learning Module" clause is understood as "at most one, and exactly one once
+placed for delivery."
+
+### 9.2 Planned vs delivered: delivery is user-editable, both copies tracked
+
+**Motivation.** Immutability of delivered curriculum is a *programmer-sense*
+invariant, not a *user-sense* lock. During an active term, real delivery
+diverges from the plan — you run out of time, or you expand Prob 1 → 2 because
+students are moving fast. The operator must be able to edit the delivered
+curriculum freely during the term, with the system recording both "planned to be
+delivered" and "as delivered," and warning when the delivered copy is being
+changed. Next term's design then starts from an honest record of what actually
+happened.
+
+**Model — three lanes, not two.** v2 modeled only (1) the evolving master design
+curriculum and (2) the per-term pinned plan. v2.1 adds (3) the delivered record:
+
+1. **Master / current design curriculum** — `LearningModule.currentVersionId`.
+   Evolves as future terms are planned. Editing it does not touch any term.
+2. **Planned-for-this-term** — pinned at term start via
+   `TermLearningModule.learningModuleVersionId` (renamed conceptually to the
+   *planned* pin). Immutable snapshot of intent.
+3. **Delivered-this-term** — new. Diverges during the active term as amendments
+   are made.
+
+**Change.**
+
+- Add **`TermLearningModule.deliveredLearningModuleVersionId`** (nullable, FK to a
+  `LearningModuleVersion` of the same `learningModuleId`, same compound-FK shape
+  as the planned pin). Null until the first in-term amendment; then it advances.
+- **Editing during an active term creates a new immutable revision** (programmer
+  sense preserved) and **advances the delivered pointer** to it (user-sense
+  editability). The planned pointer never moves. The operator always edits from
+  the most recent delivered state.
+- **Planned-vs-delivered diff needs no new table.** Planned LM version → its
+  `LearningModuleVersionTopic` snapshot; delivered LM version → its snapshot.
+  Diffing the two snapshots yields exactly the per-topic "what changed during
+  delivery" report used when planning the next term. Session-level Coverage
+  (already Term-scoped via Sessions) records what was actually taught where.
+- **This is distinct from the v2 §3 "adopt a newer version" upgrade path.** That
+  path pulls the master curriculum *forward* into a term by explicit review; this
+  path records *in-flight improvisation* during delivery. Both may exist for the
+  same term.
+
+**UI.** The active-term curriculum view is freely editable. Editing it advances
+the delivered pointer and shows a persistent banner: *"You are changing the
+delivered version of this term."* Editing the master design curriculum (lane 1)
+shows no such banner and does not affect the term. Historical (closed) terms open
+their delivered snapshot read-only, with a visible planned-vs-delivered diff
+affordance.
+
+### 9.3 Schema deltas summary
+
+- `Topic.learningModuleId`: `String` → `String?` (nullable); relation becomes
+  optional. `@@unique([courseId, stableCode])` unaffected.
+- `TermLearningModule`: add `deliveredLearningModuleVersionId String?` with a
+  compound FK to `LearningModuleVersion[id, learningModuleId]`, `onDelete:
+  Restrict`. The existing `learningModuleVersionId` is the planned pin.
+- No change to `LearningModuleVersionTopic`, `Coverage`, `TopicPrerequisite`,
+  or the versioning invariants; the planned/delivered diff is derived from
+  existing snapshot rows.
