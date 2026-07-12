@@ -26,9 +26,12 @@ The "database may be wiped and reseeded, no migration path" framing (design §1,
   stays coherent until the whole redesign lands.
 - All work integrates into a shared **`redesign` integration branch** cut from
   `main`.
-- Each lane runs on its own worktree/branch off `redesign`
-  (`redesign/lane-a-domain`, `redesign/lane-b-io`, `redesign/lane-c-ui`) and
-  merges back into `redesign` as it completes.
+- Each lane runs on its own worktree/branch off `redesign` and merges back into
+  `redesign` as it completes. **Work branches use a hyphen, not a slash, under
+  `redesign`** (`redesign-lane-a-domain`, `redesign-lane-b-io`,
+  `redesign-lane-c-ui`, and `redesign-phase-a-foundation`). A slash form like
+  `redesign/lane-a` is impossible: git cannot hold both the branch `redesign`
+  and a `redesign/*` ref (directory/file conflict in the ref namespace).
 - `redesign` → `main` is a single reviewed cutover at the end (after Chunk 10
   verification passes).
 - The current `explore/sol-course-redesign` branch holds the design docs only;
