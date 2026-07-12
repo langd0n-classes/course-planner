@@ -1,5 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- structural Prisma test doubles */
 import { describe, expect, it } from "vitest";
+import {
+  hardRemoveTopic,
+  previewHardRemoval,
+  setArchivedState,
+} from "./archive-removal-service";
 import { createArtifact } from "./artifact-service";
 import { previewTermClone } from "./clone-service";
 import { createCourse } from "./course-service";
@@ -66,6 +71,30 @@ describe("redesign service invariants", () => {
     ).rejects.toThrow("durable object-storage");
   });
 
+  it("accepts remote Artifacts for generic external resources", async () => {
+    const db = createTransactionalDb({
+      artifact: {
+        create: async ({ data }: any) => data,
+      },
+    });
+
+    await expect(
+      createArtifact(db, {
+        parentType: "topic_version",
+        topicVersionId: "topic-version-1",
+        artifactType: "reading",
+        sourceType: "external_uri",
+        title: "Reference deck",
+        uri: "https://slides.example.edu/week-01",
+      }),
+    ).resolves.toMatchObject({
+      parentType: "topic_version",
+      artifactType: "reading",
+      sourceType: "external_uri",
+      uri: "https://slides.example.edu/week-01",
+    });
+  });
+
   it("rejects cross-Course prerequisites and cloning boundaries", () => {
     expect(() => assertSameCourse("course-a", "course-b", "Topic prerequisites")).toThrow(
       "cannot cross Course boundaries",
@@ -79,6 +108,98 @@ describe("redesign service invariants", () => {
         { topicId: "topic-b", prerequisiteTopicId: "topic-a" },
       ]),
     ).toThrow("cycle");
+  });
+});
+
+describe("archive and hard-removal semantics", () => {
+  it("archives and restores records by toggling archivedAt", async () => {
+    const updates: any[] = [];
+    const db = createTransactionalDb({
+      artifact: {
+        findUnique: async () => ({ id: "artifact-1" }),
+        update: async ({ data }: any) => {
+          updates.push(data);
+          return { id: "artifact-1", ...data };
+        },
+      },
+    });
+
+    await setArchivedState(db, "artifact", "artifact-1", new Date("2026-07-12T18:00:00.000Z"));
+    await setArchivedState(db, "artifact", "artifact-1", null);
+
+    expect(updates).toEqual([
+      { archivedAt: new Date("2026-07-12T18:00:00.000Z") },
+      { archivedAt: null },
+    ]);
+  });
+
+  it("blocks hard removal when a Topic has delivered references", async () => {
+    const db = createTransactionalDb({
+      topic: {
+        findUnique: async () => ({ id: "topic-1" }),
+      },
+      learningModuleVersionTopic: {
+        count: async () => 1,
+      },
+      coverage: {
+        count: async () => 0,
+      },
+      assessmentTopic: {
+        count: async () => 2,
+      },
+      artifact: {
+        count: async () => 0,
+      },
+    });
+
+    await expect(previewHardRemoval(db, "topic", "topic-1")).resolves.toMatchObject({
+      canRemove: false,
+      blockers: [
+        { code: "learning_module_snapshots_exist", count: 1 },
+        { code: "assessment_links_exist", count: 2 },
+      ],
+    });
+  });
+
+  it("hard-removes an unused Topic graph", async () => {
+    const deleted: string[] = [];
+    const db = createTransactionalDb({
+      topic: {
+        findUnique: async () => ({ id: "topic-1" }),
+        delete: async () => {
+          deleted.push("topic");
+          return { id: "topic-1" };
+        },
+      },
+      learningModuleVersionTopic: {
+        count: async () => 0,
+      },
+      coverage: {
+        count: async () => 0,
+      },
+      assessmentTopic: {
+        count: async () => 0,
+      },
+      artifact: {
+        count: async () => 0,
+      },
+      topicPrerequisite: {
+        deleteMany: async () => {
+          deleted.push("topic_prerequisites");
+          return { count: 0 };
+        },
+      },
+      topicVersion: {
+        deleteMany: async () => {
+          deleted.push("topic_versions");
+          return { count: 1 };
+        },
+      },
+    });
+
+    await hardRemoveTopic(db, "topic-1");
+
+    expect(deleted).toEqual(["topic_prerequisites", "topic_versions", "topic"]);
   });
 });
 

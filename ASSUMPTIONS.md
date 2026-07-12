@@ -280,3 +280,10 @@ Decisions made where the requirements were underspecified. Each can be revisited
   redesign (`Term.instructor`, `Term.courseCode`). Deleting it would break
   the root route; rewriting it is Lane C's job. A minimal static shell lets
   the branch build without pre-empting Lane C's UI decisions.
+
+- **The Artifact API exposes generator provenance and metadata**: Phase B
+  found that the frozen `ArtifactDto` omitted `generatorKey`, `generatedAt`,
+  and `metadata` even though the accepted schema and lossless package design
+  require them. The DTO correction is additive and keeps those create fields
+  optional. Without it, generated material could be stored and exported but
+  not faithfully read back through the canonical API.

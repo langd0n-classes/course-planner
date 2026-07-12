@@ -566,9 +566,19 @@ export type ArtifactDto = {
   uri: string;
   filename: string | null;
   mimeType: string | null;
+  generatorKey: string | null;
+  generatedAt: IsoDateTime | null;
+  metadata: unknown | null;
   archivedAt: IsoDateTime | null;
 };
-export type CreateArtifactRequest = Omit<ArtifactDto, "id" | "archivedAt">;
+export type CreateArtifactRequest = Omit<
+  ArtifactDto,
+  "id" | "archivedAt" | "generatorKey" | "generatedAt" | "metadata"
+> & {
+  generatorKey?: string | null;
+  generatedAt?: IsoDateTime | null;
+  metadata?: unknown | null;
+};
 export type ListArtifactsResponse = { artifacts: ArtifactDto[] };
 export type CreateArtifactResponse = { artifact: ArtifactDto };
 export type GetArtifactResponse = { artifact: ArtifactDto };
