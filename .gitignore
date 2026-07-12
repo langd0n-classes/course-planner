@@ -42,3 +42,9 @@ docker-compose.override.yml
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.env*
+
+# local agent/scratch artifacts (not for the repo)
+.debris/
+.megaignore
+build_prompts/

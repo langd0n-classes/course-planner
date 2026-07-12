@@ -20,7 +20,7 @@ You must work test-first (TDD) and design external integrations behind pluggable
 
 ---
 
-## Inputs (already attached)
+## Inputs (in the repo in docs/)
 - `course-planner-research-brief.md`
 - `course-planner-requirements.md`
 - (optional) any viability/landscape PDF(s) attached for context only
@@ -71,7 +71,6 @@ Ask me these questions at the start in a single message. After I answer, do not 
 - Which single export should we implement first? (default: iCal export of sessions)
   Options: iCal | CSV export of coverage matrix | “artifact export stubs only”
 
-If I don’t answer within a reasonable time, proceed with defaults listed above.
 
 ---
 
