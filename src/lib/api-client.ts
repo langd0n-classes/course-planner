@@ -1,4 +1,12 @@
-/** Typed fetch wrapper for client components */
+/**
+ * Typed fetch wrapper for client components.
+ *
+ * LEGACY: this client targets the pre-redesign Module/Skill routes, most of
+ * which are now retired (410) or typed 501 stubs (see
+ * src/app/api/redesign-stub.ts and src/lib/redesign-contract.ts). It is kept
+ * only so existing Lane C pages still compile; Lane C owns its replacement
+ * against the frozen Phase A contract.
+ */
 
 const BASE = "";
 
@@ -113,7 +121,7 @@ export interface Assessment {
   termId: string;
   code: string;
   title: string;
-  assessmentType: "gaie" | "assignment" | "exam" | "project";
+  assessmentType: string;
   description: string | null;
   progressionStage: string | null;
   dueDate: string | null;

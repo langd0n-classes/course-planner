@@ -1333,3 +1333,125 @@ affordance.
 - No change to `LearningModuleVersionTopic`, `Coverage`, `TopicPrerequisite`,
   or the versioning invariants; the planned/delivered diff is derived from
   existing snapshot rows.
+
+## 10. Amendment v2.2 — Phase A.1 refreeze after Gate 0 (2026-07-12)
+
+Gate 0 review of the Phase A build (issue #18) found four problems before
+Phase B could start: the seed failed on a nested compound-FK write, the
+frozen REST contract omitted collection and operational surfaces the
+Plan/Run UI needs, several live routes still compiled against the removed
+Module/Skill schema, and `AssessmentType` was a Prisma enum containing
+`gaie`, violating the generic-app rule (`OPS.md`). The operator approved a
+short Phase A.1 refreeze to fix these before Phase B work resumes.
+
+### 10.1 Seed fix (Path A)
+
+`TermLearningModule`'s foreign key to `Term` is the compound
+`[termId, courseId] -> [id, courseId]`. Nesting `TermLearningModule.create`
+under `Term.create` failed because Prisma cannot resolve `courseId` for a
+compound relation before the parent `Term` row exists. The fix creates the
+`Term` first, then creates its `TermLearningModule`(s) as a second
+top-level call using the now-known `term.id` — without simplifying the
+compound key. The seed's planned/delivered version round-trip and
+calendar-slot seeding are preserved.
+
+### 10.2 Generic assessment type
+
+`Assessment.assessmentType` changes from the Prisma enum `AssessmentType`
+(`gaie | assignment | exam | project`) to a required `String`. GAIE remains
+valid seed and UI data — it is a value an instructor's course happens to
+use, not app schema vocabulary. The enum is removed entirely; nothing
+course- or pedagogy-specific belongs in the schema.
+
+### 10.3 Explicit Term lifecycle
+
+Terms gain `status: TermStatus` (`planned | active | closed`, default
+`planned`) and a nullable `closedAt`. v2.1 already established that closed
+Terms are read-only; dates alone (`startDate`/`endDate`) cannot represent an
+*intentionally* closed or later-reopened Term versus one that is merely
+past its end date. The lifecycle is a state machine
+(`planned -> active -> closed`, with `closed -> active` as an explicit
+reopen), exposed via `POST /api/terms/[id]/lifecycle`.
+
+### 10.4 Advisory-only calendar capacity and Session instructional mode
+
+Two new signals, both explicitly advisory (informational, never enforced)
+and orthogonal to existing enums:
+
+- `CalendarSlot` gains `instructionalCapacity: InstructionalCapacity`
+  (`normal | reduced_engagement | recovery | assessment_period`, default
+  `normal`), `capacitySource: CapacitySource`
+  (`baseline | heuristic | instructor_override`, default `baseline`), and
+  nullable `capacityReason` text. This is separate from `SlotType`, which
+  records what the calendar day *is* (class day, holiday, ...), not how it
+  is expected to function instructionally.
+- `Session` gains `instructionalMode: InstructionalMode`
+  (`standard | recovery | review | buffer | assessment | other`, default
+  `standard`), separate from the lecture/lab `SessionType`.
+
+Phase A.1 only adds the fields and seeds normal, reduced-engagement, and
+recovery examples plus a recovery Session so they round-trip; the heuristic that would *set* these
+automatically (e.g. from academic calendar events) is Phase B+ work and is
+explicitly not implemented here.
+
+### 10.5 Service-owned delivered pointer
+
+`TermLearningModule.deliveredLearningModuleVersionId` is no longer a
+directly client-settable field on `UpdateTermLearningModuleRequest`. Per
+§9.2, advancing the delivered pointer is a curriculum-authoring act (it
+creates an immutable `LearningModuleVersion` revision), not a plain field
+edit. The contract adds a typed command,
+`POST /api/term-learning-modules/[id]/delivered-revisions`
+(`CreateDeliveredRevisionRequest` / `CreateDeliveredRevisionResponse`),
+that creates the revision and advances the pointer atomically, plus
+`GET /api/term-learning-modules/[id]/planned-delivered-diff`
+(`PlannedDeliveredDiffResponse`) for the planned-vs-delivered topic diff
+described in §9.2. Phase A.1 defines these types and typed 501 stubs only;
+implementation is Phase B.
+
+### 10.6 Contract expansion
+
+The frozen contract (`src/lib/redesign-contract.ts`) expands to cover the
+full Plan/Run collection surface: complete `TermDto` (Course, Institution,
+AcademicCalendar, dates, meeting pattern, clone lineage, status, closedAt,
+archivedAt) with create/list/get/update, lifecycle transition, and clone
+preview/apply types; `CalendarSlotDto` with list and capacity-update types;
+an expanded `SessionDto` with every mutable field the daily-driver UI
+needs (including `instructionalMode` and cancellation metadata) plus
+term-nested list/create types; Coverage/Assessment/Artifact collection
+list/create types scoped under Session/Term as appropriate, built on the
+redesigned `TopicVersion`/material shapes (never Skill/Module); and a
+`TopicPrerequisiteDto` with a replace-list request/response. Duplicate and
+incorrect fields found in the original freeze (e.g. the directly-mutable
+delivered pointer) are corrected in place.
+
+### 10.7 Legacy route quarantine
+
+The redesign branch is allowed to be temporarily nonfunctional while `main`
+stays coherent, but it must typecheck and must not expose handlers that
+query removed Prisma models (`Module`, `Skill`, `AssessmentSkill`) or
+removed/renamed fields (`Term.instructor`, `Term.courseCode`,
+`Term.modules`, old `Session.module`, old `Artifact.moduleId`). Every
+schema-incompatible legacy route becomes either a typed 501 stub matching
+`CanonicalRoute` (if the path is canonical) or an explicit
+`410 legacy_route_retired` response via `retired()` in
+`src/app/api/redesign-stub.ts` (if the path is obsolete: old Module/Skill
+CRUD, old JSON/CSV import routes, the old artifact export route, and the
+ad-hoc calendar import route, since Institution/AcademicCalendar
+materialization supersedes it). Retired paths are never added to
+`CanonicalRoute`. `src/lib/api-client.ts` is kept as explicitly legacy
+(documented as such in-file) for Lane C to replace, with its
+`assessmentType` field widened to `string` so it compiles against the new
+schema. `src/app/page.tsx`, the one server-rendered page that queried
+removed Prisma fields directly, is replaced with a minimal
+redesign-in-progress shell; no other client UI is rewritten — Lane C owns
+that.
+
+### 10.8 Deferred design seam: team teaching / multi-section
+
+Not implemented in Phase A.1, recorded here as a future seam: separate
+`Term` rows can already represent independent sections of one `Course`
+(each Term has its own `code`, dates, and roster of Sessions). Supporting a
+co-instructor teaching the same Term will need a future Term-level join
+(e.g. a `TermInstructor` membership table analogous to
+`InstructorInstitution`); no such join is added now.

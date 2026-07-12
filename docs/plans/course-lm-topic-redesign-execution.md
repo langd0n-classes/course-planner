@@ -66,6 +66,23 @@ Exit gate (nothing forks until all true):
 - The v2.1 planned/delivered dual pointer and nullable topic ownership exist in
   the schema and round-trip through seed.
 
+#### Phase A.1 refreeze after Gate 0
+
+Before Phase B fans out, the foundation also must satisfy the v2.2 amendment:
+
+- seed uses the two-step Term then TermLearningModule write and passes;
+- assessment type is generic instructor-authored data;
+- Term lifecycle, advisory CalendarSlot capacity/provenance, and Session
+  instructional mode round-trip through the seed;
+- the frozen contract includes the complete Plan/Run collections and commands,
+  including service-owned delivered revision creation;
+- schema-incompatible legacy routes fail closed as typed 501 stubs or explicit
+  410 retirements; and
+- containerized migration, seed, typecheck, tests, lint, and build are green.
+
+Phase B branches must start from the refrozen Phase A.1 commit, not the original
+Phase A baseline.
+
 ### Phase B — Fan-out (PARALLEL, 2–3 agents against the frozen contract)
 
 | Lane | Design chunks | Owns | Depends on |

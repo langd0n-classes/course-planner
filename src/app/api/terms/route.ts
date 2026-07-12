@@ -1,34 +1,12 @@
-import { NextRequest } from "next/server";
-import prisma from "@/lib/prisma";
-import { createTermSchema } from "@/lib/schemas";
-import { ok, created, handleZodError } from "@/lib/api-helpers";
+import { notImplemented } from "../redesign-stub";
+import type { CreateTermRequest, CreateTermResponse, ListTermsResponse } from "@/lib/redesign-contract";
 
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const instructorId = searchParams.get("instructorId");
+export type { CreateTermRequest, CreateTermResponse, ListTermsResponse };
 
-  const terms = await prisma.term.findMany({
-    where: instructorId ? { instructorId } : undefined,
-    include: {
-      instructor: true,
-      _count: { select: { modules: true, assessments: true } },
-    },
-    orderBy: { startDate: "desc" },
-  });
-  return ok(terms);
+export async function GET() {
+  return notImplemented("/api/terms");
 }
 
-export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const parsed = createTermSchema.safeParse(body);
-  if (!parsed.success) return handleZodError(parsed.error);
-
-  const term = await prisma.term.create({
-    data: {
-      ...parsed.data,
-      startDate: new Date(parsed.data.startDate),
-      endDate: new Date(parsed.data.endDate),
-    },
-  });
-  return created(term);
+export async function POST() {
+  return notImplemented("/api/terms");
 }
