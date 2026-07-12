@@ -217,3 +217,31 @@ Decisions made where the requirements were underspecified. Each can be revisited
   toggling "hide canceled sessions" is a display preference, not a claim
   that the term has fewer cancellations. Previously these were re-derived
   from the filtered session list, so hiding canceled sessions zeroed them.
+
+## Phase 2C — External-System Exports
+
+- **Module overview DOCX layout stays generic**: The Blackboard-targeted
+  module overview uses a plain course-agnostic document structure: module
+  heading, optional description, learning objectives list, ordered session
+  blocks (title, type/date, description, compact skill coverage), then a
+  linked-assessments section. No institution branding or LMS template
+  scaffolding is embedded.
+
+- **Module export assessments are session-linked only**: Because modules do
+  not own assessments directly in the schema, the module overview export
+  treats "linked assessments" as assessments attached to sessions within
+  that module. Term-level assessments outside the module's sessions are not
+  pulled into the module overview.
+
+## Roadmap Reprioritization (2026-07-11)
+
+- **Real AI integration (originally Phase 3) is pushed to last**: operator
+  decision — `MockAiPlanner` is sufficient until the bulk of the UI/
+  general-feature work is done; no reason to pay AI design/cost/latency
+  complexity before the workflows it would enhance are settled. See
+  `docs/phase-roadmap.md`'s "Roadmap ordering" note for the full merged
+  sequence, which also folds in 5 feature ideas from an unscoped
+  `gpt-5.6-sol` ideation pass (persistent planning branches, course-memory
+  loop, capacity/workload budgets, evidence-backed alignment, prerequisite
+  readiness) plus 2 architecture debts it flagged (temporal ordering via
+  sequence not date; skill-ownership inconsistency on term clone).

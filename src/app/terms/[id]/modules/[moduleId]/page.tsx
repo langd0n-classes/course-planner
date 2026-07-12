@@ -6,13 +6,13 @@ import { useParams } from "next/navigation";
 import {
   api,
   type Module,
-  type Session,
   type Coverage,
   type Skill,
 } from "@/lib/api-client";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import EditableText from "@/components/EditableText";
 import CoverageBadge from "@/components/CoverageBadge";
+import ExportButton from "@/components/ExportButton";
 import { SessionTypeBadge, SessionStatusBadge } from "@/components/StatusBadge";
 import { CardSkeleton } from "@/components/LoadingSkeleton";
 import { useToast } from "@/components/Toast";
@@ -38,8 +38,26 @@ export default function ModuleDetailPage() {
   }, [moduleId, termId]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    let cancelled = false;
+
+    async function initialLoad() {
+      setLoading(true);
+      const [m, term] = await Promise.all([
+        api.getModule(moduleId),
+        api.getTerm(termId),
+      ]);
+      if (cancelled) return;
+      setMod(m);
+      setTermName(term.name);
+      setLoading(false);
+    }
+
+    void initialLoad();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [moduleId, termId]);
 
   async function updateField(field: string, value: unknown) {
     try {
@@ -131,16 +149,23 @@ export default function ModuleDetailPage() {
       />
 
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-sm text-gray-400 font-mono">#{mod.sequence}</span>
-          <h1 className="text-2xl font-bold">
-            {mod.code}: {mod.title}
-          </h1>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div>
+          <div className="mb-1 flex items-center gap-2">
+            <span className="text-sm font-mono text-gray-400">#{mod.sequence}</span>
+            <h1 className="text-2xl font-bold">
+              {mod.code}: {mod.title}
+            </h1>
+          </div>
+          {mod.description && (
+            <p className="text-gray-600">{mod.description}</p>
+          )}
         </div>
-        {mod.description && (
-          <p className="text-gray-600">{mod.description}</p>
-        )}
+        <ExportButton
+          label="Download overview"
+          pendingLabel="Downloading..."
+          onExport={() => api.downloadModuleOverview(moduleId)}
+        />
       </div>
 
       {/* Learning Objectives */}

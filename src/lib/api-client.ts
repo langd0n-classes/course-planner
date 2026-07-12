@@ -29,6 +29,34 @@ async function requestRaw<T>(
   return res.json();
 }
 
+function getDownloadFilename(contentDisposition: string | null): string {
+  const match = contentDisposition?.match(/filename="([^"]+)"/i);
+  return match?.[1] ?? "export";
+}
+
+async function download(path: string): Promise<string> {
+  const res = await fetch(`${BASE}${path}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || "Download failed");
+  }
+
+  const blob = await res.blob();
+  const filename = getDownloadFilename(res.headers.get("Content-Disposition"));
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = filename;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+
+  return filename;
+}
+
 // ─── Shared Types ───────────────────────────────────────
 
 export interface Instructor {
@@ -216,6 +244,8 @@ export const api = {
     }),
   getTermImpact: (id: string) =>
     request<ImpactReport>(`/api/terms/${id}/impact`),
+  downloadTermSummary: (id: string) =>
+    download(`/api/terms/${id}/export/summary`),
 
   // Modules
   getModules: (termId?: string) =>
@@ -235,6 +265,8 @@ export const api = {
     }),
   deleteModule: (id: string) =>
     request<{ deleted: boolean }>(`/api/modules/${id}`, { method: "DELETE" }),
+  downloadModuleOverview: (id: string) =>
+    download(`/api/modules/${id}/export-overview`),
 
   // Skills
   getSkill: (id: string) => request<Skill>(`/api/skills/${id}`),
@@ -288,6 +320,8 @@ export const api = {
     }),
   getSessionWhatIf: (id: string) =>
     request<WhatIfImpact>(`/api/sessions/${id}/whatif`),
+  downloadSessionPrompt: (id: string) =>
+    download(`/api/sessions/${id}/export-prompt`),
 
   // Coverage
   getCoverages: (params?: {
