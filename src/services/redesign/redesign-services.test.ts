@@ -1,9 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- structural Prisma test doubles */
 import { describe, expect, it } from "vitest";
 import { createArtifact } from "./artifact-service";
+import { previewTermClone } from "./clone-service";
 import { createCourse } from "./course-service";
-import { DomainInvariantError, ImmutablePublishedVersionError } from "./errors";
+import { ConcurrencyConflictError, DomainInvariantError, ImmutablePublishedVersionError } from "./errors";
 import { assertAcyclicTopicPrerequisite, assertSameCourse } from "./invariants";
+import { computePlannedDeliveredDiff, createDeliveredRevision } from "./offering-service";
 import { assertPublishedLearningModuleVersionImmutable, reviseLearningModule } from "./revision-service";
 import { createTerm } from "./term-service";
 
@@ -256,5 +258,202 @@ describe("revision subsystem", () => {
         "lmv-1",
       ),
     ).rejects.toThrow(ImmutablePublishedVersionError);
+  });
+});
+
+describe("delivered revision workflow", () => {
+  it("creates an immutable delivered revision and advances only the term-owned delivered pointer", async () => {
+    const db = createTransactionalDb({
+      termLearningModule: {
+        findUnique: async () => ({
+          id: "tlm-1",
+          learningModuleId: "lm-1",
+          courseId: "course-1",
+          deliveredLearningModuleVersionId: "lmv-2",
+          term: { status: "active" },
+        }),
+        update: async ({ data }: any) => ({
+          id: "tlm-1",
+          learningModuleId: "lm-1",
+          courseId: "course-1",
+          deliveredLearningModuleVersionId: data.deliveredLearningModuleVersionId,
+        }),
+      },
+      learningModule: {
+        findUnique: async () => ({ id: "lm-1", courseId: "course-1" }),
+      },
+      course: {
+        findUnique: async () => ({ id: "course-1", instructorId: "instructor-1" }),
+      },
+      learningModuleVersion: {
+        findFirst: async () => ({ id: "lmv-2", revision: 2 }),
+        create: async ({ data }: any) => ({
+          id: "lmv-3",
+          learningModuleId: data.learningModuleId,
+          revision: data.revision,
+          publishedAt: data.publishedAt,
+          topics: data.topics.create,
+        }),
+      },
+      topicVersion: {
+        findUnique: async ({ where }: any) => ({
+          id: where.id,
+          topic: { courseId: "course-1", learningModuleId: "lm-1" },
+        }),
+      },
+    });
+
+    const result = await createDeliveredRevision(db, {
+      termLearningModuleId: "tlm-1",
+      expectedDeliveredLearningModuleVersionId: "lmv-2",
+      draft: {
+        title: "Delivered revision",
+        topics: [{ topicVersionId: "tv-1", sequence: 1 }],
+      },
+    });
+
+    expect(result.deliveredVersion.id).toBe("lmv-3");
+    expect(result.deliveredVersion.revision).toBe(3);
+    expect(result.deliveredVersion.publishedAt).toBeInstanceOf(Date);
+    expect(result.termLearningModule.deliveredLearningModuleVersionId).toBe("lmv-3");
+  });
+
+  it("rejects stale delivered-pointer edits with optimistic concurrency", async () => {
+    const db = createTransactionalDb({
+      termLearningModule: {
+        findUnique: async () => ({
+          id: "tlm-1",
+          learningModuleId: "lm-1",
+          courseId: "course-1",
+          deliveredLearningModuleVersionId: "lmv-newer",
+          term: { status: "active" },
+        }),
+      },
+    });
+
+    await expect(
+      createDeliveredRevision(db, {
+        termLearningModuleId: "tlm-1",
+        expectedDeliveredLearningModuleVersionId: "lmv-older",
+        draft: { title: "Delivered revision" },
+      }),
+    ).rejects.toThrow(ConcurrencyConflictError);
+  });
+});
+
+describe("planned vs delivered diff", () => {
+  it("derives added, changed, and reordered topic changes from the two snapshots", async () => {
+    const db = createTransactionalDb({
+      termLearningModule: {
+        findUnique: async () => ({
+          id: "tlm-1",
+          learningModuleVersionId: "planned-v1",
+          deliveredLearningModuleVersionId: "delivered-v2",
+        }),
+      },
+      learningModuleVersionTopic: {
+        findMany: async ({ where }: any) => {
+          if (where.learningModuleVersionId === "planned-v1") {
+            return [
+              { topicVersionId: "tv-a1", sequence: 1, topicVersion: { topicId: "topic-a" } },
+              { topicVersionId: "tv-b1", sequence: 2, topicVersion: { topicId: "topic-b" } },
+            ];
+          }
+          return [
+            { topicVersionId: "tv-a2", sequence: 1, topicVersion: { topicId: "topic-a" } },
+            { topicVersionId: "tv-c1", sequence: 3, topicVersion: { topicId: "topic-c" } },
+            { topicVersionId: "tv-b1", sequence: 4, topicVersion: { topicId: "topic-b" } },
+          ];
+        },
+      },
+    });
+
+    const diff = await computePlannedDeliveredDiff(db, "tlm-1");
+
+    expect(diff.topicChanges).toEqual([
+      {
+        topicId: "topic-a",
+        kind: "changed",
+        plannedTopicVersionId: "tv-a1",
+        deliveredTopicVersionId: "tv-a2",
+        plannedSequence: 1,
+        deliveredSequence: 1,
+      },
+      {
+        topicId: "topic-c",
+        kind: "added",
+        plannedTopicVersionId: null,
+        deliveredTopicVersionId: "tv-c1",
+        plannedSequence: null,
+        deliveredSequence: 3,
+      },
+      {
+        topicId: "topic-b",
+        kind: "reordered",
+        plannedTopicVersionId: "tv-b1",
+        deliveredTopicVersionId: "tv-b1",
+        plannedSequence: 2,
+        deliveredSequence: 4,
+      },
+    ]);
+  });
+});
+
+describe("term clone preview", () => {
+  it("reports unresolved dates when the target term has fewer class meetings", async () => {
+    const db = createTransactionalDb({
+      term: {
+        findUnique: async () => ({
+          id: "term-1",
+          courseId: "course-1",
+          learningModules: [{ id: "tlm-1" }],
+          sessions: [
+            {
+              id: "session-1",
+              date: new Date("2026-01-12"),
+              sequence: 1,
+              coverages: [],
+              priorArt: [],
+            },
+            {
+              id: "session-2",
+              date: new Date("2026-01-14"),
+              sequence: 2,
+              coverages: [],
+              priorArt: [],
+            },
+          ],
+          assessments: [],
+          calendarSlots: [
+            { date: new Date("2026-01-12"), slotType: "class_day" },
+            { date: new Date("2026-01-14"), slotType: "class_day" },
+          ],
+        }),
+      },
+      courseInstitution: {
+        findUnique: async () => ({ courseId: "course-1", institutionId: "institution-1" }),
+      },
+      academicCalendar: {
+        findUnique: async () => ({ id: "calendar-1" }),
+      },
+      academicCalendarEvent: {
+        findMany: async () => [],
+      },
+    });
+
+    const preview = await previewTermClone(db, {
+      sourceTermId: "term-1",
+      code: "F26",
+      name: "Fall 2026",
+      institutionId: "institution-1",
+      academicCalendarId: "calendar-1",
+      startDate: new Date("2026-09-01"),
+      endDate: new Date("2026-09-02"),
+      meetingPattern: { days: ["tuesday"] },
+    });
+
+    expect(preview.kind).toBe("preview");
+    expect(preview.unresolvedDates).toHaveLength(1);
+    expect(preview.warnings).toContain("Target Term has fewer class meetings than the source Term");
   });
 });
