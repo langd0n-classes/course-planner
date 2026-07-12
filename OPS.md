@@ -173,23 +173,18 @@ These patterns caused bugs and rework. Follow them:
 
 ## Commit attribution (agent commits)
 
-Agent commits combine three things — all three on every attributable commit:
+Every attributable agent commit:
 
-1. **Author = `langdon-bot`.** Include the bot gitconfig; do NOT set it globally:
-   `git -c include.path=~/loc-resources/auth/langdon-bot.gitconfig commit …`
-2. **Trailer block** at the end of the commit body:
+1. **Author = `langdon-bot`** via `git -c include.path=~/loc-resources/auth/langdon-bot.gitconfig commit …` (never set globally).
+2. **Trailers:**
    ```
    AI-Attribution: <AI-A|AI-E|AI-C|AI-G>  (https://langd0n.com/ai-attribution)
    Co-authored-by: langdon <1832177+langdon@users.noreply.github.com>
-   Co-Authored-By: <PARENT-AGENT> / Claude <model> <noreply@anthropic.com>
+   Co-Authored-By: <PARENT-AGENT> / <model> <noreply@anthropic.com>
    ```
-   - `<PARENT-AGENT>` = the orchestrator that produced the work (e.g. `AICP`, or
-     the parent agent's name). Mandatory so AI commits trace back to their source.
-   - `<model>` = the actual model (e.g. `Claude Opus 4.8`).
-   - `AI-Attribution` level per the framework — default `AI-G` for autonomous
-     runs, `AI-C` for interactive human-directed sessions.
-   - **Do NOT append a `Claude-Session:` link** — it leaks an internal session
-     identifier into public history for no benefit.
-3. Minimal/mechanical edits (typo, format) need no attribution trailers.
-- Stage explicit paths; never `git add -A` / `git add .`. Check `git status`
-  before committing.
+   - `<PARENT-AGENT>`: producing context — an agent running from this project signs `course-planner`; the orchestrator signs `AICP`.
+   - `<model>`: actual engine (e.g. `gpt-5.5`, `Claude Opus 4.8`).
+   - `AI-Attribution`: `AI-G` autonomous / `AI-C` interactive.
+   - No `Claude-Session:` trailer.
+3. Mechanical edits (typo, format): no trailers.
+4. Stage explicit paths; never `git add -A` / `git add .`.
