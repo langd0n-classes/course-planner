@@ -1,5 +1,0 @@
-RUN_ID=claude-fable-cp-build-2026-07-08T08_01_27-0400
-CLAUDE_PID=4014102
-WATCHER_PID=4014144
-RUN_LOG=/home/lwhite/cloud-sync/areas/meta/ai-control-plane/logs/agent-claude-fable-cp-build-2026-07-08T08_01_27-0400.log
-META_FILE=/home/lwhite/cloud-sync/areas/meta/ai-control-plane/logs/agent-claude-fable-cp-build-2026-07-08T08_01_27-0400.meta
