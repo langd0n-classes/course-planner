@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildTermCalendarTimeline,
   buildTopicBrowserBuckets,
   compareLearningModuleVersions,
   deriveTermPlanningGaps,
@@ -213,5 +214,118 @@ describe("deriveTermPlanningGaps", () => {
 
     expect(gaps.unplannedClassDays.map((slot) => slot.id)).toEqual(["slot-2"]);
     expect(gaps.unscheduledSessions.map((session) => session.id)).toEqual(["sess-2"]);
+  });
+});
+
+describe("buildTermCalendarTimeline", () => {
+  it("anchors the default window around today and reports progress", () => {
+    const timeline = buildTermCalendarTimeline({
+      calendarSlots: Array.from({ length: 18 }, (_, index) => ({
+        id: `slot-${index + 1}`,
+        termId: "term-1",
+        academicCalendarEventId: null,
+        date: `2026-02-${String(index + 1).padStart(2, "0")}`,
+        slotType: "class_day",
+        label: null,
+        source: null,
+        instructionalCapacity: "normal",
+        capacitySource: "baseline",
+        capacityReason: null,
+      })),
+      sessions: [
+        {
+          id: "sess-9",
+          termId: "term-1",
+          termLearningModuleId: "tlm-1",
+          calendarSlotId: "slot-9",
+          sequence: 9,
+          sessionType: "lecture",
+          code: "L09",
+          title: "Center point",
+          date: "2026-02-09",
+          scheduleOverrideLabel: null,
+          description: null,
+          format: null,
+          notes: null,
+          status: "scheduled",
+          instructionalMode: "standard",
+          canceledAt: null,
+          canceledReason: null,
+          archivedAt: null,
+        },
+      ],
+      today: "2026-02-09",
+    });
+
+    expect(timeline.windowRows.map((row) => row.slot.id)).toEqual([
+      "slot-2",
+      "slot-3",
+      "slot-4",
+      "slot-5",
+      "slot-6",
+      "slot-7",
+      "slot-8",
+      "slot-9",
+      "slot-10",
+      "slot-11",
+      "slot-12",
+      "slot-13",
+      "slot-14",
+      "slot-15",
+      "slot-16",
+    ]);
+    expect(timeline.hiddenBeforeCount).toBe(1);
+    expect(timeline.hiddenAfterCount).toBe(2);
+    expect(timeline.completedClassDays).toBe(9);
+    expect(timeline.totalClassDays).toBe(18);
+    expect(timeline.progressPercent).toBe(50);
+    expect(timeline.todaySignal).toBe("today_class_day");
+    expect(timeline.windowRows.find((row) => row.slot.id === "slot-9")?.isToday).toBe(true);
+  });
+
+  it("treats canceled sessions as visible planning gaps", () => {
+    const timeline = buildTermCalendarTimeline({
+      calendarSlots: [
+        {
+          id: "slot-1",
+          termId: "term-1",
+          academicCalendarEventId: null,
+          date: "2026-03-01",
+          slotType: "class_day",
+          label: null,
+          source: null,
+          instructionalCapacity: "normal",
+          capacitySource: "baseline",
+          capacityReason: null,
+        },
+      ],
+      sessions: [
+        {
+          id: "sess-1",
+          termId: "term-1",
+          termLearningModuleId: "tlm-1",
+          calendarSlotId: "slot-1",
+          sequence: 1,
+          sessionType: "lecture",
+          code: "L01",
+          title: "Snow day",
+          date: "2026-03-01",
+          scheduleOverrideLabel: null,
+          description: null,
+          format: null,
+          notes: null,
+          status: "canceled",
+          instructionalMode: "standard",
+          canceledAt: "2026-02-28T18:00:00.000Z",
+          canceledReason: "weather",
+          archivedAt: null,
+        },
+      ],
+      today: "2026-03-02",
+    });
+
+    expect(timeline.allRows).toHaveLength(1);
+    expect(timeline.allRows[0]?.isGap).toBe(true);
+    expect(timeline.todaySignal).toBe("after_term");
   });
 });
