@@ -25,7 +25,6 @@ type Props = {
 export default function CourseWorkspacePage({ courseId }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [submittingTerm, setSubmittingTerm] = useState(false);
   const [course, setCourse] = useState<Awaited<ReturnType<typeof redesignApi.getCourse>> | null>(null);
   const [institutions, setInstitutions] = useState<Awaited<ReturnType<typeof redesignApi.listCourseInstitutions>>>([]);
   const [calendars, setCalendars] = useState<AcademicCalendarDto[]>([]);
@@ -141,24 +140,6 @@ export default function CourseWorkspacePage({ courseId }: Props) {
     [currentVersionsByLearningModuleId, currentVersionsByTopicId, learningModules, prerequisites, topics],
   );
 
-  async function handleCreateTerm(request: {
-    institutionId: Id;
-    academicCalendarId: Id;
-    code: string;
-    name: string;
-    startDate: string;
-    endDate: string;
-    meetingPattern?: unknown | null;
-  }) {
-    setSubmittingTerm(true);
-    try {
-      await redesignApi.createTerm({ ...request, courseId });
-      await loadWorkspace();
-    } finally {
-      setSubmittingTerm(false);
-    }
-  }
-
   async function handleAssignTopic(topicId: Id, learningModuleId: Id | null) {
     await redesignApi.assignTopicLearningModule(topicId, learningModuleId);
     await loadWorkspace();
@@ -179,11 +160,21 @@ export default function CourseWorkspacePage({ courseId }: Props) {
   }
 
   if (loading) {
-    return <p className="text-sm text-slate-600">Loading course workspace...</p>;
+    return (
+      <div className="space-y-4 animate-pulse">
+        <div className="h-32 rounded-3xl bg-slate-100" />
+        <div className="h-64 rounded-2xl bg-slate-100" />
+      </div>
+    );
   }
 
   if (error) {
-    return <p className="text-sm text-rose-700">{error}</p>;
+    return (
+      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6">
+        <p className="text-sm font-medium text-rose-800">Failed to load course workspace</p>
+        <p className="mt-1 text-sm text-rose-700">{error}</p>
+      </div>
+    );
   }
 
   if (!course) {
@@ -193,22 +184,26 @@ export default function CourseWorkspacePage({ courseId }: Props) {
   const activeTerms = terms.filter((term) => term.status === "active");
   const plannedTerms = terms.filter((term) => term.status === "planned");
   const closedTerms = terms.filter((term) => term.status === "closed");
+  const unassignedTopicCount = topics.filter((t) => t.learningModuleId === null).length;
 
   return (
     <div className="space-y-8">
+      {/* Course header */}
       <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <Link href="/" className="text-sm font-medium text-sky-700">
-          Back to courses
+        <Link href="/" className="text-sm font-medium text-sky-700 hover:text-sky-800">
+          ← Courses
         </Link>
         <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-sm font-medium uppercase tracking-wide text-slate-500">{course.shortId}</p>
-            <h1 className="mt-1 text-3xl font-semibold text-slate-950">
+            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">
               {course.number} · {course.title}
             </h1>
-            <p className="mt-2 max-w-3xl text-base text-slate-600">
-              {course.description ?? "No course description yet."}
-            </p>
+            {course.description ? (
+              <p className="mt-2 max-w-3xl text-base text-slate-600">{course.description}</p>
+            ) : (
+              <p className="mt-2 text-base text-slate-400 italic">No course description.</p>
+            )}
           </div>
           {course.numberIsPlaceholder ? (
             <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800">
@@ -222,16 +217,42 @@ export default function CourseWorkspacePage({ courseId }: Props) {
               {institution.shortName ?? institution.name}
             </span>
           ))}
+          {institutions.length === 0 ? (
+            <span className="text-xs text-slate-400">No institution linked yet</span>
+          ) : null}
+        </div>
+
+        {/* Quick stats row */}
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-2xl bg-slate-50 px-4 py-3">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Learning modules</p>
+            <p className="mt-1 text-xl font-semibold text-slate-900">{learningModules.length}</p>
+          </div>
+          <div className={`rounded-2xl px-4 py-3 ${unassignedTopicCount > 0 ? "bg-amber-50" : "bg-slate-50"}`}>
+            <p className="text-xs uppercase tracking-wide text-slate-500">Unassigned topics</p>
+            <p className={`mt-1 text-xl font-semibold ${unassignedTopicCount > 0 ? "text-amber-800" : "text-slate-900"}`}>
+              {unassignedTopicCount}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-slate-50 px-4 py-3">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Total topics</p>
+            <p className="mt-1 text-xl font-semibold text-slate-900">{topics.length}</p>
+          </div>
+          <div className="rounded-2xl bg-slate-50 px-4 py-3">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Terms</p>
+            <p className="mt-1 text-xl font-semibold text-slate-900">{terms.length}</p>
+          </div>
         </div>
       </section>
 
+      {/* Terms + term creation */}
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(21rem,0.95fr)]">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">Terms</h2>
               <p className="mt-1 text-sm text-slate-600">
-                New terms must name an institution and shared academic calendar up front.
+                Each term is a dated run of this course. Terms must name an institution and shared academic calendar.
               </p>
             </div>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
@@ -244,18 +265,18 @@ export default function CourseWorkspacePage({ courseId }: Props) {
               <Link
                 key={term.id}
                 href={`/terms/${term.id}`}
-                className="rounded-2xl border border-slate-200 px-4 py-3 hover:border-slate-300"
+                className="block rounded-2xl border border-slate-200 px-4 py-3 hover:border-slate-300 hover:bg-slate-50"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="font-medium text-slate-900">{term.name}</p>
-                    <p className="text-sm text-slate-600">
-                      {term.code} · {term.startDate} to {term.endDate}
+                    <p className="mt-0.5 text-sm text-slate-600">
+                      {term.code} · {term.startDate} – {term.endDate}
                     </p>
                   </div>
                   <LifecycleBadge status={term.status} />
                 </div>
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-1.5 text-xs text-slate-500">
                   {term.status === "closed"
                     ? "Historical term: delivered snapshot is read-only."
                     : term.status === "active"
@@ -265,25 +286,26 @@ export default function CourseWorkspacePage({ courseId }: Props) {
               </Link>
             ))}
             {terms.length === 0 ? (
-              <GapNotice title="No terms yet.">Create the first term from this course workspace.</GapNotice>
+              <GapNotice title="No terms yet.">Create the first term from this workspace.</GapNotice>
             ) : null}
           </div>
         </div>
 
         <CreateTermPanel
+          courseId={courseId}
           institutions={institutions}
           calendars={calendars}
-          submitting={submittingTerm}
-          onSubmit={handleCreateTerm}
+          onTermCreated={loadWorkspace}
         />
       </section>
 
+      {/* Topic-first browser */}
       <section className="space-y-4">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Topic-first browser</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Topics are the planning atoms here. Unassigned topics stay visible until they have a learning module home,
-            and prerequisite edits stay at the course level.
+            Topics are the planning atoms. Unassigned topics stay visible until they have a learning module home.
+            Prerequisite edits stay at the course level.
           </p>
         </div>
         <TopicBrowser

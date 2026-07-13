@@ -290,6 +290,13 @@ Decisions made where the requirements were underspecified. Each can be revisited
   optional. Without it, generated material could be stored and exported but
   not faithfully read back through the canonical API.
 
+- **The B.1 cockpit adds three read-only canonical query routes**: Real UI
+  wiring exposed mock-only lookup gaps for the current authenticated Instructor,
+  all Topic prerequisite edges in a Course, and a referenced Topic Version by
+  ID. `/api/instructors/me`, `/api/courses/[id]/topic-prerequisites`, and
+  `/api/topic-versions/[id]` are additive read surfaces with ownership checks;
+  they do not weaken the frozen mutation contracts or authorization boundary.
+
 ## Redesign Phase B.1B — invariant recovery
 
 - **Legacy single-pattern Term forms normalize to one lecture role**: The
