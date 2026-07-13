@@ -12,6 +12,9 @@ export type Id = string;
 export type IsoDate = string;
 export type IsoDateTime = string;
 
+export type InstructorDto = { id: Id; name: string; email: string };
+export type GetCurrentInstructorResponse = { instructor: InstructorDto };
+
 export type ApiErrorResponse = {
   error: string;
   details?: unknown;
@@ -263,6 +266,7 @@ export type UpdateTopicResponse = {
   currentVersion: TopicVersionDto | null;
 };
 export type ListTopicVersionsResponse = { versions: TopicVersionDto[] };
+export type GetTopicVersionResponse = { version: TopicVersionDto };
 export type CreateTopicVersionResponse = { version: TopicVersionDto };
 
 // Topic prerequisites are a same-Course DAG edge: `topicId` depends on
@@ -272,6 +276,7 @@ export type TopicPrerequisiteDto = {
   prerequisiteTopicId: Id;
 };
 export type ListTopicPrerequisitesResponse = { prerequisites: TopicPrerequisiteDto[] };
+export type ListCourseTopicPrerequisitesResponse = ListTopicPrerequisitesResponse;
 export type ReplaceTopicPrerequisitesRequest = { prerequisiteTopicIds: Id[] };
 export type ReplaceTopicPrerequisitesResponse = { prerequisites: TopicPrerequisiteDto[] };
 
@@ -693,6 +698,7 @@ export type DeleteArtifactResponse =
 // Array-first so tests can validate route stubs at runtime against the same
 // source of truth the CanonicalRoute type is derived from.
 export const CANONICAL_ROUTES = [
+  "/api/instructors/me",
   "/api/institutions",
   "/api/academic-calendars",
   "/api/courses",
@@ -702,6 +708,8 @@ export const CANONICAL_ROUTES = [
   "/api/learning-modules/[id]",
   "/api/learning-modules/[id]/versions",
   "/api/courses/[id]/topics",
+  "/api/courses/[id]/topic-prerequisites",
+  "/api/topic-versions/[id]",
   "/api/topics/[id]",
   "/api/topics/[id]/versions",
   "/api/topics/[id]/prerequisites",
