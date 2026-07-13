@@ -92,70 +92,70 @@ export default function DeliveredRevisionEditor({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-2xl border border-amber-300 bg-white p-5 shadow-sm">
+    <form onSubmit={handleSubmit} className="rounded-lg border border-amber-300 bg-surface p-5">
       <DeliveredEditBanner />
 
       <div className="grid gap-4 md:grid-cols-2">
-        <label className="text-sm text-slate-700 md:col-span-2">
+        <label className="text-sm text-ink-soft md:col-span-2">
           <span className="mb-1 block font-medium">Delivered title</span>
           <input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2"
+            className="w-full rounded-lg border border-line-strong px-3 py-2"
             required
           />
         </label>
 
-        <label className="text-sm text-slate-700 md:col-span-2">
+        <label className="text-sm text-ink-soft md:col-span-2">
           <span className="mb-1 block font-medium">Delivered description</span>
           <textarea
             value={description}
             onChange={(event) => setDescription(event.target.value)}
-            className="min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2"
+            className="min-h-24 w-full rounded-lg border border-line-strong px-3 py-2"
           />
         </label>
 
-        <label className="text-sm text-slate-700 md:col-span-2">
+        <label className="text-sm text-ink-soft md:col-span-2">
           <span className="mb-1 block font-medium">Learning objectives</span>
           <textarea
             value={learningObjectives}
             onChange={(event) => setLearningObjectives(event.target.value)}
-            className="min-h-28 w-full rounded-lg border border-slate-300 px-3 py-2"
+            className="min-h-28 w-full rounded-lg border border-line-strong px-3 py-2"
           />
         </label>
 
-        <label className="text-sm text-slate-700 md:col-span-2">
+        <label className="text-sm text-ink-soft md:col-span-2">
           <span className="mb-1 block font-medium">Change summary</span>
           <textarea
             value={changeSummary}
             onChange={(event) => setChangeSummary(event.target.value)}
             placeholder="Explain what changed during delivery and why."
-            className="min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2"
+            className="min-h-20 w-full rounded-lg border border-line-strong px-3 py-2"
             required
           />
         </label>
 
-        <label className="text-sm text-slate-700 md:col-span-2">
+        <label className="text-sm text-ink-soft md:col-span-2">
           <span className="mb-1 block font-medium">Delivery notes</span>
           <textarea
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
-            className="min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2"
+            className="min-h-20 w-full rounded-lg border border-line-strong px-3 py-2"
           />
         </label>
       </div>
 
-      <div className="mt-5 rounded-xl border border-slate-200 p-4">
+      <div className="mt-5 rounded-lg border border-line p-4">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="font-medium text-slate-900">Delivered topic lineup</h3>
-          <p className="text-sm text-slate-600">{selectedCount} included</p>
+          <h3 className="font-medium text-ink">Delivered topic lineup</h3>
+          <p className="text-sm text-ink-muted">{selectedCount} included</p>
         </div>
         <div className="mt-3 space-y-3">
           {availableTopicVersions.map((topicVersion) => {
             const selection = selections.find((item) => item.topicVersionId === topicVersion.id);
             if (!selection) return null;
             return (
-              <div key={topicVersion.id} className="grid gap-3 rounded-lg border border-slate-200 px-3 py-3 md:grid-cols-[minmax(0,1fr)_7rem]">
+              <div key={topicVersion.id} className="grid gap-3 rounded-lg border border-line px-3 py-3 md:grid-cols-[minmax(0,1fr)_7rem]">
                 <label className="flex items-start gap-3">
                   <input
                     type="checkbox"
@@ -171,12 +171,12 @@ export default function DeliveredRevisionEditor({
                     }
                   />
                   <span>
-                    <span className="block font-medium text-slate-900">{topicVersion.title}</span>
-                    <span className="block text-xs text-slate-500">{topicVersion.category ?? "Uncategorized"}</span>
+                    <span className="block font-medium text-ink">{topicVersion.title}</span>
+                    <span className="block text-xs text-ink-faint">{topicVersion.category ?? "Uncategorized"}</span>
                   </span>
                 </label>
 
-                <label className="text-sm text-slate-700">
+                <label className="text-sm text-ink-soft">
                   <span className="mb-1 block font-medium">Order</span>
                   <input
                     type="number"
@@ -192,7 +192,7 @@ export default function DeliveredRevisionEditor({
                       )
                     }
                     disabled={!selection.included}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                    className="w-full rounded-lg border border-line-strong px-3 py-2"
                   />
                 </label>
               </div>
@@ -207,14 +207,14 @@ export default function DeliveredRevisionEditor({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+          className="rounded-lg border border-line-strong px-4 py-2 text-sm font-medium text-ink-soft"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={saving}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-400"
+          className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-ink-faint"
         >
           {saving ? "Saving..." : "Save delivered revision"}
         </button>

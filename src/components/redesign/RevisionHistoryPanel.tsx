@@ -61,15 +61,15 @@ export default function RevisionHistoryPanel({
   }
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-lg border border-line bg-surface p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Revision History</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <h2 className="font-display text-lg font-semibold text-ink">Revision History</h2>
+          <p className="mt-1 text-sm text-ink-muted">
             Compare immutable learning module revisions before restoring older curriculum decisions as a new revision.
           </p>
         </div>
-        <label className="text-sm text-slate-700">
+        <label className="text-sm text-ink-soft">
           <span className="mr-2 font-medium">Learning module</span>
           <select
             value={selectedLearningModuleId}
@@ -77,7 +77,7 @@ export default function RevisionHistoryPanel({
               setSelectedLearningModuleId(event.target.value);
               setCompareVersionId("");
             }}
-            className="rounded-lg border border-slate-300 px-3 py-2"
+            className="rounded-lg border border-line-strong px-3 py-2"
           >
             {learningModules.map((learningModule) => (
               <option key={learningModule.id} value={learningModule.id}>
@@ -96,11 +96,11 @@ export default function RevisionHistoryPanel({
         <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
           <div>
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h3 className="font-medium text-slate-900">Published revisions</h3>
+              <h3 className="font-medium text-ink">Published revisions</h3>
               <select
                 value={compareVersionId}
                 onChange={(event) => setCompareVersionId(event.target.value)}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="rounded-lg border border-line-strong px-3 py-2 text-sm"
               >
                 <option value="">Compare current version to itself</option>
                 {selectedVersions.map((version) => (
@@ -117,11 +117,11 @@ export default function RevisionHistoryPanel({
                 .map((version) => {
                   const isCurrent = version.id === currentVersion?.id;
                   return (
-                    <div key={version.id} className="rounded-xl border border-slate-200 p-4">
+                    <div key={version.id} className="rounded-lg border border-line p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-sm font-medium text-slate-900">Revision {version.revision}</p>
-                          <p className="text-sm text-slate-600">{version.changeSummary ?? "No change summary recorded."}</p>
+                          <p className="text-sm font-medium text-ink">Revision {version.revision}</p>
+                          <p className="text-sm text-ink-muted">{version.changeSummary ?? "No change summary recorded."}</p>
                         </div>
                         {isCurrent ? (
                           <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800">
@@ -132,7 +132,7 @@ export default function RevisionHistoryPanel({
                             type="button"
                             onClick={() => handleRestore(version.id)}
                             disabled={restoreState.busy}
-                            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700"
+                            className="rounded-lg border border-line-strong px-3 py-1.5 text-sm text-ink-soft"
                           >
                             Restore as new revision
                           </button>
@@ -144,12 +144,12 @@ export default function RevisionHistoryPanel({
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <h3 className="font-medium text-slate-900">Comparison</h3>
+          <div className="rounded-lg border border-line bg-surface-sunken p-4">
+            <h3 className="font-medium text-ink">Comparison</h3>
             {comparison ? (
-              <div className="mt-3 space-y-4 text-sm text-slate-700">
+              <div className="mt-3 space-y-4 text-sm text-ink-soft">
                 <div>
-                  <p className="font-medium text-slate-900">
+                  <p className="font-medium text-ink">
                     Current revision {currentVersion?.revision} vs. revision {comparedVersion?.revision}
                   </p>
                   <ul className="mt-2 space-y-1">
@@ -162,15 +162,15 @@ export default function RevisionHistoryPanel({
                 </div>
 
                 <div>
-                  <p className="font-medium text-slate-900">Topic changes</p>
+                  <p className="font-medium text-ink">Topic changes</p>
                   {comparison.topicChanges.length === 0 ? (
                     <p className="mt-2">No topic additions, removals, or reordering.</p>
                   ) : (
                     <div className="mt-2 space-y-2">
                       {comparison.topicChanges.map((change) => (
-                        <div key={`${change.kind}-${change.title}`} className="rounded-lg bg-white px-3 py-2">
-                          <p className="font-medium text-slate-900">{change.title}</p>
-                          <p className="text-slate-600">
+                        <div key={`${change.kind}-${change.title}`} className="rounded-lg bg-surface px-3 py-2">
+                          <p className="font-medium text-ink">{change.title}</p>
+                          <p className="text-ink-muted">
                             {change.kind === "added"
                               ? `Added at position ${change.compareSequence}.`
                               : change.kind === "removed"
@@ -184,7 +184,7 @@ export default function RevisionHistoryPanel({
                 </div>
               </div>
             ) : (
-              <p className="mt-3 text-sm text-slate-600">Select a module with at least one published revision to compare.</p>
+              <p className="mt-3 text-sm text-ink-muted">Select a module with at least one published revision to compare.</p>
             )}
 
             {restoreState.error ? <p className="mt-4 text-sm text-rose-700">{restoreState.error}</p> : null}

@@ -212,6 +212,9 @@ describe("TermWorkspacePage", () => {
     render(<TermWorkspacePage termId="term-1" />);
 
     await screen.findByText("Calendar timeline");
+    expect(screen.getByText("Plan workspace")).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Term workspace sections" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Calendar" })).toHaveAttribute("href", "#term-calendar");
     expect(screen.getByText("Reduced capacity")).toBeInTheDocument();
     expect(screen.getByText("Recovery capacity")).toBeInTheDocument();
     expect(screen.getByText("Assessment-period capacity")).toBeInTheDocument();
@@ -249,6 +252,7 @@ describe("TermWorkspacePage", () => {
       expect(transitionTerm).toHaveBeenCalledWith("term-1", "activate", "planned");
     });
     await screen.findByRole("button", { name: "Close term" });
+    expect(screen.getByText("Run workspace")).toBeInTheDocument();
   });
 
   it("adopts a course learning module into the term workspace", async () => {

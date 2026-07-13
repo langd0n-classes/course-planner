@@ -50,28 +50,28 @@ export default function LifecycleConfirmPanel({ transition, busy, onConfirm, onC
       ? "border-rose-200 bg-rose-50"
       : copy.tone === "warn"
         ? "border-amber-200 bg-amber-50"
-        : "border-slate-200 bg-slate-50";
+        : "border-line bg-surface-sunken";
 
   const headingColor =
     copy.tone === "danger"
       ? "text-rose-900"
       : copy.tone === "warn"
         ? "text-amber-900"
-        : "text-slate-900";
+        : "text-ink";
 
   const bodyColor =
-    copy.tone === "danger" ? "text-rose-800" : copy.tone === "warn" ? "text-amber-800" : "text-slate-700";
+    copy.tone === "danger" ? "text-rose-800" : copy.tone === "warn" ? "text-amber-800" : "text-ink-soft";
 
   const confirmBg =
     copy.tone === "danger"
       ? "bg-rose-700 hover:bg-rose-800 disabled:bg-rose-300"
       : copy.tone === "warn"
         ? "bg-amber-700 hover:bg-amber-800 disabled:bg-amber-300"
-        : "bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400";
+        : "bg-ink hover:bg-ink-hover disabled:bg-ink-faint";
 
   return (
-    <div className={`mt-4 rounded-2xl border p-5 ${borderColor}`}>
-      <h3 className={`text-base font-semibold ${headingColor}`}>{copy.heading}</h3>
+    <div className={`mt-4 rounded-lg border p-5 ${borderColor}`}>
+      <h3 className={`font-display text-base font-semibold ${headingColor}`}>{copy.heading}</h3>
       <p className={`mt-2 text-sm ${bodyColor}`}>{copy.consequence}</p>
       <div className="mt-4 flex gap-3">
         <button
@@ -86,7 +86,7 @@ export default function LifecycleConfirmPanel({ transition, busy, onConfirm, onC
           type="button"
           onClick={onCancel}
           disabled={busy}
-          className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-50"
+          className="rounded-lg border border-line-strong px-4 py-2 text-sm font-medium text-ink-soft disabled:opacity-50"
         >
           Cancel
         </button>

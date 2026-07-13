@@ -9,9 +9,9 @@ import type { ReactNode } from "react";
 // to miss, instead of blending into "just another empty list."
 export default function GapNotice({ title, children }: { title: string; children?: ReactNode }) {
   return (
-    <div className="rounded border border-dashed border-amber-400 bg-amber-50/60 px-3 py-2 text-sm text-amber-800">
+    <div className="rounded border border-dashed border-amber-400 bg-amber-50/60 px-3 py-2 text-sm text-amber-900">
       <p className="font-medium">{title}</p>
-      {children ? <div className="mt-1 text-amber-700">{children}</div> : null}
+      {children ? <div className="mt-1 text-amber-800">{children}</div> : null}
     </div>
   );
 }

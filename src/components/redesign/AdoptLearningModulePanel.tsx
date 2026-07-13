@@ -98,7 +98,7 @@ export default function AdoptLearningModulePanel({
 
   if (available.length === 0) {
     return (
-      <p className="text-sm text-slate-500 italic">All course learning modules are already adopted for this term.</p>
+      <p className="text-sm text-ink-faint italic">All course learning modules are already adopted for this term.</p>
     );
   }
 
@@ -108,13 +108,13 @@ export default function AdoptLearningModulePanel({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="text-sm text-slate-700">
+        <label className="text-sm text-ink-soft">
           <span className="mb-1 block font-medium">Learning module</span>
           <select
             aria-label="Learning module"
             value={selectedLmId}
             onChange={(e) => handleLmChange(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+            className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2"
             disabled={submitting}
             required
           >
@@ -129,13 +129,13 @@ export default function AdoptLearningModulePanel({
           </select>
         </label>
 
-        <label className="text-sm text-slate-700">
+        <label className="text-sm text-ink-soft">
           <span className="mb-1 block font-medium">Version to plan</span>
           <select
             aria-label="Version to plan"
             value={effectiveVersionId}
             onChange={(e) => setSelectedVersionId(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+            className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2"
             disabled={submitting || selectedVersions.length === 0}
           >
             {selectedVersions.map((v) => (
@@ -146,11 +146,11 @@ export default function AdoptLearningModulePanel({
             ))}
           </select>
           {selectedVersions.length === 0 ? (
-            <p className="mt-1 text-xs text-amber-700">No versions exist for this module yet.</p>
+            <p className="mt-1 text-xs text-amber-800">No versions exist for this module yet.</p>
           ) : null}
         </label>
 
-        <label className="text-sm text-slate-700">
+        <label className="text-sm text-ink-soft">
           <span className="mb-1 block font-medium">Sequence</span>
           <input
             aria-label="Sequence"
@@ -158,14 +158,14 @@ export default function AdoptLearningModulePanel({
             min={1}
             value={sequence}
             onChange={(e) => setSequence(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+            className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 font-mono"
             disabled={submitting}
             required
           />
-          <p className="mt-1 text-xs text-slate-500">Order within the term (1 = first).</p>
+          <p className="mt-1 text-xs text-ink-faint">Order within the term (1 = first).</p>
         </label>
 
-        <label className="text-sm text-slate-700">
+        <label className="text-sm text-ink-soft">
           <span className="mb-1 block font-medium">Notes (optional)</span>
           <textarea
             aria-label="Notes"
@@ -173,7 +173,7 @@ export default function AdoptLearningModulePanel({
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
             placeholder="Any adoption notes for this term"
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+            className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2"
             disabled={submitting}
           />
         </label>
@@ -184,7 +184,7 @@ export default function AdoptLearningModulePanel({
       <button
         type="submit"
         disabled={submitting || !selectedLmId || !effectiveVersionId}
-        className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-400"
+        className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-ink-faint"
       >
         {submitting ? "Adopting..." : "Adopt learning module"}
       </button>

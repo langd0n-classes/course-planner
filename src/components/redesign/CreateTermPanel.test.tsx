@@ -188,7 +188,8 @@ describe("CreateTermPanel", () => {
 
     // Preview panel is shown
     await waitFor(() => {
-      expect(screen.getByText("Preview: Spring 2027")).toBeInTheDocument();
+      expect(screen.getByText("Preview, not yet applied")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Spring 2027" })).toBeInTheDocument();
       expect(screen.getByText("Confirm and create term")).toBeInTheDocument();
       expect(screen.getByText("Capacity advisories")).toBeInTheDocument();
     });

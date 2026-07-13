@@ -290,10 +290,10 @@ export default function TermWorkspacePage({ termId }: Props) {
   if (loading) {
     return (
       <div className="space-y-4 animate-pulse">
-        <div className="h-40 rounded-3xl bg-slate-100" />
+        <div className="h-40 rounded-xl bg-paper-inset" />
         <div className="grid gap-6 xl:grid-cols-2">
-          <div className="h-48 rounded-2xl bg-slate-100" />
-          <div className="h-48 rounded-2xl bg-slate-100" />
+          <div className="h-48 rounded-lg bg-paper-inset" />
+          <div className="h-48 rounded-lg bg-paper-inset" />
         </div>
       </div>
     );
@@ -301,7 +301,7 @@ export default function TermWorkspacePage({ termId }: Props) {
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6">
+      <div className="rounded-lg border border-rose-200 bg-rose-50 p-6">
         <p className="text-sm font-medium text-rose-800">Failed to load term workspace</p>
         <p className="mt-1 text-sm text-rose-700">{error}</p>
       </div>
@@ -315,19 +315,38 @@ export default function TermWorkspacePage({ termId }: Props) {
   const transition = TRANSITIONS[term.status];
   const unscheduledSessions = sessions.filter((session) => !session.date && session.status === "scheduled");
   const canceledSessions = sessions.filter((session) => session.status === "canceled");
+  const attentionCount =
+    planningGaps.unplannedClassDays.length + planningGaps.unscheduledSessions.length + canceledSessions.length;
+  const workspaceContext =
+    term.status === "active"
+      ? {
+          label: "Run workspace",
+          description: "Use today’s calendar and open gaps to adapt delivery without erasing the original plan.",
+        }
+      : term.status === "closed"
+        ? {
+            label: "Record workspace",
+            description: "Review the delivered record. Historical curriculum stays visible and read-only.",
+          }
+        : {
+            label: "Plan workspace",
+            description: "Shape dates and curriculum before activation; preview consequential changes before applying them.",
+          };
 
   return (
     <div className="space-y-8">
-      <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <Link href={`/courses/${term.courseId}`} className="text-sm font-medium text-sky-700 hover:text-sky-800">
+      <section className="rounded-xl border border-line bg-surface p-8">
+        <Link href={`/courses/${term.courseId}`} className="text-sm font-medium text-accent hover:text-accent-strong">
           ← {course.number} · {course.title}
         </Link>
         <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-slate-950">{term.name}</h1>
-            <p className="mt-1.5 text-base text-slate-600">
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-accent">{workspaceContext.label}</p>
+            <h1 className="font-display text-3xl font-semibold tracking-tight text-ink">{term.name}</h1>
+            <p className="mt-1.5 font-mono text-base text-ink-muted">
               {term.code} · {term.startDate} – {term.endDate}
             </p>
+            <p className="mt-2 max-w-3xl text-sm text-ink-muted">{workspaceContext.description}</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <LifecycleBadge status={term.status} />
@@ -336,7 +355,7 @@ export default function TermWorkspacePage({ termId }: Props) {
                 type="button"
                 onClick={() => setPendingTransition(transition.transition)}
                 disabled={transitionBusy}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-60"
+                className="rounded-lg border border-line-strong px-4 py-2 text-sm font-medium text-ink-soft disabled:opacity-60"
               >
                 {transition.label}
               </button>
@@ -361,36 +380,48 @@ export default function TermWorkspacePage({ termId }: Props) {
           </div>
         ) : null}
 
+        <nav aria-label="Term workspace sections" className="mt-5 flex flex-wrap gap-2 border-t border-dashed border-line pt-4">
+          <a href="#term-attention" className="rounded border border-line bg-surface-sunken px-3 py-1.5 text-sm font-medium text-ink-soft hover:border-line-strong">
+            Attention{attentionCount > 0 ? ` · ${attentionCount}` : " · clear"}
+          </a>
+          <a href="#term-calendar" className="rounded border border-line bg-surface-sunken px-3 py-1.5 text-sm font-medium text-ink-soft hover:border-line-strong">
+            Calendar
+          </a>
+          <a href="#term-curriculum" className="rounded border border-line bg-surface-sunken px-3 py-1.5 text-sm font-medium text-ink-soft hover:border-line-strong">
+            Planned vs. delivered
+          </a>
+        </nav>
+
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Class days</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{classDays.length}</p>
+          <div className="rounded border border-line bg-surface-sunken p-4">
+            <p className="text-xs uppercase tracking-wide text-ink-faint">Class days</p>
+            <p className="mt-1 font-mono text-2xl font-semibold text-ink">{classDays.length}</p>
           </div>
-          <div className={`rounded-2xl p-4 ${sessions.length === 0 ? "bg-amber-50" : "bg-slate-50"}`}>
-            <p className="text-xs uppercase tracking-wide text-slate-500">Sessions</p>
-            <p className={`mt-1 text-2xl font-semibold ${sessions.length === 0 ? "text-amber-700" : "text-slate-900"}`}>
+          <div className={`rounded border p-4 ${sessions.length === 0 ? "border-amber-200 bg-amber-50" : "border-line bg-surface-sunken"}`}>
+            <p className="text-xs uppercase tracking-wide text-ink-faint">Sessions</p>
+            <p className={`mt-1 font-mono text-2xl font-semibold ${sessions.length === 0 ? "text-amber-800" : "text-ink"}`}>
               {sessions.length}
             </p>
           </div>
-          <div className={`rounded-2xl p-4 ${(coverageHealth?.uncovered ?? 0) > 0 ? "bg-amber-50" : "bg-slate-50"}`}>
-            <p className="text-xs uppercase tracking-wide text-slate-500">Uncovered topics</p>
-            <p className={`mt-1 text-2xl font-semibold ${(coverageHealth?.uncovered ?? 0) > 0 ? "text-amber-700" : "text-slate-900"}`}>
+          <div className={`rounded border p-4 ${(coverageHealth?.uncovered ?? 0) > 0 ? "border-amber-200 bg-amber-50" : "border-line bg-surface-sunken"}`}>
+            <p className="text-xs uppercase tracking-wide text-ink-faint">Uncovered topics</p>
+            <p className={`mt-1 font-mono text-2xl font-semibold ${(coverageHealth?.uncovered ?? 0) > 0 ? "text-amber-800" : "text-ink"}`}>
               {coverageHealth?.uncovered ?? 0}
             </p>
           </div>
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Assessments</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{assessments.length}</p>
+          <div className="rounded border border-line bg-surface-sunken p-4">
+            <p className="text-xs uppercase tracking-wide text-ink-faint">Assessments</p>
+            <p className="mt-1 font-mono text-2xl font-semibold text-ink">{assessments.length}</p>
           </div>
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Planning gaps</h2>
+      <section id="term-attention" className="scroll-mt-6 grid gap-6 xl:grid-cols-2">
+        <div className="rounded-lg border border-line bg-surface p-5">
+          <h2 className="font-display text-lg font-semibold text-ink">Planning gaps</h2>
           <div className="mt-4 space-y-3">
             {planningGaps.unplannedClassDays.length === 0 && planningGaps.unscheduledSessions.length === 0 ? (
-              <p className="text-sm text-slate-500">No date gaps visible right now.</p>
+              <p className="text-sm text-ink-faint">No date gaps visible right now.</p>
             ) : null}
             {planningGaps.unplannedClassDays.length > 0 ? (
               <GapNotice title={`${planningGaps.unplannedClassDays.length} class day(s) have no active session assigned.`}>
@@ -405,7 +436,7 @@ export default function TermWorkspacePage({ termId }: Props) {
               </GapNotice>
             ) : null}
             {canceledSessions.length > 0 ? (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+              <div className="rounded border border-line bg-surface-sunken p-3 text-sm text-ink-soft">
                 <span className="font-medium">{canceledSessions.length} session(s) canceled.</span>{" "}
                 These dates remain visible as planning gaps until they are recovered.
               </div>
@@ -413,41 +444,41 @@ export default function TermWorkspacePage({ termId }: Props) {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Coverage health</h2>
+        <div className="rounded-lg border border-line bg-surface p-5">
+          <h2 className="font-display text-lg font-semibold text-ink">Coverage health</h2>
           {coverageHealth ? (
             <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl bg-slate-50 p-3">
-                <dt className="text-xs uppercase tracking-wide text-slate-500">Fully covered</dt>
-                <dd className="mt-0.5 text-xl font-semibold text-slate-900">{coverageHealth.fullyCovered}</dd>
+              <div className="rounded border border-line bg-surface-sunken p-3">
+                <dt className="text-xs uppercase tracking-wide text-ink-faint">Fully covered</dt>
+                <dd className="mt-0.5 font-mono text-xl font-semibold text-ink">{coverageHealth.fullyCovered}</dd>
               </div>
-              <div className="rounded-xl bg-slate-50 p-3">
-                <dt className="text-xs uppercase tracking-wide text-slate-500">Partially covered</dt>
-                <dd className="mt-0.5 text-xl font-semibold text-slate-900">{coverageHealth.partiallyCovered}</dd>
+              <div className="rounded border border-line bg-surface-sunken p-3">
+                <dt className="text-xs uppercase tracking-wide text-ink-faint">Partially covered</dt>
+                <dd className="mt-0.5 font-mono text-xl font-semibold text-ink">{coverageHealth.partiallyCovered}</dd>
               </div>
-              <div className={`rounded-xl p-3 ${coverageHealth.uncovered > 0 ? "bg-amber-50" : "bg-slate-50"}`}>
-                <dt className="text-xs uppercase tracking-wide text-slate-500">Uncovered</dt>
-                <dd className={`mt-0.5 text-xl font-semibold ${coverageHealth.uncovered > 0 ? "text-amber-700" : "text-slate-900"}`}>
+              <div className={`rounded p-3 ${coverageHealth.uncovered > 0 ? "border border-amber-200 bg-amber-50" : "border border-line bg-surface-sunken"}`}>
+                <dt className="text-xs uppercase tracking-wide text-ink-faint">Uncovered</dt>
+                <dd className={`mt-0.5 font-mono text-xl font-semibold ${coverageHealth.uncovered > 0 ? "text-amber-800" : "text-ink"}`}>
                   {coverageHealth.uncovered}
                 </dd>
               </div>
-              <div className="rounded-xl bg-slate-50 p-3">
-                <dt className="text-xs uppercase tracking-wide text-slate-500">Total tracked</dt>
-                <dd className="mt-0.5 text-xl font-semibold text-slate-900">{coverageHealth.totalTopics}</dd>
+              <div className="rounded border border-line bg-surface-sunken p-3">
+                <dt className="text-xs uppercase tracking-wide text-ink-faint">Total tracked</dt>
+                <dd className="mt-0.5 font-mono text-xl font-semibold text-ink">{coverageHealth.totalTopics}</dd>
               </div>
             </dl>
           ) : (
-            <p className="mt-4 text-sm text-slate-500">Coverage data not available.</p>
+            <p className="mt-4 text-sm text-ink-faint">Coverage data not available.</p>
           )}
         </div>
       </section>
 
       {calendarSlots.length > 0 ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section id="term-calendar" className="scroll-mt-6 rounded-lg border border-line bg-surface p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">Calendar timeline</h2>
-              <p className="mt-1 text-sm text-slate-500">
+              <h2 className="font-display text-lg font-semibold text-ink">Calendar timeline</h2>
+              <p className="mt-1 text-sm text-ink-faint">
                 {classDays.length} class day{classDays.length === 1 ? "" : "s"} in this term
                 {showAllCalendarRows
                   ? ` · showing all ${calendarTimeline.allRows.length} dated slots`
@@ -460,36 +491,36 @@ export default function TermWorkspacePage({ termId }: Props) {
                 aria-controls="term-calendar-timeline"
                 aria-expanded={showAllCalendarRows}
                 onClick={() => setShowAllCalendarRows((current) => !current)}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+                className="rounded-lg border border-line-strong px-4 py-2 text-sm font-medium text-ink-soft"
               >
                 {showAllCalendarRows ? "Show less" : "Show all"}
               </button>
             ) : null}
           </div>
 
-          <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+          <div className="mt-4 rounded border border-line bg-surface-sunken p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-medium text-slate-900">Semester progress</p>
-                <p className="mt-1 text-sm text-slate-600">{TODAY_SIGNAL_COPY[calendarTimeline.todaySignal]}</p>
+                <p className="text-sm font-medium text-ink">Semester progress</p>
+                <p className="mt-1 text-sm text-ink-muted">{TODAY_SIGNAL_COPY[calendarTimeline.todaySignal]}</p>
               </div>
               <div className="min-w-[14rem] flex-1">
-                <div className="flex items-center justify-between text-xs font-medium uppercase tracking-wide text-slate-500">
+                <div className="flex items-center justify-between text-xs font-medium uppercase tracking-wide text-ink-faint">
                   <span>
                     {calendarTimeline.completedClassDays} of {calendarTimeline.totalClassDays} class days reached
                   </span>
-                  <span>{calendarTimeline.progressPercent}%</span>
+                  <span className="font-mono">{calendarTimeline.progressPercent}%</span>
                 </div>
-                <div className="mt-2 h-2 rounded-full bg-slate-200">
+                <div className="mt-2 h-2 rounded-full bg-line">
                   <div
-                    className="h-2 rounded-full bg-sky-600 transition-[width]"
+                    className="h-2 rounded-full bg-accent transition-[width]"
                     style={{ width: `${calendarTimeline.progressPercent}%` }}
                   />
                 </div>
               </div>
             </div>
             {!showAllCalendarRows && (calendarTimeline.hiddenBeforeCount > 0 || calendarTimeline.hiddenAfterCount > 0) ? (
-              <p className="mt-3 text-xs text-slate-500">
+              <p className="mt-3 text-xs text-ink-faint">
                 {calendarTimeline.hiddenBeforeCount > 0 ? `${calendarTimeline.hiddenBeforeCount} earlier` : "No earlier"}
                 {" · "}
                 {calendarTimeline.hiddenAfterCount > 0 ? `${calendarTimeline.hiddenAfterCount} later` : "No later"} dates hidden.
@@ -497,7 +528,7 @@ export default function TermWorkspacePage({ termId }: Props) {
             ) : null}
           </div>
 
-          <div id="term-calendar-timeline" className="mt-4 divide-y divide-slate-100">
+          <div id="term-calendar-timeline" className="mt-4 divide-y divide-line">
             {visibleCalendarRows.map((row) => {
               const { slot, session, isClassDay, isGap, isToday } = row;
 
@@ -505,19 +536,19 @@ export default function TermWorkspacePage({ termId }: Props) {
                 <div
                   key={slot.id}
                   className={`flex items-start gap-4 py-3 ${
-                    isToday ? "rounded-xl bg-sky-50 px-3" : ""
+                    isToday ? "rounded-lg bg-accent-tint px-3" : ""
                   } ${isGap ? "bg-amber-50/70 px-3" : ""}`}
                 >
-                  <span className={`w-24 shrink-0 text-sm tabular-nums ${isGap ? "text-amber-700" : "text-slate-600"}`}>
+                  <span className={`w-24 shrink-0 font-mono text-sm tabular-nums ${isGap ? "text-amber-800" : "text-ink-muted"}`}>
                     {slot.date}
                   </span>
                   <span
                     className={`w-24 shrink-0 rounded-md px-1.5 py-0.5 text-center text-xs font-medium ${
                       slot.slotType === "class_day"
-                        ? "bg-sky-50 text-sky-800"
+                        ? "bg-accent-tint text-accent-strong"
                         : slot.slotType === "holiday"
                           ? "bg-rose-50 text-rose-700"
-                          : "bg-slate-100 text-slate-600"
+                          : "bg-paper-inset text-ink-muted"
                     }`}
                   >
                     {formatSlotTypeLabel(slot.slotType)}
@@ -532,14 +563,14 @@ export default function TermWorkspacePage({ termId }: Props) {
                       </span>
                       {isCapacityAdvisory(slot) ? (
                         <>
-                          <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700">
+                          <span className="rounded-full border border-line bg-surface px-2 py-1 text-xs font-medium text-ink-soft">
                             Capacity source: {formatCapacitySourceLabel(slot.capacitySource)}
                           </span>
                           {slot.capacityReason ? (
-                            <span className="min-w-0 text-xs text-slate-500">{slot.capacityReason}</span>
+                            <span className="min-w-0 text-xs text-ink-faint">{slot.capacityReason}</span>
                           ) : null}
                           {slot.source ? (
-                            <span className="min-w-0 text-xs text-slate-500">Schedule source: {slot.source}</span>
+                            <span className="min-w-0 text-xs text-ink-faint">Schedule source: {slot.source}</span>
                           ) : null}
                         </>
                       ) : null}
@@ -548,38 +579,38 @@ export default function TermWorkspacePage({ termId }: Props) {
                     {session ? (
                       <>
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="truncate text-sm font-medium text-slate-900">
+                          <p className="truncate text-sm font-medium text-ink">
                             {session.code}: {session.title}
                             {session.status === "canceled" ? (
                               <span className="ml-2 text-xs font-normal text-rose-600">canceled</span>
                             ) : null}
                           </p>
-                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700">
+                          <span className="rounded-full border border-line bg-surface-sunken px-2 py-1 text-xs font-medium text-ink-soft">
                             Mode: {formatInstructionalModeLabel(session.instructionalMode)}
                           </span>
                         </div>
                         {session.scheduleOverrideLabel ? (
-                          <p className="text-xs text-slate-500">Override: {session.scheduleOverrideLabel}</p>
+                          <p className="text-xs text-ink-faint">Override: {session.scheduleOverrideLabel}</p>
                         ) : null}
                         {isGap ? (
-                          <p className="text-xs font-medium text-amber-700">
+                          <p className="text-xs font-medium text-amber-800">
                             Planning gap: this class day needs an active replacement session.
                           </p>
                         ) : null}
                       </>
                     ) : isClassDay ? (
                       <>
-                        <p className="text-sm text-amber-700">No session assigned</p>
-                        <p className="text-xs font-medium text-amber-700">
+                        <p className="text-sm text-amber-800">No session assigned</p>
+                        <p className="text-xs font-medium text-amber-800">
                           Planning gap: this materialized class day is still empty.
                         </p>
                       </>
                     ) : (
-                      <p className="text-sm text-slate-400">{slot.label ?? "—"}</p>
+                      <p className="text-sm text-ink-faint">{slot.label ?? "—"}</p>
                     )}
                   </div>
                   {isToday ? (
-                    <span className="rounded-full bg-sky-100 px-2 py-1 text-xs font-medium text-sky-800">
+                    <span className="rounded-full bg-accent-tint px-2 py-1 text-xs font-medium text-accent-strong">
                       Today
                     </span>
                   ) : null}
@@ -591,16 +622,16 @@ export default function TermWorkspacePage({ termId }: Props) {
       ) : null}
 
       {unscheduledSessions.length > 0 ? (
-        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Unscheduled sessions</h2>
-          <p className="mt-1 text-sm text-slate-600">
+        <section className="rounded-lg border border-amber-200 bg-amber-50 p-5">
+          <h2 className="font-display text-lg font-semibold text-ink">Unscheduled sessions</h2>
+          <p className="mt-1 text-sm text-ink-muted">
             These sessions have no date assigned. Assign them to class days.
           </p>
           <ul className="mt-3 space-y-2">
             {unscheduledSessions.map((session) => (
-              <li key={session.id} className="flex items-center gap-3 rounded-xl bg-white px-3 py-2">
-                <span className="text-sm font-medium text-slate-900">{session.code}:</span>
-                <span className="text-sm text-slate-700">{session.title}</span>
+              <li key={session.id} className="flex items-center gap-3 rounded-lg bg-surface px-3 py-2">
+                <span className="text-sm font-medium text-ink">{session.code}:</span>
+                <span className="text-sm text-ink-soft">{session.title}</span>
               </li>
             ))}
           </ul>
@@ -608,16 +639,16 @@ export default function TermWorkspacePage({ termId }: Props) {
       ) : null}
 
       {assessments.length > 0 ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Assessments</h2>
+        <section className="rounded-lg border border-line bg-surface p-5">
+          <h2 className="font-display text-lg font-semibold text-ink">Assessments</h2>
           <div className="mt-4 space-y-2">
             {assessments.map((assessment) => (
-              <div key={assessment.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+              <div key={assessment.id} className="flex items-center justify-between rounded-lg border border-line bg-surface-sunken px-4 py-3">
                 <div>
-                  <p className="text-sm font-medium text-slate-900">
+                  <p className="text-sm font-medium text-ink">
                     {assessment.code}: {assessment.title}
                   </p>
-                  <p className="text-xs text-slate-500">
+                  <p className="font-mono text-xs text-ink-faint">
                     {assessment.assessmentType}
                     {assessment.dueDate ? ` · due ${assessment.dueDate}` : ""}
                   </p>
@@ -628,11 +659,11 @@ export default function TermWorkspacePage({ termId }: Props) {
         </section>
       ) : null}
 
-      <section className="space-y-5">
+      <section id="term-curriculum" className="scroll-mt-6 space-y-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Planned vs. delivered learning modules</h2>
-            <p className="mt-1 text-sm text-slate-600">
+            <h2 className="font-display text-lg font-semibold text-ink">Planned vs. delivered learning modules</h2>
+            <p className="mt-1 text-sm text-ink-muted">
               {term.status === "active"
                 ? "Active terms can record delivery changes as immutable revisions."
                 : term.status === "closed"
@@ -644,7 +675,7 @@ export default function TermWorkspacePage({ termId }: Props) {
             <button
               type="button"
               onClick={() => setShowAdoptPanel((current) => !current)}
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+              className="rounded-lg border border-line-strong px-4 py-2 text-sm font-medium text-ink-soft"
             >
               {showAdoptPanel ? "Hide adoption form" : "Adopt learning module"}
             </button>
@@ -652,7 +683,7 @@ export default function TermWorkspacePage({ termId }: Props) {
         </div>
 
         {showAdoptPanel ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-lg border border-line bg-surface p-5">
             <AdoptLearningModulePanel
               termId={term.id}
               learningModules={courseLearningModules}
@@ -675,7 +706,7 @@ export default function TermWorkspacePage({ termId }: Props) {
         ) : null}
 
         {courseLearningModules.length > 0 && adoptableLearningModuleCount === 0 ? (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          <div className="rounded-lg border border-line bg-surface-sunken px-4 py-3 text-sm text-ink-muted">
             All course learning modules are already adopted for this term.
           </div>
         ) : null}
@@ -695,11 +726,11 @@ export default function TermWorkspacePage({ termId }: Props) {
                 currentVersionsByLearningModuleId.get(workspace.termLearningModule.learningModuleId) ?? null;
 
               return (
-                <article key={workspace.termLearningModule.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <article key={workspace.termLearningModule.id} className="rounded-lg border border-line bg-surface p-5">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
-                      <h3 className="text-xl font-semibold text-slate-900">{workspace.plannedVersion.title}</h3>
-                      <p className="mt-1 text-sm text-slate-500">
+                      <h3 className="font-display text-xl font-semibold text-ink">{workspace.plannedVersion.title}</h3>
+                      <p className="mt-1 text-sm text-ink-faint">
                         Sequence {workspace.termLearningModule.sequence} · planned rev. {workspace.plannedVersion.revision}
                         {workspace.deliveredVersion
                           ? ` · delivered rev. ${workspace.deliveredVersion.revision}`
@@ -709,7 +740,7 @@ export default function TermWorkspacePage({ termId }: Props) {
                           : ""}
                       </p>
                       {workspace.termLearningModule.notes ? (
-                        <p className="mt-2 text-sm text-slate-600">{workspace.termLearningModule.notes}</p>
+                        <p className="mt-2 text-sm text-ink-muted">{workspace.termLearningModule.notes}</p>
                       ) : null}
                     </div>
                     {term.status === "active" ? (
@@ -720,58 +751,58 @@ export default function TermWorkspacePage({ termId }: Props) {
                             current === workspace.termLearningModule.id ? null : workspace.termLearningModule.id,
                           )
                         }
-                        className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+                        className="rounded-lg border border-line-strong px-4 py-2 text-sm font-medium text-ink-soft"
                       >
                         {isEditing ? "Hide editor" : "Record delivery change"}
                       </button>
                     ) : term.status === "closed" ? (
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                      <span className="rounded-full bg-paper-inset px-3 py-1 text-xs font-medium text-ink-muted">
                         Read-only snapshot
                       </span>
                     ) : null}
                   </div>
 
                   <div className="mt-5 grid gap-5 xl:grid-cols-2">
-                    <div className="rounded-xl bg-slate-50 p-4">
-                      <p className="mb-2 text-sm font-medium text-slate-700">Planned snapshot</p>
+                    <div className="rounded border border-line bg-surface-sunken p-4">
+                      <p className="mb-2 text-sm font-medium text-ink-soft">Planned snapshot</p>
                       {workspace.plannedVersion.learningObjectives.length > 0 ? (
-                        <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">
+                        <ul className="list-disc space-y-1 pl-5 text-sm text-ink-soft">
                           {workspace.plannedVersion.learningObjectives.map((objective) => (
                             <li key={objective}>{objective}</li>
                           ))}
                         </ul>
                       ) : (
-                        <p className="text-sm text-slate-400 italic">No learning objectives recorded.</p>
+                        <p className="text-sm text-ink-faint italic">No learning objectives recorded.</p>
                       )}
                     </div>
 
-                    <div className="rounded-xl bg-slate-50 p-4">
-                      <p className="mb-2 text-sm font-medium text-slate-700">
+                    <div className="rounded border border-line bg-surface-sunken p-4">
+                      <p className="mb-2 text-sm font-medium text-ink-soft">
                         {term.status === "closed" ? "Delivered snapshot" : "Current delivery snapshot"}
                       </p>
                       {effectiveDeliveredVersion.learningObjectives.length > 0 ? (
-                        <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">
+                        <ul className="list-disc space-y-1 pl-5 text-sm text-ink-soft">
                           {effectiveDeliveredVersion.learningObjectives.map((objective) => (
                             <li key={objective}>{objective}</li>
                           ))}
                         </ul>
                       ) : (
-                        <p className="text-sm text-slate-400 italic">No learning objectives recorded.</p>
+                        <p className="text-sm text-ink-faint italic">No learning objectives recorded.</p>
                       )}
                     </div>
                   </div>
 
                   {workspace.diff.topicChanges.length > 0 ? (
-                    <div className="mt-4 rounded-xl border border-slate-200 p-4">
-                      <p className="text-sm font-medium text-slate-900">Planned vs. delivered diff</p>
+                    <div className="mt-4 rounded border border-line p-4">
+                      <p className="text-sm font-medium text-ink">Planned vs. delivered diff</p>
                       <div className="mt-2 space-y-1.5">
                         {workspace.diff.topicChanges.map((change) => (
-                          <div key={`${change.kind}-${change.topicId}`} className="rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                          <div key={`${change.kind}-${change.topicId}`} className="rounded-lg bg-surface-sunken px-3 py-2 text-sm">
                             {change.topicId === "__module_objectives__" ? (
-                              <p className="text-slate-700">Learning objectives changed during delivery.</p>
+                              <p className="text-ink-soft">Learning objectives changed during delivery.</p>
                             ) : (
-                              <p className="text-slate-700">
-                                <span className="font-medium text-slate-900">
+                              <p className="text-ink-soft">
+                                <span className="font-medium text-ink">
                                   {topicVersionsById.get(change.deliveredTopicVersionId ?? change.plannedTopicVersionId ?? "")?.title ?? "Topic"}
                                 </span>{" "}
                                 {change.kind === "added"

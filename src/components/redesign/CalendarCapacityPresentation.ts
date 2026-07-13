@@ -20,11 +20,11 @@ export function capacityBadgeClass(
 ) {
   switch (capacity) {
     case "normal":
-      return "border-slate-200 bg-slate-100 text-slate-700";
+      return "border-line bg-paper-inset text-ink-soft";
     case "reduced_engagement":
       return "border-amber-200 bg-amber-50 text-amber-800";
     case "recovery":
-      return "border-sky-200 bg-sky-50 text-sky-800";
+      return "border-accent bg-accent-tint text-accent-strong";
     case "assessment_period":
       return "border-rose-200 bg-rose-50 text-rose-800";
   }

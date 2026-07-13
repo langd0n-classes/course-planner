@@ -86,10 +86,10 @@ export default function CourseIndexPage() {
   if (loading) {
     return (
       <div className="space-y-4 animate-pulse">
-        <div className="h-32 rounded-3xl bg-slate-100" />
+        <div className="h-32 rounded-xl bg-paper-inset" />
         <div className="grid gap-5 xl:grid-cols-2">
-          <div className="h-48 rounded-3xl bg-slate-100" />
-          <div className="h-48 rounded-3xl bg-slate-100" />
+          <div className="h-48 rounded-xl bg-paper-inset" />
+          <div className="h-48 rounded-xl bg-paper-inset" />
         </div>
       </div>
     );
@@ -97,7 +97,7 @@ export default function CourseIndexPage() {
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6">
+      <div className="rounded-lg border border-rose-200 bg-rose-50 p-6">
         <p className="text-sm font-medium text-rose-800">Failed to load workspace</p>
         <p className="mt-1 text-sm text-rose-700">{error}</p>
       </div>
@@ -107,14 +107,14 @@ export default function CourseIndexPage() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+      <section className="rounded-xl border border-line bg-surface p-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-medium uppercase tracking-[0.24em] text-sky-700">Course workspace</p>
-            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
+            <p className="text-sm font-medium uppercase tracking-[0.24em] text-accent">Course workspace</p>
+            <h1 className="mt-3 font-display text-4xl font-semibold tracking-tight text-ink">
               Course-first planning
             </h1>
-            <p className="mt-2 max-w-3xl text-base text-slate-600">
+            <p className="mt-2 max-w-3xl text-base text-ink-muted">
               Start from a course to design curriculum, then move into term setup, topic placement, revision history, and delivered-term review.
             </p>
           </div>
@@ -123,7 +123,7 @@ export default function CourseIndexPage() {
             onClick={() =>
               setCreateState({ open: true, title: "", number: "", description: "", submitting: false, error: null })
             }
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+            className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-ink-hover"
           >
             New course
           </button>
@@ -132,38 +132,38 @@ export default function CourseIndexPage() {
 
       {/* Create course form */}
       {createState.open ? (
-        <section className="rounded-2xl border border-sky-200 bg-sky-50 p-6">
-          <h2 className="text-lg font-semibold text-slate-900">New course</h2>
-          <p className="mt-1 text-sm text-slate-600">
+        <section className="rounded-lg border border-accent bg-accent-tint p-6">
+          <h2 className="font-display text-lg font-semibold text-ink">New course</h2>
+          <p className="mt-1 text-sm text-ink-muted">
             Title and number can be placeholders — mark them as such and update them later.
           </p>
           <form onSubmit={handleCreateCourse} className="mt-4 grid gap-4 sm:grid-cols-2">
-            <label className="text-sm text-slate-700">
+            <label className="text-sm text-ink-soft">
               <span className="mb-1 block font-medium">Course title</span>
               <input
                 value={createState.title}
                 onChange={(e) => setCreateState({ ...createState, title: e.target.value })}
                 placeholder="Data Science Foundations (or leave blank for placeholder)"
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2"
               />
             </label>
-            <label className="text-sm text-slate-700">
+            <label className="text-sm text-ink-soft">
               <span className="mb-1 block font-medium">Course number</span>
               <input
                 value={createState.number}
                 onChange={(e) => setCreateState({ ...createState, number: e.target.value })}
                 placeholder="DS 100 (or leave blank for 1XX placeholder)"
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 font-mono"
               />
             </label>
-            <label className="col-span-full text-sm text-slate-700">
+            <label className="col-span-full text-sm text-ink-soft">
               <span className="mb-1 block font-medium">Description (optional)</span>
               <textarea
                 value={createState.description}
                 onChange={(e) => setCreateState({ ...createState, description: e.target.value })}
                 rows={2}
                 placeholder="Brief description for context"
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2"
               />
             </label>
             {createState.error ? (
@@ -173,14 +173,14 @@ export default function CourseIndexPage() {
               <button
                 type="submit"
                 disabled={createState.submitting}
-                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:bg-slate-400"
+                className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-ink-hover disabled:bg-ink-faint"
               >
                 {createState.submitting ? "Creating..." : "Create course"}
               </button>
               <button
                 type="button"
                 onClick={() => setCreateState({ open: false })}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+                className="rounded-lg border border-line-strong px-4 py-2 text-sm font-medium text-ink-soft"
               >
                 Cancel
               </button>
@@ -200,25 +200,25 @@ export default function CourseIndexPage() {
             const closedTerms = terms.filter((term) => term.status === "closed");
 
             return (
-              <article key={course.id} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <article key={course.id} className="rounded-xl border border-line bg-surface p-6">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
-                    <p className="text-sm font-medium uppercase tracking-wide text-slate-500">{course.shortId}</p>
-                    <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+                    <p className="font-mono text-xs font-medium uppercase tracking-wide text-ink-faint">{course.shortId}</p>
+                    <h2 className="mt-1 font-display text-2xl font-semibold text-ink">
                       {course.numberIsPlaceholder ? (
-                        <span className="text-slate-400">{course.number}</span>
+                        <span className="text-ink-faint">{course.number}</span>
                       ) : (
                         course.number
                       )}
                       {" · "}
                       {course.titleIsPlaceholder ? (
-                        <span className="text-slate-400 italic">{course.title}</span>
+                        <span className="text-ink-faint italic">{course.title}</span>
                       ) : (
                         course.title
                       )}
                     </h2>
                     {course.description ? (
-                      <p className="mt-1.5 max-w-2xl text-sm text-slate-600">{course.description}</p>
+                      <p className="mt-1.5 max-w-2xl text-sm text-ink-muted">{course.description}</p>
                     ) : null}
                   </div>
                   {course.numberIsPlaceholder || course.titleIsPlaceholder ? (
@@ -232,7 +232,7 @@ export default function CourseIndexPage() {
                   {institutions.map((institution) => (
                     <span
                       key={institution.id}
-                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700"
+                      className="rounded-full bg-paper-inset px-3 py-1 text-xs font-medium text-ink-soft"
                     >
                       {institution.shortName ?? institution.name}
                     </span>
@@ -240,17 +240,17 @@ export default function CourseIndexPage() {
                 </div>
 
                 <dl className="mt-4 grid gap-2 sm:grid-cols-3">
-                  <div className="rounded-xl bg-slate-50 p-3">
-                    <dt className="text-xs uppercase tracking-wide text-slate-500">Modules</dt>
-                    <dd className="mt-0.5 text-xl font-semibold text-slate-900">{learningModuleCount}</dd>
+                  <div className="rounded border border-line bg-surface-sunken p-3">
+                    <dt className="text-xs uppercase tracking-wide text-ink-faint">Modules</dt>
+                    <dd className="mt-0.5 font-mono text-xl font-semibold text-ink">{learningModuleCount}</dd>
                   </div>
-                  <div className="rounded-xl bg-slate-50 p-3">
-                    <dt className="text-xs uppercase tracking-wide text-slate-500">Topics</dt>
-                    <dd className="mt-0.5 text-xl font-semibold text-slate-900">{topicCount}</dd>
+                  <div className="rounded border border-line bg-surface-sunken p-3">
+                    <dt className="text-xs uppercase tracking-wide text-ink-faint">Topics</dt>
+                    <dd className="mt-0.5 font-mono text-xl font-semibold text-ink">{topicCount}</dd>
                   </div>
-                  <div className="rounded-xl bg-slate-50 p-3">
-                    <dt className="text-xs uppercase tracking-wide text-slate-500">Terms</dt>
-                    <dd className="mt-0.5 text-xl font-semibold text-slate-900">{terms.length}</dd>
+                  <div className="rounded border border-line bg-surface-sunken p-3">
+                    <dt className="text-xs uppercase tracking-wide text-ink-faint">Terms</dt>
+                    <dd className="mt-0.5 font-mono text-xl font-semibold text-ink">{terms.length}</dd>
                   </div>
                 </dl>
 
@@ -258,14 +258,14 @@ export default function CourseIndexPage() {
                   {activeTerms[0] ? (
                     <Link
                       href={`/terms/${activeTerms[0].id}`}
-                      className="rounded-lg bg-slate-900 px-4 py-2 font-medium text-white"
+                      className="rounded-lg bg-ink px-4 py-2 font-medium text-white hover:bg-ink-hover"
                     >
                       Open active term
                     </Link>
                   ) : null}
                   <Link
                     href={`/courses/${course.id}`}
-                    className="rounded-lg border border-slate-300 px-4 py-2 font-medium text-slate-700"
+                    className="rounded-lg border border-line-strong px-4 py-2 font-medium text-ink-soft"
                   >
                     Course workspace
                   </Link>
@@ -277,18 +277,18 @@ export default function CourseIndexPage() {
                       <Link
                         key={term.id}
                         href={`/terms/${term.id}`}
-                        className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2.5 hover:border-slate-300"
+                        className="flex items-center justify-between rounded-lg border border-line px-3 py-2.5 hover:border-line-strong"
                       >
                         <div>
-                          <p className="text-sm font-medium text-slate-900">{term.name}</p>
-                          <p className="text-xs text-slate-500">{term.code}</p>
+                          <p className="text-sm font-medium text-ink">{term.name}</p>
+                          <p className="font-mono text-xs text-ink-faint">{term.code}</p>
                         </div>
                         <LifecycleBadge status={term.status} />
                       </Link>
                     ))}
                   </div>
                 ) : (
-                  <p className="mt-4 text-sm text-slate-500">No terms created yet.</p>
+                  <p className="mt-4 text-sm text-ink-faint">No terms created yet.</p>
                 )}
               </article>
             );

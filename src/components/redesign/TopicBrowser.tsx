@@ -75,11 +75,11 @@ export default function TopicBrowser({
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.9fr)]">
       <div className="space-y-4">
         {buckets.map((bucket) => (
-          <section key={bucket.key} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <section key={bucket.key} className="rounded-lg border border-line bg-surface p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-base font-semibold text-slate-900">{bucket.label}</h2>
-                <p className="text-sm text-slate-600">
+                <h2 className="text-base font-semibold text-ink">{bucket.label}</h2>
+                <p className="text-sm text-ink-muted">
                   {bucket.isUnassigned
                     ? "Topics waiting for a learning module home."
                     : `${bucket.topics.length} topic${bucket.topics.length === 1 ? "" : "s"} in this module.`}
@@ -105,29 +105,29 @@ export default function TopicBrowser({
                       key={entry.topic.id}
                       type="button"
                       onClick={() => setSelectedTopicId(entry.topic.id)}
-                      className={`rounded-xl border px-3 py-3 text-left ${
+                      className={`rounded-lg border px-3 py-3 text-left ${
                         active
-                          ? "border-sky-300 bg-sky-50"
-                          : "border-slate-200 bg-white hover:border-slate-300"
+                          ? "border-accent bg-accent-tint"
+                          : "border-line bg-surface hover:border-line-strong"
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div>
-                          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                          <p className="font-mono text-xs font-medium uppercase tracking-wide text-ink-faint">
                             {entry.topic.stableCode}
                           </p>
-                          <p className="font-medium text-slate-900">
+                          <p className="font-medium text-ink">
                             {entry.currentVersion?.title ?? "Draft topic"}
                           </p>
                         </div>
-                        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">
+                        <span className="rounded-full bg-paper-inset px-2 py-1 text-xs text-ink-soft">
                           {entry.currentVersion?.category ?? "Uncategorized"}
                         </span>
                       </div>
-                      <p className="mt-2 text-sm text-slate-600">
+                      <p className="mt-2 text-sm text-ink-muted">
                         {entry.currentVersion?.description ?? "No description yet."}
                       </p>
-                      <p className="mt-2 text-xs text-slate-500">
+                      <p className="mt-2 text-xs text-ink-faint">
                         {entry.prerequisiteTopicIds.length} prerequisite
                         {entry.prerequisiteTopicIds.length === 1 ? "" : "s"}
                       </p>
@@ -140,24 +140,24 @@ export default function TopicBrowser({
         ))}
       </div>
 
-      <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-base font-semibold text-slate-900">Topic Details</h2>
+      <aside className="rounded-lg border border-line bg-surface p-5">
+        <h2 className="text-base font-semibold text-ink">Topic Details</h2>
         {selected ? (
           <div className="mt-4 space-y-4">
             <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{selected.topic.stableCode}</p>
-              <p className="text-lg font-semibold text-slate-900">{selected.currentVersion?.title ?? "Draft topic"}</p>
-              <p className="mt-1 text-sm text-slate-600">{selected.currentVersion?.description ?? "No description yet."}</p>
+              <p className="font-mono text-xs font-medium uppercase tracking-wide text-ink-faint">{selected.topic.stableCode}</p>
+              <p className="text-lg font-semibold text-ink">{selected.currentVersion?.title ?? "Draft topic"}</p>
+              <p className="mt-1 text-sm text-ink-muted">{selected.currentVersion?.description ?? "No description yet."}</p>
             </div>
 
-            <label className="block text-sm text-slate-700">
+            <label className="block text-sm text-ink-soft">
               <span className="mb-1 block font-medium">Learning Module</span>
               <select
                 value={selected.topic.learningModuleId ?? ""}
                 onChange={(event) =>
                   handleModuleChange(selected.topic, event.target.value || null)
                 }
-                className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                className="w-full rounded-lg border border-line-strong px-3 py-2"
                 disabled={saving}
               >
                 <option value="">Unassigned</option>
@@ -170,14 +170,14 @@ export default function TopicBrowser({
             </label>
 
             <fieldset>
-              <legend className="text-sm font-medium text-slate-700">Prerequisites</legend>
+              <legend className="text-sm font-medium text-ink-soft">Prerequisites</legend>
               <div className="mt-2 space-y-2">
                 {flatTopics
                   .filter((entry) => entry.topic.id !== selected.topic.id)
                   .map((entry) => {
                     const checked = selectedPrerequisites.includes(entry.topic.id);
                     return (
-                      <label key={entry.topic.id} className="flex items-start gap-3 rounded-lg border border-slate-200 px-3 py-2">
+                      <label key={entry.topic.id} className="flex items-start gap-3 rounded-lg border border-line px-3 py-2">
                         <input
                           type="checkbox"
                           checked={checked}
@@ -190,10 +190,10 @@ export default function TopicBrowser({
                           }
                         />
                         <span>
-                          <span className="block text-sm font-medium text-slate-900">
+                          <span className="block text-sm font-medium text-ink">
                             {entry.currentVersion?.title ?? entry.topic.stableCode}
                           </span>
-                          <span className="block text-xs text-slate-500">{entry.currentVersion?.category ?? "Uncategorized"}</span>
+                          <span className="block text-xs text-ink-faint">{entry.currentVersion?.category ?? "Uncategorized"}</span>
                         </span>
                       </label>
                     );
@@ -201,7 +201,7 @@ export default function TopicBrowser({
               </div>
             </fieldset>
 
-            <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
+            <div className="rounded-lg bg-surface-sunken p-3 text-sm text-ink-muted">
               Current chain:{" "}
               {selected.prerequisiteTopicIds.length === 0
                 ? "No prerequisites"
@@ -217,14 +217,14 @@ export default function TopicBrowser({
                 type="button"
                 onClick={handleSavePrerequisites}
                 disabled={saving}
-                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-400"
+                className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-ink-faint"
               >
                 {saving ? "Saving..." : "Save prerequisites"}
               </button>
             </div>
           </div>
         ) : (
-          <p className="mt-4 text-sm text-slate-600">Select a topic to edit its learning module and prerequisite chain.</p>
+          <p className="mt-4 text-sm text-ink-muted">Select a topic to edit its learning module and prerequisite chain.</p>
         )}
       </aside>
     </div>

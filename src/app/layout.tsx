@@ -6,7 +6,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Course Planner",
-  description: "Course planning and skills tracking for instructors",
+  description: "Course design and live-term operations for instructors",
 };
 
 export default async function RootLayout({
@@ -18,25 +18,31 @@ export default async function RootLayout({
 
   return (
     <html lang="en">
-      <body className="antialiased bg-gray-50 min-h-screen font-sans">
-        <nav className="bg-white border-b border-gray-200 px-4 py-3">
+      <body className="antialiased bg-paper min-h-screen font-sans text-ink-soft">
+        <a
+          href="#main-content"
+          className="sr-only z-50 rounded bg-ink px-4 py-2 text-sm font-medium text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+        >
+          Skip to workspace
+        </a>
+        <nav aria-label="Primary" className="border-b border-line bg-surface px-4 py-3">
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
             <div className="flex items-center gap-6">
-              <Link href="/" className="font-bold text-lg text-gray-900">
+              <Link href="/" className="font-display text-lg font-semibold tracking-tight text-ink">
                 Course Planner
               </Link>
               <div className="flex gap-4 text-sm">
                 <Link
                   href="/"
-                  className="text-gray-600 hover:text-gray-900"
+                  className="text-ink-muted hover:text-ink"
                 >
                   Courses
                 </Link>
               </div>
             </div>
             {session?.user?.email ? (
-              <div className="flex items-center gap-3 text-sm text-gray-600">
-                <span>{session.user.email}</span>
+              <div className="flex items-center gap-3 text-sm text-ink-muted">
+                <span className="hidden font-mono text-xs sm:inline">{session.user.email}</span>
                 <form
                   action={async () => {
                     "use server";
@@ -45,7 +51,7 @@ export default async function RootLayout({
                 >
                   <button
                     type="submit"
-                    className="rounded border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-50"
+                    className="rounded border border-line-strong px-3 py-1 text-ink-soft hover:bg-surface-sunken"
                   >
                     Sign out
                   </button>
@@ -55,7 +61,9 @@ export default async function RootLayout({
           </div>
         </nav>
         <Providers>
-          <main className="max-w-7xl mx-auto px-4 py-6">{children}</main>
+          <main id="main-content" tabIndex={-1} className="max-w-7xl mx-auto px-4 py-6">
+            {children}
+          </main>
         </Providers>
       </body>
     </html>

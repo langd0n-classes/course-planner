@@ -1,15 +1,63 @@
 @import "tailwindcss";
 
+/*
+ * "Instructor's ledger" direction — see docs/experiments/b2-ux-synthesis-2026-07-13.md.
+ * Warm paper surfaces, ink-toned type, one deep-teal accent, flat rectangular
+ * panels instead of bubbly SaaS-card chrome. Amber/rose/emerald keep their
+ * default Tailwind semantics (advisory/danger/current) since those hues were
+ * already legible and consistent with the design-principles gap language.
+ */
 :root {
-  --background: #f9fafb;
-  --foreground: #111827;
+  --background: #f6f1e7;
+  --foreground: #1c1a16;
+
+  --color-paper: #f6f1e7;
+  --color-paper-inset: #ede5d3;
+  --color-surface: #fffdf8;
+  --color-surface-sunken: #f1ebdc;
+
+  --color-ink: #201d19;
+  --color-ink-hover: #38332c;
+  --color-ink-soft: #45403a;
+  --color-ink-muted: #6b6355;
+  --color-ink-faint: #6f6759;
+
+  --color-line: #ddd2b4;
+  --color-line-strong: #c3b58c;
+
+  --color-accent: #234c47;
+  --color-accent-hover: #16332f;
+  --color-accent-tint: #e4ece9;
+  --color-accent-strong: #102825;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
+
+  --color-paper: var(--color-paper);
+  --color-paper-inset: var(--color-paper-inset);
+  --color-surface: var(--color-surface);
+  --color-surface-sunken: var(--color-surface-sunken);
+
+  --color-ink: var(--color-ink);
+  --color-ink-hover: var(--color-ink-hover);
+  --color-ink-soft: var(--color-ink-soft);
+  --color-ink-muted: var(--color-ink-muted);
+  --color-ink-faint: var(--color-ink-faint);
+
+  --color-line: var(--color-line);
+  --color-line-strong: var(--color-line-strong);
+
+  --color-accent: var(--color-accent);
+  --color-accent-hover: var(--color-accent-hover);
+  --color-accent-tint: var(--color-accent-tint);
+  --color-accent-strong: var(--color-accent-strong);
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
     sans-serif;
+  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia,
+    ui-serif, serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
     monospace;
 }
@@ -17,4 +65,42 @@
 body {
   background: var(--background);
   color: var(--foreground);
+  background-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 27px,
+    color-mix(in srgb, var(--color-line) 34%, transparent) 28px
+  );
+  background-size: 100% 28px;
+}
+
+::selection {
+  background: var(--color-accent-tint);
+  color: var(--color-accent-strong);
+}
+
+:where(a, button, input, select, textarea):focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--color-accent) 72%, white);
+  outline-offset: 3px;
+}
+
+:where(button, input, select, textarea):disabled {
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media print {
+  body {
+    background-image: none;
+  }
 }

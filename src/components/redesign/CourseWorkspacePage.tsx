@@ -345,15 +345,15 @@ export default function CourseWorkspacePage({ courseId }: Props) {
   if (loading) {
     return (
       <div className="space-y-4 animate-pulse">
-        <div className="h-32 rounded-3xl bg-slate-100" />
-        <div className="h-64 rounded-2xl bg-slate-100" />
+        <div className="h-32 rounded-xl bg-paper-inset" />
+        <div className="h-64 rounded-lg bg-paper-inset" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6">
+      <div className="rounded-lg border border-rose-200 bg-rose-50 p-6">
         <p className="text-sm font-medium text-rose-800">Failed to load course workspace</p>
         <p className="mt-1 text-sm text-rose-700">{error}</p>
       </div>
@@ -374,24 +374,30 @@ export default function CourseWorkspacePage({ courseId }: Props) {
 
   const needsInstitution = institutions.length === 0;
   const needsCalendar = institutions.length > 0 && calendars.length === 0;
+  const setupSteps = [
+    { label: "Institution", complete: !needsInstitution },
+    { label: "Academic calendar", complete: !needsInstitution && !needsCalendar },
+    { label: "First term", complete: terms.length > 0 },
+  ];
 
   return (
     <div className="space-y-8">
       {/* Course header */}
-      <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <Link href="/" className="text-sm font-medium text-sky-700 hover:text-sky-800">
+      <section className="rounded-xl border border-line bg-surface p-8">
+        <Link href="/" className="text-sm font-medium text-accent hover:text-accent-strong">
           ← Courses
         </Link>
         <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-medium uppercase tracking-wide text-slate-500">{course.shortId}</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-accent">Design workspace</p>
+            <p className="mt-2 font-mono text-sm font-medium uppercase tracking-wide text-ink-faint">{course.shortId}</p>
+            <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight text-ink">
               {course.number} · {course.title}
             </h1>
             {course.description ? (
-              <p className="mt-2 max-w-3xl text-base text-slate-600">{course.description}</p>
+              <p className="mt-2 max-w-3xl text-base text-ink-muted">{course.description}</p>
             ) : (
-              <p className="mt-2 text-base text-slate-400 italic">No course description.</p>
+              <p className="mt-2 text-base text-ink-faint italic">No course description.</p>
             )}
           </div>
           {course.numberIsPlaceholder ? (
@@ -400,44 +406,68 @@ export default function CourseWorkspacePage({ courseId }: Props) {
             </span>
           ) : null}
         </div>
+
+        <nav aria-label="Course workspace sections" className="mt-5 flex flex-wrap gap-2 border-t border-dashed border-line pt-4">
+          <a href="#course-terms" className="rounded border border-line bg-surface-sunken px-3 py-1.5 text-sm font-medium text-ink-soft hover:border-line-strong">
+            Terms
+          </a>
+          <a href="#course-curriculum" className="rounded border border-line bg-surface-sunken px-3 py-1.5 text-sm font-medium text-ink-soft hover:border-line-strong">
+            Curriculum
+          </a>
+          <a href="#course-topics" className="rounded border border-line bg-surface-sunken px-3 py-1.5 text-sm font-medium text-ink-soft hover:border-line-strong">
+            Topics{unassignedTopicCount > 0 ? ` · ${unassignedTopicCount} unassigned` : ""}
+          </a>
+        </nav>
+
+        <ol aria-label="Course setup progress" className="mt-4 grid gap-2 text-xs sm:grid-cols-3">
+          {setupSteps.map((step, index) => (
+            <li
+              key={step.label}
+              className={`flex items-center gap-2 border-t-2 pt-2 ${step.complete ? "border-accent text-accent-strong" : "border-line text-ink-faint"}`}
+            >
+              <span aria-hidden className="font-mono">{step.complete ? "✓" : index + 1}</span>
+              <span>{step.label}</span>
+            </li>
+          ))}
+        </ol>
         <div className="mt-4 flex flex-wrap gap-2">
           {institutions.map((institution) => (
-            <span key={institution.id} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+            <span key={institution.id} className="rounded-full bg-paper-inset px-3 py-1 text-xs font-medium text-ink-soft">
               {institution.shortName ?? institution.name}
             </span>
           ))}
           {institutions.length === 0 ? (
-            <span className="text-xs text-slate-400">No institution linked yet</span>
+            <span className="text-xs text-ink-faint">No institution linked yet</span>
           ) : null}
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="rounded-2xl bg-slate-50 px-4 py-3">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Learning modules</p>
-            <p className="mt-1 text-xl font-semibold text-slate-900">{learningModules.length}</p>
+          <div className="rounded border border-line bg-surface-sunken px-4 py-3">
+            <p className="text-xs uppercase tracking-wide text-ink-faint">Learning modules</p>
+            <p className="mt-1 font-mono text-xl font-semibold text-ink">{learningModules.length}</p>
           </div>
-          <div className={`rounded-2xl px-4 py-3 ${unassignedTopicCount > 0 ? "bg-amber-50" : "bg-slate-50"}`}>
-            <p className="text-xs uppercase tracking-wide text-slate-500">Unassigned topics</p>
-            <p className={`mt-1 text-xl font-semibold ${unassignedTopicCount > 0 ? "text-amber-800" : "text-slate-900"}`}>
+          <div className={`rounded border px-4 py-3 ${unassignedTopicCount > 0 ? "border-amber-200 bg-amber-50" : "border-line bg-surface-sunken"}`}>
+            <p className="text-xs uppercase tracking-wide text-ink-faint">Unassigned topics</p>
+            <p className={`mt-1 font-mono text-xl font-semibold ${unassignedTopicCount > 0 ? "text-amber-800" : "text-ink"}`}>
               {unassignedTopicCount}
             </p>
           </div>
-          <div className="rounded-2xl bg-slate-50 px-4 py-3">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Total topics</p>
-            <p className="mt-1 text-xl font-semibold text-slate-900">{topics.length}</p>
+          <div className="rounded border border-line bg-surface-sunken px-4 py-3">
+            <p className="text-xs uppercase tracking-wide text-ink-faint">Total topics</p>
+            <p className="mt-1 font-mono text-xl font-semibold text-ink">{topics.length}</p>
           </div>
-          <div className="rounded-2xl bg-slate-50 px-4 py-3">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Terms</p>
-            <p className="mt-1 text-xl font-semibold text-slate-900">{terms.length}</p>
+          <div className="rounded border border-line bg-surface-sunken px-4 py-3">
+            <p className="text-xs uppercase tracking-wide text-ink-faint">Terms</p>
+            <p className="mt-1 font-mono text-xl font-semibold text-ink">{terms.length}</p>
           </div>
         </div>
       </section>
 
       {/* Bootstrap: institution setup */}
       {needsInstitution ? (
-        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
-          <h2 className="text-lg font-semibold text-slate-900">Link an institution</h2>
-          <p className="mt-1 text-sm text-slate-600">
+        <section className="rounded-lg border border-amber-200 bg-amber-50 p-6">
+          <h2 className="font-display text-lg font-semibold text-ink">Link an institution</h2>
+          <p className="mt-1 text-sm text-ink-muted">
             A term requires an institution and an academic calendar. Link one to this course to unlock term creation.
           </p>
 
@@ -455,18 +485,18 @@ export default function CourseWorkspacePage({ courseId }: Props) {
                       error: null,
                     })
                   }
-                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700"
+                  className="rounded-lg border border-line-strong bg-surface px-4 py-2 text-sm font-medium text-ink-soft"
                 >
                   Link existing institution
                 </button>
               ) : (
                 <form onSubmit={handleLinkInstitution} className="mt-3 flex flex-wrap items-end gap-3">
-                  <label className="text-sm text-slate-700">
+                  <label className="text-sm text-ink-soft">
                     <span className="mb-1 block font-medium">Institution</span>
                     <select
                       value={linkInstForm.selectedId}
                       onChange={(e) => setLinkInstForm({ ...linkInstForm, selectedId: e.target.value })}
-                      className="rounded-lg border border-slate-300 bg-white px-3 py-2"
+                      className="rounded-lg border border-line-strong bg-surface px-3 py-2"
                       disabled={linkInstForm.submitting}
                     >
                       {unlinkedInstitutions.map((i) => (
@@ -480,20 +510,20 @@ export default function CourseWorkspacePage({ courseId }: Props) {
                   <button
                     type="submit"
                     disabled={linkInstForm.submitting}
-                    className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:bg-slate-400"
+                    className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white disabled:bg-ink-faint"
                   >
                     {linkInstForm.submitting ? "Linking..." : "Link"}
                   </button>
                   <button
                     type="button"
                     onClick={() => setLinkInstForm({ open: false })}
-                    className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+                    className="rounded-lg border border-line-strong px-4 py-2 text-sm font-medium text-ink-soft"
                   >
                     Cancel
                   </button>
                 </form>
               )}
-              <p className="mt-4 text-xs text-slate-500">Or create a new institution:</p>
+              <p className="mt-4 text-xs text-ink-faint">Or create a new institution:</p>
             </div>
           ) : null}
 
@@ -504,30 +534,30 @@ export default function CourseWorkspacePage({ courseId }: Props) {
               onClick={() =>
                 setInstitutionForm({ open: true, name: "", shortName: "", submitting: false, error: null })
               }
-              className={`${unlinkedInstitutions.length > 0 ? "mt-2" : "mt-5"} rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white`}
+              className={`${unlinkedInstitutions.length > 0 ? "mt-2" : "mt-5"} rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white`}
             >
               Create institution
             </button>
           ) : (
             <form onSubmit={handleCreateInstitution} className="mt-4 grid gap-4 sm:grid-cols-2">
-              <label className="text-sm text-slate-700">
+              <label className="text-sm text-ink-soft">
                 <span className="mb-1 block font-medium">Institution name</span>
                 <input
                   value={institutionForm.name}
                   onChange={(e) => setInstitutionForm({ ...institutionForm, name: e.target.value })}
                   placeholder="University of California, Berkeley"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                  className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2"
                   required
                   disabled={institutionForm.submitting}
                 />
               </label>
-              <label className="text-sm text-slate-700">
+              <label className="text-sm text-ink-soft">
                 <span className="mb-1 block font-medium">Short name (optional)</span>
                 <input
                   value={institutionForm.shortName}
                   onChange={(e) => setInstitutionForm({ ...institutionForm, shortName: e.target.value })}
                   placeholder="UC Berkeley"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                  className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2"
                   disabled={institutionForm.submitting}
                 />
               </label>
@@ -538,14 +568,14 @@ export default function CourseWorkspacePage({ courseId }: Props) {
                 <button
                   type="submit"
                   disabled={institutionForm.submitting}
-                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:bg-slate-400"
+                  className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white disabled:bg-ink-faint"
                 >
                   {institutionForm.submitting ? "Creating..." : "Create and link"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setInstitutionForm({ open: false })}
-                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+                  className="rounded-lg border border-line-strong px-4 py-2 text-sm font-medium text-ink-soft"
                 >
                   Cancel
                 </button>
@@ -557,9 +587,9 @@ export default function CourseWorkspacePage({ courseId }: Props) {
 
       {/* Bootstrap: academic calendar setup */}
       {needsCalendar ? (
-        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
-          <h2 className="text-lg font-semibold text-slate-900">Add an academic calendar</h2>
-          <p className="mt-1 text-sm text-slate-600">
+        <section className="rounded-lg border border-amber-200 bg-amber-50 p-6">
+          <h2 className="font-display text-lg font-semibold text-ink">Add an academic calendar</h2>
+          <p className="mt-1 text-sm text-ink-muted">
             Each term uses an academic calendar from its institution. Create one for{" "}
             {institutions.map((i) => i.shortName ?? i.name).join(", ")}.
           </p>
@@ -578,19 +608,19 @@ export default function CourseWorkspacePage({ courseId }: Props) {
                   error: null,
                 })
               }
-              className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+              className="mt-4 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white"
             >
               Create academic calendar
             </button>
           ) : (
             <form onSubmit={handleCreateCalendar} className="mt-4 grid gap-4 sm:grid-cols-2">
               {institutions.length > 1 ? (
-                <label className="text-sm text-slate-700">
+                <label className="text-sm text-ink-soft">
                   <span className="mb-1 block font-medium">Institution</span>
                   <select
                     value={calendarForm.institutionId}
                     onChange={(e) => setCalendarForm({ ...calendarForm, institutionId: e.target.value })}
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                    className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2"
                     disabled={calendarForm.submitting}
                   >
                     {institutions.map((i) => (
@@ -601,36 +631,36 @@ export default function CourseWorkspacePage({ courseId }: Props) {
                   </select>
                 </label>
               ) : null}
-              <label className="text-sm text-slate-700">
+              <label className="text-sm text-ink-soft">
                 <span className="mb-1 block font-medium">Calendar name</span>
                 <input
                   value={calendarForm.name}
                   onChange={(e) => setCalendarForm({ ...calendarForm, name: e.target.value })}
                   placeholder="AY 2026–27"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                  className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2"
                   required
                   disabled={calendarForm.submitting}
                 />
               </label>
-              <label className="text-sm text-slate-700">
+              <label className="text-sm text-ink-soft">
                 <span className="mb-1 block font-medium">Academic year</span>
                 <input
                   value={calendarForm.academicYear}
                   onChange={(e) => setCalendarForm({ ...calendarForm, academicYear: e.target.value })}
                   placeholder="2026-27"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                  className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 font-mono"
                   required
                   disabled={calendarForm.submitting}
                 />
               </label>
-              <label className="text-sm text-slate-700">
+              <label className="text-sm text-ink-soft">
                 <span className="mb-1 block font-medium">Source URL (optional)</span>
                 <input
                   type="url"
                   value={calendarForm.sourceUri}
                   onChange={(e) => setCalendarForm({ ...calendarForm, sourceUri: e.target.value })}
                   placeholder="https://registrar.example.edu/calendar"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                  className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2"
                   disabled={calendarForm.submitting}
                 />
               </label>
@@ -641,14 +671,14 @@ export default function CourseWorkspacePage({ courseId }: Props) {
                 <button
                   type="submit"
                   disabled={calendarForm.submitting}
-                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:bg-slate-400"
+                  className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white disabled:bg-ink-faint"
                 >
                   {calendarForm.submitting ? "Creating..." : "Create calendar"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setCalendarForm({ open: false })}
-                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+                  className="rounded-lg border border-line-strong px-4 py-2 text-sm font-medium text-ink-soft"
                 >
                   Cancel
                 </button>
@@ -659,16 +689,16 @@ export default function CourseWorkspacePage({ courseId }: Props) {
       ) : null}
 
       {/* Terms + term creation */}
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(21rem,0.95fr)]">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section id="course-terms" className="scroll-mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(21rem,0.95fr)]">
+        <div className="rounded-lg border border-line bg-surface p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">Terms</h2>
-              <p className="mt-1 text-sm text-slate-600">
+              <h2 className="font-display text-lg font-semibold text-ink">Terms</h2>
+              <p className="mt-1 text-sm text-ink-muted">
                 Each term is a dated run of this course. Terms must name an institution and shared academic calendar.
               </p>
             </div>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
+            <span className="rounded-full bg-paper-inset px-3 py-1 text-sm font-medium text-ink-soft">
               {terms.length} term{terms.length === 1 ? "" : "s"}
             </span>
           </div>
@@ -678,18 +708,18 @@ export default function CourseWorkspacePage({ courseId }: Props) {
               <Link
                 key={term.id}
                 href={`/terms/${term.id}`}
-                className="block rounded-2xl border border-slate-200 px-4 py-3 hover:border-slate-300 hover:bg-slate-50"
+                className="block rounded-lg border border-line px-4 py-3 hover:border-line-strong hover:bg-surface-sunken"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="font-medium text-slate-900">{term.name}</p>
-                    <p className="mt-0.5 text-sm text-slate-600">
+                    <p className="font-medium text-ink">{term.name}</p>
+                    <p className="mt-0.5 font-mono text-sm text-ink-muted">
                       {term.code} · {term.startDate} – {term.endDate}
                     </p>
                   </div>
                   <LifecycleBadge status={term.status} />
                 </div>
-                <p className="mt-1.5 text-xs text-slate-500">
+                <p className="mt-1.5 text-xs text-ink-faint">
                   {term.status === "closed"
                     ? "Historical term: delivered snapshot is read-only."
                     : term.status === "active"
@@ -713,11 +743,11 @@ export default function CourseWorkspacePage({ courseId }: Props) {
       </section>
 
       {/* Learning modules section */}
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section id="course-curriculum" className="scroll-mt-6 rounded-lg border border-line bg-surface p-5">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Learning modules</h2>
-            <p className="mt-1 text-sm text-slate-600">
+            <h2 className="font-display text-lg font-semibold text-ink">Learning modules</h2>
+            <p className="mt-1 text-sm text-ink-muted">
               Modules group related topics. Create modules here, then add topics and assign them.
             </p>
           </div>
@@ -735,7 +765,7 @@ export default function CourseWorkspacePage({ courseId }: Props) {
                   error: null,
                 })
               }
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+              className="rounded-lg border border-line-strong px-4 py-2 text-sm font-medium text-ink-soft"
             >
               New module
             </button>
@@ -744,47 +774,47 @@ export default function CourseWorkspacePage({ courseId }: Props) {
 
         {createLmState.open ? (
           <form onSubmit={handleCreateLm} className="mt-5 grid gap-4 sm:grid-cols-2">
-            <label className="text-sm text-slate-700">
+            <label className="text-sm text-ink-soft">
               <span className="mb-1 block font-medium">Stable code</span>
               <input
                 value={createLmState.stableCode}
                 onChange={(e) => setCreateLmState({ ...createLmState, stableCode: e.target.value })}
                 placeholder="lm-intro-ds"
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 font-mono"
                 required
                 disabled={createLmState.submitting}
               />
-              <p className="mt-1 text-xs text-slate-500">Lowercase slug used in exports and cross-references.</p>
+              <p className="mt-1 text-xs text-ink-faint">Lowercase slug used in exports and cross-references.</p>
             </label>
-            <label className="text-sm text-slate-700">
+            <label className="text-sm text-ink-soft">
               <span className="mb-1 block font-medium">Title</span>
               <input
                 value={createLmState.title}
                 onChange={(e) => setCreateLmState({ ...createLmState, title: e.target.value })}
                 placeholder="Introduction to Data Science"
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2"
                 required
                 disabled={createLmState.submitting}
               />
             </label>
-            <label className="col-span-full text-sm text-slate-700">
+            <label className="col-span-full text-sm text-ink-soft">
               <span className="mb-1 block font-medium">Description (optional)</span>
               <textarea
                 value={createLmState.description}
                 onChange={(e) => setCreateLmState({ ...createLmState, description: e.target.value })}
                 rows={2}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2"
                 disabled={createLmState.submitting}
               />
             </label>
-            <label className="col-span-full text-sm text-slate-700">
+            <label className="col-span-full text-sm text-ink-soft">
               <span className="mb-1 block font-medium">Learning objectives (one per line, optional)</span>
               <textarea
                 value={createLmState.objectives}
                 onChange={(e) => setCreateLmState({ ...createLmState, objectives: e.target.value })}
                 rows={3}
                 placeholder={"Understand the data science lifecycle\nApply Python for exploratory analysis"}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2"
                 disabled={createLmState.submitting}
               />
             </label>
@@ -795,14 +825,14 @@ export default function CourseWorkspacePage({ courseId }: Props) {
               <button
                 type="submit"
                 disabled={createLmState.submitting}
-                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:bg-slate-400"
+                className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white disabled:bg-ink-faint"
               >
                 {createLmState.submitting ? "Creating..." : "Create module"}
               </button>
               <button
                 type="button"
                 onClick={() => setCreateLmState({ open: false })}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+                className="rounded-lg border border-line-strong px-4 py-2 text-sm font-medium text-ink-soft"
               >
                 Cancel
               </button>
@@ -823,9 +853,9 @@ export default function CourseWorkspacePage({ courseId }: Props) {
             {learningModules.map((lm) => {
               const v = currentVersionsByLearningModuleId.get(lm.id);
               return (
-                <div key={lm.id} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-sm font-medium text-slate-900">{v?.title ?? lm.stableCode}</p>
-                  <p className="mt-0.5 text-xs text-slate-500">
+                <div key={lm.id} className="rounded border border-line bg-surface-sunken px-4 py-3">
+                  <p className="text-sm font-medium text-ink">{v?.title ?? lm.stableCode}</p>
+                  <p className="mt-0.5 font-mono text-xs text-ink-faint">
                     {lm.stableCode}
                     {v ? ` · rev. ${v.revision}` : " · no version yet"}
                   </p>
@@ -837,11 +867,11 @@ export default function CourseWorkspacePage({ courseId }: Props) {
       </section>
 
       {/* Topics section */}
-      <section className="space-y-4">
+      <section id="course-topics" className="scroll-mt-6 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Topic-first browser</h2>
-            <p className="mt-1 text-sm text-slate-600">
+            <h2 className="font-display text-lg font-semibold text-ink">Topic-first browser</h2>
+            <p className="mt-1 text-sm text-ink-muted">
               Topics are the planning atoms. Unassigned topics stay visible until they have a learning module home.
               Prerequisite edits stay at the course level.
             </p>
@@ -860,7 +890,7 @@ export default function CourseWorkspacePage({ courseId }: Props) {
                   error: null,
                 })
               }
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+              className="rounded-lg border border-line-strong px-4 py-2 text-sm font-medium text-ink-soft"
             >
               New topic
             </button>
@@ -868,49 +898,49 @@ export default function CourseWorkspacePage({ courseId }: Props) {
         </div>
 
         {createTopicState.open ? (
-          <form onSubmit={handleCreateTopic} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="mb-4 text-base font-semibold text-slate-900">New topic</h3>
+          <form onSubmit={handleCreateTopic} className="rounded-lg border border-line bg-surface p-5">
+            <h3 className="mb-4 font-display text-base font-semibold text-ink">New topic</h3>
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className="text-sm text-slate-700">
+              <label className="text-sm text-ink-soft">
                 <span className="mb-1 block font-medium">Stable code</span>
                 <input
                   value={createTopicState.stableCode}
                   onChange={(e) => setCreateTopicState({ ...createTopicState, stableCode: e.target.value })}
                   placeholder="topic-pandas-basics"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                  className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 font-mono"
                   required
                   disabled={createTopicState.submitting}
                 />
               </label>
-              <label className="text-sm text-slate-700">
+              <label className="text-sm text-ink-soft">
                 <span className="mb-1 block font-medium">Title</span>
                 <input
                   value={createTopicState.title}
                   onChange={(e) => setCreateTopicState({ ...createTopicState, title: e.target.value })}
                   placeholder="Pandas basics"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                  className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2"
                   required
                   disabled={createTopicState.submitting}
                 />
               </label>
-              <label className="text-sm text-slate-700">
+              <label className="text-sm text-ink-soft">
                 <span className="mb-1 block font-medium">Category (optional)</span>
                 <input
                   value={createTopicState.category}
                   onChange={(e) => setCreateTopicState({ ...createTopicState, category: e.target.value })}
                   placeholder="tools / concepts / skills"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                  className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2"
                   disabled={createTopicState.submitting}
                 />
               </label>
-              <label className="text-sm text-slate-700">
+              <label className="text-sm text-ink-soft">
                 <span className="mb-1 block font-medium">Learning module (optional)</span>
                 <select
                   value={createTopicState.learningModuleId}
                   onChange={(e) =>
                     setCreateTopicState({ ...createTopicState, learningModuleId: e.target.value as Id | "" })
                   }
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                  className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2"
                   disabled={createTopicState.submitting}
                 >
                   <option value="">— Unassigned —</option>
@@ -923,7 +953,7 @@ export default function CourseWorkspacePage({ courseId }: Props) {
                     );
                   })}
                 </select>
-                <p className="mt-1 text-xs text-slate-500">Unassigned topics remain visible in the browser until placed.</p>
+                <p className="mt-1 text-xs text-ink-faint">Unassigned topics remain visible in the browser until placed.</p>
               </label>
             </div>
             {createTopicState.error ? (
@@ -933,14 +963,14 @@ export default function CourseWorkspacePage({ courseId }: Props) {
               <button
                 type="submit"
                 disabled={createTopicState.submitting}
-                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:bg-slate-400"
+                className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white disabled:bg-ink-faint"
               >
                 {createTopicState.submitting ? "Creating..." : "Create topic"}
               </button>
               <button
                 type="button"
                 onClick={() => setCreateTopicState({ open: false })}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+                className="rounded-lg border border-line-strong px-4 py-2 text-sm font-medium text-ink-soft"
               >
                 Cancel
               </button>

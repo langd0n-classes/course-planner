@@ -9,14 +9,14 @@ export default function DeliveredEditBanner() {
   return (
     <div
       role="status"
-      className="flex items-start gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 mb-4"
+      className="flex items-start gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 mb-4"
     >
       <span aria-hidden className="mt-0.5">
-        ⚠️
+        ⚠
       </span>
       <div>
         <p className="font-medium">You are changing the delivered version of this term.</p>
-        <p className="text-amber-700">
+        <p className="text-amber-800">
           This creates a new immutable revision and updates what this term actually delivered. The planned
           curriculum for this term does not change, and next term&apos;s design is unaffected.
         </p>

@@ -187,33 +187,34 @@ export default function CreateTermPanel({ courseId, institutions, calendars, onT
     const hasBlockers = preview.conflicts.length > 0;
 
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold text-slate-900">Preview: {panelState.formData.name}</h2>
-          <p className="mt-1 text-sm text-slate-600">
+      <div className="rounded-lg border border-line bg-surface p-5">
+        <div className="mb-4 border-b border-dashed border-line pb-3">
+          <p className="text-xs font-medium uppercase tracking-[0.2em] text-accent">Preview, not yet applied</p>
+          <h2 className="mt-1 font-display text-lg font-semibold text-ink">{panelState.formData.name}</h2>
+          <p className="mt-1 text-sm text-ink-muted">
             Review the proposed calendar before creating this term.
           </p>
         </div>
 
         <dl className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl bg-slate-50 p-3">
-            <dt className="text-xs uppercase tracking-wide text-slate-500">Class days</dt>
-            <dd className="mt-1 text-2xl font-semibold text-slate-900">{classDays.length}</dd>
+          <div className="rounded border border-line bg-surface-sunken p-3">
+            <dt className="text-xs uppercase tracking-wide text-ink-faint">Class days</dt>
+            <dd className="mt-1 font-mono text-2xl font-semibold text-ink">{classDays.length}</dd>
           </div>
-          <div className="rounded-2xl bg-slate-50 p-3">
-            <dt className="text-xs uppercase tracking-wide text-slate-500">Non-class slots</dt>
-            <dd className="mt-1 text-2xl font-semibold text-slate-900">{nonClassDays.length}</dd>
+          <div className="rounded border border-line bg-surface-sunken p-3">
+            <dt className="text-xs uppercase tracking-wide text-ink-faint">Non-class slots</dt>
+            <dd className="mt-1 font-mono text-2xl font-semibold text-ink">{nonClassDays.length}</dd>
           </div>
-          <div className="rounded-2xl bg-slate-50 p-3">
-            <dt className="text-xs uppercase tracking-wide text-slate-500">Conflicts</dt>
-            <dd className="mt-1 text-2xl font-semibold text-rose-700">{preview.conflicts.length}</dd>
+          <div className="rounded border border-line bg-surface-sunken p-3">
+            <dt className="text-xs uppercase tracking-wide text-ink-faint">Conflicts</dt>
+            <dd className="mt-1 font-mono text-2xl font-semibold text-rose-700">{preview.conflicts.length}</dd>
           </div>
         </dl>
 
         {preview.warnings.length > 0 ? (
-          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
-            <p className="text-sm font-medium text-amber-800">Warnings</p>
-            <ul className="mt-2 list-disc pl-4 text-sm text-amber-700">
+          <div className="mt-4 rounded border border-amber-200 bg-amber-50 p-3">
+            <p className="text-sm font-medium text-amber-900">Warnings</p>
+            <ul className="mt-2 list-disc pl-4 text-sm text-amber-800">
               {preview.warnings.map((w, i) => (
                 <li key={i}>{w}</li>
               ))}
@@ -222,7 +223,7 @@ export default function CreateTermPanel({ courseId, institutions, calendars, onT
         ) : null}
 
         {preview.conflicts.length > 0 ? (
-          <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3">
+          <div className="mt-4 rounded border border-rose-200 bg-rose-50 p-3">
             <p className="text-sm font-medium text-rose-800">Conflicts (must resolve before applying)</p>
             <ul className="mt-2 list-disc pl-4 text-sm text-rose-700">
               {preview.conflicts.map((conflict: CalendarMaterializationConflictDto, i) => (
@@ -234,7 +235,7 @@ export default function CreateTermPanel({ courseId, institutions, calendars, onT
 
         {classDays.length > 0 ? (
           <div className="mt-4">
-            <p className="text-sm font-medium text-slate-700">Candidate class days (first 10)</p>
+            <p className="text-sm font-medium text-ink-soft">Candidate class days (first 10)</p>
             <div className="mt-2 space-y-2">
               {previewClassDays.map((slot: CalendarSlotCandidateDto) => {
                 if (!isCapacityAdvisory(slot)) {
@@ -242,10 +243,10 @@ export default function CreateTermPanel({ courseId, institutions, calendars, onT
                     <div
                       key={slot.date}
                       aria-label={`Candidate class day ${slot.date}`}
-                      className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-700"
+                      className="flex flex-wrap items-center gap-2 rounded border border-line bg-surface-sunken px-3 py-2 text-xs text-ink-soft"
                     >
-                      <span className="font-medium text-slate-900">{slot.date}</span>
-                      <span className="uppercase tracking-wide text-slate-500">
+                      <span className="font-mono font-medium text-ink">{slot.date}</span>
+                      <span className="uppercase tracking-wide text-ink-faint">
                         {formatSlotTypeLabel(slot.slotType)}
                       </span>
                       <span
@@ -259,11 +260,11 @@ export default function CreateTermPanel({ courseId, institutions, calendars, onT
                 }
 
                 return (
-                  <article key={slot.date} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <article key={slot.date} className="rounded-lg border border-line bg-surface-sunken p-3">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-medium text-slate-900">{slot.date}</p>
-                        <p className="mt-1 text-xs uppercase tracking-wide text-slate-500">
+                        <p className="font-mono text-sm font-medium text-ink">{slot.date}</p>
+                        <p className="mt-1 text-xs uppercase tracking-wide text-ink-faint">
                           {formatSlotTypeLabel(slot.slotType)}
                         </p>
                       </div>
@@ -277,24 +278,24 @@ export default function CreateTermPanel({ courseId, institutions, calendars, onT
 
                     <div className="mt-3 space-y-2">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700">
+                        <span className="rounded-full border border-line bg-surface px-2 py-1 text-xs font-medium text-ink-soft">
                           Capacity source: {formatCapacitySourceLabel(slot.capacitySource)}
                         </span>
                         {slot.source ? (
-                          <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700">
+                          <span className="rounded-full border border-line bg-surface px-2 py-1 text-xs font-medium text-ink-soft">
                             Schedule source: {slot.source}
                           </span>
                         ) : null}
                       </div>
 
-                      {slot.capacityReason ? <p className="text-sm text-slate-600">{slot.capacityReason}</p> : null}
+                      {slot.capacityReason ? <p className="text-sm text-ink-muted">{slot.capacityReason}</p> : null}
                     </div>
 
                     {slot.provenance.length > 0 ? (
-                      <ul className="mt-2 space-y-1 text-xs text-slate-500">
+                      <ul className="mt-2 space-y-1 text-xs text-ink-faint">
                         {slot.provenance.map((entry, index) => (
                           <li key={`${entry.source}-${entry.referenceId ?? "none"}-${index}`}>
-                            <span className="font-medium text-slate-600">{formatProvenanceLabel(entry.source)}:</span>{" "}
+                            <span className="font-medium text-ink-muted">{formatProvenanceLabel(entry.source)}:</span>{" "}
                             {entry.detail}
                           </li>
                         ))}
@@ -304,7 +305,7 @@ export default function CreateTermPanel({ courseId, institutions, calendars, onT
                 );
               })}
               {classDays.length > 10 ? (
-                <span className="inline-flex rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-600">
+                <span className="inline-flex rounded-lg bg-paper-inset px-2 py-1 text-xs text-ink-muted">
                   +{classDays.length - 10} more
                 </span>
               ) : null}
@@ -314,8 +315,8 @@ export default function CreateTermPanel({ courseId, institutions, calendars, onT
 
         {capacityAdvisories.length > 0 ? (
           <div className="mt-4">
-            <p className="text-sm font-medium text-slate-700">Capacity advisories</p>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="text-sm font-medium text-ink-soft">Capacity advisories</p>
+            <p className="mt-1 text-xs text-ink-faint">
               {additionalCapacityAdvisories.length > 0
                 ? `${additionalCapacityAdvisories.length} ${
                     additionalCapacityAdvisories.length === 1 ? "advisory" : "advisories"
@@ -325,11 +326,11 @@ export default function CreateTermPanel({ courseId, institutions, calendars, onT
             {additionalCapacityAdvisories.length > 0 ? (
               <div className="mt-2 space-y-2">
                 {additionalCapacityAdvisories.map((slot) => (
-                  <article key={`advisory-${slot.date}`} className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                  <article key={`advisory-${slot.date}`} className="rounded-lg border border-amber-200 bg-amber-50 p-3">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-medium text-slate-900">{slot.date}</p>
-                        <p className="mt-1 text-xs uppercase tracking-wide text-slate-500">
+                        <p className="font-mono text-sm font-medium text-ink">{slot.date}</p>
+                        <p className="mt-1 text-xs uppercase tracking-wide text-ink-faint">
                           {formatSlotTypeLabel(slot.slotType)}
                         </p>
                       </div>
@@ -343,24 +344,24 @@ export default function CreateTermPanel({ courseId, institutions, calendars, onT
 
                     <div className="mt-3 space-y-2">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700">
+                        <span className="rounded-full border border-line bg-surface px-2 py-1 text-xs font-medium text-ink-soft">
                           Capacity source: {formatCapacitySourceLabel(slot.capacitySource)}
                         </span>
                         {slot.source ? (
-                          <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700">
+                          <span className="rounded-full border border-line bg-surface px-2 py-1 text-xs font-medium text-ink-soft">
                             Schedule source: {slot.source}
                           </span>
                         ) : null}
                       </div>
 
-                      {slot.capacityReason ? <p className="text-sm text-slate-600">{slot.capacityReason}</p> : null}
+                      {slot.capacityReason ? <p className="text-sm text-ink-muted">{slot.capacityReason}</p> : null}
                     </div>
 
                     {slot.provenance.length > 0 ? (
-                      <ul className="mt-2 space-y-1 text-xs text-slate-500">
+                      <ul className="mt-2 space-y-1 text-xs text-ink-faint">
                         {slot.provenance.map((entry, index) => (
                           <li key={`${entry.source}-${entry.referenceId ?? "none"}-${index}`}>
-                            <span className="font-medium text-slate-600">{formatProvenanceLabel(entry.source)}:</span>{" "}
+                            <span className="font-medium text-ink-muted">{formatProvenanceLabel(entry.source)}:</span>{" "}
                             {entry.detail}
                           </li>
                         ))}
@@ -379,7 +380,7 @@ export default function CreateTermPanel({ courseId, institutions, calendars, onT
           <button
             type="button"
             onClick={handleBackToForm}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+            className="rounded-lg border border-line-strong px-4 py-2 text-sm font-medium text-ink-soft"
           >
             Back
           </button>
@@ -387,7 +388,7 @@ export default function CreateTermPanel({ courseId, institutions, calendars, onT
             type="button"
             onClick={handleApply}
             disabled={hasBlockers || applying}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-400"
+            className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-ink-hover disabled:cursor-not-allowed disabled:bg-ink-faint"
           >
             {applying ? "Creating..." : "Confirm and create term"}
           </button>
@@ -399,22 +400,22 @@ export default function CreateTermPanel({ courseId, institutions, calendars, onT
   const { submitting, error } = panelState;
 
   return (
-    <form onSubmit={handlePreview} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <form onSubmit={handlePreview} className="rounded-lg border border-line bg-surface p-5">
       <div className="mb-4">
-        <h2 className="text-lg font-semibold text-slate-900">Create Term</h2>
-        <p className="mt-1 text-sm text-slate-600">
+        <h2 className="font-display text-lg font-semibold text-ink">Create Term</h2>
+        <p className="mt-1 text-sm text-ink-muted">
           Choose the institution and academic calendar first so the term starts with the right container.
         </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <label className="text-sm text-slate-700">
+        <label className="text-sm text-ink-soft">
           <span className="mb-1 block font-medium">Institution</span>
           <select
             aria-label="Institution"
             value={institutionId}
             onChange={(event) => setInstitutionId(event.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2"
+            className="w-full rounded-lg border border-line-strong px-3 py-2"
             disabled={submitting}
           >
             {institutions.map((institution) => (
@@ -425,13 +426,13 @@ export default function CreateTermPanel({ courseId, institutions, calendars, onT
           </select>
         </label>
 
-        <label className="text-sm text-slate-700">
+        <label className="text-sm text-ink-soft">
           <span className="mb-1 block font-medium">Academic Calendar</span>
           <select
             aria-label="Academic Calendar"
             value={academicCalendarId}
             onChange={(event) => setAcademicCalendarId(event.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2"
+            className="w-full rounded-lg border border-line-strong px-3 py-2"
             disabled={formDisabled}
           >
             {visibleCalendars.map((calendar) => (
@@ -442,58 +443,58 @@ export default function CreateTermPanel({ courseId, institutions, calendars, onT
           </select>
         </label>
 
-        <label className="text-sm text-slate-700">
+        <label className="text-sm text-ink-soft">
           <span className="mb-1 block font-medium">Term Code</span>
           <input
             aria-label="Term Code"
             value={code}
             onChange={(event) => setCode(event.target.value)}
             placeholder="SP27"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2"
+            className="w-full rounded-lg border border-line-strong px-3 py-2 font-mono"
             required
           />
         </label>
 
-        <label className="text-sm text-slate-700">
+        <label className="text-sm text-ink-soft">
           <span className="mb-1 block font-medium">Display Name</span>
           <input
             aria-label="Display Name"
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Spring 2027"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2"
+            className="w-full rounded-lg border border-line-strong px-3 py-2"
             required
           />
         </label>
 
-        <label className="text-sm text-slate-700">
+        <label className="text-sm text-ink-soft">
           <span className="mb-1 block font-medium">Start Date</span>
           <input
             aria-label="Start Date"
             type="date"
             value={startDate}
             onChange={(event) => setStartDate(event.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2"
+            className="w-full rounded-lg border border-line-strong px-3 py-2 font-mono"
             required
           />
         </label>
 
-        <label className="text-sm text-slate-700">
+        <label className="text-sm text-ink-soft">
           <span className="mb-1 block font-medium">End Date</span>
           <input
             aria-label="End Date"
             type="date"
             value={endDate}
             onChange={(event) => setEndDate(event.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2"
+            className="w-full rounded-lg border border-line-strong px-3 py-2 font-mono"
             required
           />
         </label>
       </div>
 
       <fieldset className="mt-4">
-        <legend className="text-sm font-medium text-slate-700">Meeting Pattern</legend>
-        <p className="mt-1 text-xs text-slate-500">Select the weekdays when lecture sessions meet.</p>
+        <legend className="text-sm font-medium text-ink-soft">Meeting Pattern</legend>
+        <p className="mt-1 text-xs text-ink-faint">Select the weekdays when lecture sessions meet.</p>
         <div className="mt-2 flex flex-wrap gap-2">
           {WEEKDAYS.map((day) => {
             const checked = selectedDays.includes(day);
@@ -502,8 +503,8 @@ export default function CreateTermPanel({ courseId, institutions, calendars, onT
                 key={day}
                 className={`cursor-pointer rounded-full border px-3 py-1.5 text-sm ${
                   checked
-                    ? "border-sky-300 bg-sky-50 text-sky-800"
-                    : "border-slate-300 bg-white text-slate-700"
+                    ? "border-accent bg-accent-tint text-accent-strong"
+                    : "border-line-strong bg-surface text-ink-soft"
                 }`}
               >
                 <input
@@ -520,7 +521,7 @@ export default function CreateTermPanel({ courseId, institutions, calendars, onT
       </fieldset>
 
       {visibleCalendars.length === 0 ? (
-        <p className="mt-4 text-sm text-amber-700">No academic calendars are available for that institution yet.</p>
+        <p className="mt-4 text-sm text-amber-800">No academic calendars are available for that institution yet.</p>
       ) : null}
       {error ? <p className="mt-3 text-sm text-rose-700">{error}</p> : null}
 
@@ -528,7 +529,7 @@ export default function CreateTermPanel({ courseId, institutions, calendars, onT
         <button
           type="submit"
           disabled={formDisabled}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-400"
+          className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-ink-hover disabled:cursor-not-allowed disabled:bg-ink-faint"
         >
           {submitting ? "Previewing..." : "Preview term"}
         </button>

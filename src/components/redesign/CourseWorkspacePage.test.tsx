@@ -212,6 +212,9 @@ describe("CourseWorkspacePage", () => {
 
     render(<CourseWorkspacePage courseId="course-1" />);
 
+    await screen.findByText("Design workspace");
+    expect(screen.getByRole("navigation", { name: "Course workspace sections" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Course setup progress")).toBeInTheDocument();
     await screen.findByText("Link an institution");
     fireEvent.click(screen.getByRole("button", { name: "Create institution" }));
     fireEvent.change(screen.getByLabelText("Institution name"), {

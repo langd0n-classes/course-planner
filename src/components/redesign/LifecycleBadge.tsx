@@ -3,9 +3,9 @@
 import type { TermStatus } from "@/lib/redesign-contract";
 
 const STYLES: Record<TermStatus, string> = {
-  planned: "bg-gray-100 text-gray-600",
-  active: "bg-green-100 text-green-700",
-  closed: "bg-slate-200 text-slate-600",
+  planned: "bg-paper-inset text-ink-muted",
+  active: "bg-accent-tint text-accent-strong",
+  closed: "bg-line text-ink-soft",
 };
 
 const LABELS: Record<TermStatus, string> = {
@@ -16,7 +16,12 @@ const LABELS: Record<TermStatus, string> = {
 
 export default function LifecycleBadge({ status }: { status: TermStatus }) {
   return (
-    <span className={`inline-block text-xs px-2 py-0.5 rounded font-medium ${STYLES[status]}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 font-mono text-xs font-medium uppercase tracking-wide ${STYLES[status]}`}
+    >
+      <span aria-hidden className="text-[0.6rem]">
+        {status === "active" ? "●" : status === "closed" ? "■" : "○"}
+      </span>
       {LABELS[status]}
     </span>
   );
