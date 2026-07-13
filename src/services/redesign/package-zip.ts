@@ -4,7 +4,9 @@ const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
 const MAX_ENTRY_COUNT = 256;
+const MAX_ENTRY_UNCOMPRESSED_BYTES = 4 * 1024 * 1024;
 const MAX_TOTAL_UNCOMPRESSED_BYTES = 10 * 1024 * 1024;
+const MAX_ENTRY_NAME_LENGTH = 240;
 
 export class ZipFormatError extends Error {
   constructor(message: string) {
@@ -116,12 +118,18 @@ export function readZip(bytes: Uint8Array) {
       bytes.subarray(nameStart, nameStart + nameLength),
     );
     assertSafeEntryName(name);
+    if (uncompressedSize > MAX_ENTRY_UNCOMPRESSED_BYTES) {
+      throw new ZipFormatError(`ZIP entry exceeds per-entry size limit: ${name}`);
+    }
 
     totalBytes += uncompressedSize;
     if (totalBytes > MAX_TOTAL_UNCOMPRESSED_BYTES) {
       throw new ZipFormatError("ZIP exceeds total uncompressed size limit");
     }
 
+    if (localHeaderOffset + 30 > bytes.length) {
+      throw new ZipFormatError("ZIP local header points outside the archive");
+    }
     const localHeader = new DataView(bytes.buffer, bytes.byteOffset + localHeaderOffset, 30);
     if (localHeader.getUint32(0, true) !== 0x04034b50) {
       throw new ZipFormatError("Invalid local file header");
@@ -129,6 +137,9 @@ export function readZip(bytes: Uint8Array) {
     const localNameLength = localHeader.getUint16(26, true);
     const localExtraLength = localHeader.getUint16(28, true);
     const payloadOffset = localHeaderOffset + 30 + localNameLength + localExtraLength;
+    if (payloadOffset + compressedSize > bytes.length) {
+      throw new ZipFormatError(`ZIP entry payload points outside the archive: ${name}`);
+    }
     const payload = bytes.subarray(payloadOffset, payloadOffset + compressedSize);
 
     let entryBytes: Uint8Array;
@@ -194,6 +205,9 @@ function findEndOfCentralDirectory(bytes: Uint8Array) {
 
 function assertSafeEntryName(name: string) {
   if (name.length === 0) throw new ZipFormatError("ZIP entry name must not be empty");
+  if (name.length > MAX_ENTRY_NAME_LENGTH) {
+    throw new ZipFormatError(`ZIP entry name exceeds length limit: ${name}`);
+  }
   if (name.startsWith("/") || name.startsWith("\\") || name.includes("\\")) {
     throw new ZipFormatError(`Unsafe ZIP entry path: ${name}`);
   }

@@ -84,6 +84,19 @@ async function main() {
     include: { events: true },
   });
 
+  await db.instructorCalendarOverride.create({
+    data: {
+      instructorId: instructor.id,
+      academicCalendarId: academicCalendar.id,
+      action: "add",
+      eventType: "holiday",
+      startsOn: new Date("2026-03-05"),
+      endsOn: new Date("2026-03-05"),
+      label: "Department symposium",
+      reason: "Generic seeded instructor override example.",
+    },
+  });
+
   const serial = await db.instructor.update({
     where: { id: instructor.id },
     data: { nextCourseSerial: { increment: 1 } },
@@ -230,47 +243,62 @@ async function main() {
       endDate: new Date("2026-05-08"),
       status: "active",
       meetingPattern: {
-        days: ["tuesday", "thursday"],
-        lectureTime: "14:00-15:15",
-      },
-      calendarSlots: {
-        create: [
+        roles: [
           {
-            date: new Date("2026-01-20"),
-            slotType: "class_day",
-            label: "First class",
-            academicCalendarEventId: academicCalendar.events[0].id,
-            source: "seed",
-            instructionalCapacity: "normal",
-            capacitySource: "baseline",
-          },
-          {
-            date: new Date("2026-02-12"),
-            slotType: "class_day",
-            label: "Class before Presidents' Day weekend",
-            source: "seed",
-            instructionalCapacity: "reduced_engagement",
-            capacitySource: "heuristic",
-            capacityReason: "Long weekend before the holiday reduces attendance.",
-          },
-          {
-            date: new Date("2026-02-16"),
-            slotType: "holiday",
-            label: "Presidents' Day",
-            academicCalendarEventId: academicCalendar.events[1].id,
-            source: "seed",
-          },
-          {
-            date: new Date("2026-01-22"),
-            slotType: "class_day",
-            label: "Recovery day",
-            source: "seed",
-            instructionalCapacity: "recovery",
-            capacitySource: "instructor_override",
-            capacityReason: "Instructor flagged this session to recover lost time.",
+            roleKey: "lecture",
+            label: "Lecture",
+            sessionType: "lecture",
+            days: ["tuesday", "thursday"],
           },
         ],
       },
+    },
+  });
+
+  const firstClassSlot = await db.calendarSlot.create({
+    data: {
+      termId: term.id,
+      date: new Date("2026-01-20"),
+      slotType: "class_day",
+      label: "First class",
+      academicCalendarEventId: academicCalendar.events[0].id,
+      source: "meeting_roles:lecture",
+      instructionalCapacity: "normal",
+      capacitySource: "baseline",
+    },
+  });
+  const recoverySlot = await db.calendarSlot.create({
+    data: {
+      termId: term.id,
+      date: new Date("2026-01-22"),
+      slotType: "class_day",
+      label: "Recovery day",
+      source: "meeting_roles:lecture",
+      instructionalCapacity: "recovery",
+      capacitySource: "instructor_override",
+      capacityReason: "Instructor flagged this session to recover lost time.",
+    },
+  });
+  await db.calendarSlot.create({
+    data: {
+      termId: term.id,
+      date: new Date("2026-02-12"),
+      slotType: "class_day",
+      label: "Class before Presidents' Day weekend",
+      source: "meeting_roles:lecture",
+      instructionalCapacity: "reduced_engagement",
+      capacitySource: "heuristic",
+      capacityReason: "Long weekend before the holiday reduces attendance.",
+    },
+  });
+  await db.calendarSlot.create({
+    data: {
+      termId: term.id,
+      date: new Date("2026-02-16"),
+      slotType: "holiday",
+      label: "Presidents' Day",
+      academicCalendarEventId: academicCalendar.events[1].id,
+      source: "academic_calendar_event",
     },
   });
 
@@ -290,6 +318,7 @@ async function main() {
     data: {
       termId: term.id,
       termLearningModuleId: termLearningModule.id,
+      calendarSlotId: firstClassSlot.id,
       sequence: 1,
       sessionType: "lecture",
       code: "lec-01",
@@ -309,12 +338,28 @@ async function main() {
     data: {
       termId: term.id,
       termLearningModuleId: termLearningModule.id,
+      calendarSlotId: recoverySlot.id,
       sequence: 2,
       sessionType: "lecture",
       code: "lec-02",
       title: "Recovery: Probability Foundations continued",
       date: new Date("2026-01-22"),
       instructionalMode: "recovery",
+    },
+  });
+
+  await db.session.create({
+    data: {
+      termId: term.id,
+      termLearningModuleId: termLearningModule.id,
+      sequence: 3,
+      sessionType: "lecture",
+      code: "lec-03",
+      title: "Explicit override example",
+      date: new Date("2026-01-23"),
+      scheduleOverrideLabel: "Friday make-up workshop",
+      instructionalMode: "other",
+      notes: "Seeded explicit override evidence example.",
     },
   });
 

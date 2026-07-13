@@ -99,6 +99,9 @@ describe("redesign service invariants", () => {
       artifact: {
         create: async ({ data }: any) => data,
       },
+      topicVersion: {
+        findUnique: async () => ({ id: "topic-version-1" }),
+      },
     });
 
     await expect(
@@ -117,6 +120,9 @@ describe("redesign service invariants", () => {
     const db = createTransactionalDb({
       artifact: {
         create: async ({ data }: any) => data,
+      },
+      topicVersion: {
+        findUnique: async () => ({ id: "topic-version-1" }),
       },
     });
 
@@ -310,18 +316,31 @@ describe("term ownership invariants", () => {
           institutions: [],
         }),
       },
+      instructorInstitution: {
+        findUnique: async () => ({ status: "active" }),
+      },
+      courseInstitution: {
+        findUnique: async () => null,
+      },
+      academicCalendar: {
+        findUnique: async () => ({ id: "calendar-1", institutionId: "institution-1" }),
+      },
     });
 
     await expect(
       createTerm(db, {
         courseId: "course-1",
+        institutionId: "institution-1",
         academicCalendarId: "calendar-1",
         code: "S26",
         name: "Spring 2026",
         startDate: new Date("2026-01-20"),
         endDate: new Date("2026-05-08"),
+        meetingPattern: {
+          roles: [{ roleKey: "lecture", label: "Lecture", sessionType: "lecture", days: ["tuesday"] }],
+        },
       }),
-    ).rejects.toThrow("explicit Institution");
+    ).rejects.toThrow("Term Institution must be valid for the Course");
   });
 
   it("requires the Term Academic Calendar to belong to the selected Institution", async () => {
@@ -353,8 +372,78 @@ describe("term ownership invariants", () => {
         name: "Spring 2026",
         startDate: new Date("2026-01-20"),
         endDate: new Date("2026-05-08"),
+        meetingPattern: {
+          roles: [{ roleKey: "lecture", label: "Lecture", sessionType: "lecture", days: ["tuesday"] }],
+        },
       }),
     ).rejects.toThrow("Academic Calendar must belong");
+  });
+
+  it("previews calendar slot materialization before apply", async () => {
+    const db = createTransactionalDb({
+      course: {
+        findUnique: async () => ({
+          id: "course-1",
+          instructorId: "instructor-1",
+          institutions: [{ institutionId: "institution-1" }],
+        }),
+      },
+      instructorInstitution: {
+        findUnique: async () => ({ status: "active" }),
+      },
+      courseInstitution: {
+        findUnique: async () => ({ courseId: "course-1", institutionId: "institution-1" }),
+      },
+      academicCalendar: {
+        findUnique: async () => ({ id: "calendar-1", institutionId: "institution-1" }),
+      },
+      academicCalendarEvent: {
+        findMany: async ({ where }: any) => {
+          if (where.eventType?.in) {
+            return [
+              { id: "event-start", eventType: "term_start", startsOn: new Date("2026-01-20"), endsOn: new Date("2026-01-20"), label: "Start" },
+              { id: "event-end", eventType: "term_end", startsOn: new Date("2026-05-08"), endsOn: new Date("2026-05-08"), label: "End" },
+            ];
+          }
+          return [
+            { id: "event-holiday", eventType: "holiday", startsOn: new Date("2026-02-16"), endsOn: new Date("2026-02-16"), label: "Holiday" },
+          ];
+        },
+      },
+      instructorCalendarOverride: {
+        findMany: async () => [
+          {
+            id: "override-1",
+            action: "add",
+            eventType: "holiday",
+            startsOn: new Date("2026-03-05"),
+            endsOn: new Date("2026-03-05"),
+            label: "Symposium",
+            reason: "Department symposium",
+            academicCalendarEventId: null,
+          },
+        ],
+      },
+    });
+
+    const preview = await import("./term-service").then(({ previewTermCreation }) =>
+      previewTermCreation(db, {
+        courseId: "course-1",
+        institutionId: "institution-1",
+        academicCalendarId: "calendar-1",
+        code: "S26",
+        name: "Spring 2026",
+        startDate: new Date("2026-01-20"),
+        endDate: new Date("2026-03-10"),
+        meetingPattern: {
+          roles: [{ roleKey: "lecture", label: "Lecture", sessionType: "lecture", days: ["tuesday", "thursday"] }],
+        },
+      }),
+    );
+
+    expect(preview.kind).toBe("preview");
+    expect(preview.calendarSlotCandidates.some((slot) => slot.slotType === "holiday")).toBe(true);
+    expect(preview.calendarSlotCandidates.some((slot) => slot.slotType === "class_day")).toBe(true);
   });
 });
 
@@ -569,11 +658,16 @@ describe("term clone preview", () => {
         findUnique: async () => ({
           id: "term-1",
           courseId: "course-1",
+          course: { instructorId: "instructor-1" },
+          meetingPattern: {
+            roles: [{ roleKey: "lecture", label: "Lecture", sessionType: "lecture", days: ["monday", "wednesday"] }],
+          },
           learningModules: [{ id: "tlm-1" }],
           sessions: [
             {
               id: "session-1",
               date: new Date("2026-01-12"),
+              sessionType: "lecture",
               sequence: 1,
               coverages: [],
               priorArt: [],
@@ -581,6 +675,7 @@ describe("term clone preview", () => {
             {
               id: "session-2",
               date: new Date("2026-01-14"),
+              sessionType: "lecture",
               sequence: 2,
               coverages: [],
               priorArt: [],
@@ -602,6 +697,9 @@ describe("term clone preview", () => {
       academicCalendarEvent: {
         findMany: async () => [],
       },
+      instructorCalendarOverride: {
+        findMany: async () => [],
+      },
     });
 
     const preview = await previewTermClone(db, {
@@ -612,11 +710,13 @@ describe("term clone preview", () => {
       academicCalendarId: "calendar-1",
       startDate: new Date("2026-09-01"),
       endDate: new Date("2026-09-02"),
-      meetingPattern: { days: ["tuesday"] },
+      meetingPattern: {
+        roles: [{ roleKey: "lecture", label: "Lecture", sessionType: "lecture", days: ["tuesday"] }],
+      },
     });
 
     expect(preview.kind).toBe("preview");
     expect(preview.unresolvedDates).toHaveLength(1);
-    expect(preview.warnings).toContain("Target Term has fewer class meetings than the source Term");
+    expect(preview.warnings).toContain("Target Term has fewer lecture meetings than the source Term");
   });
 });

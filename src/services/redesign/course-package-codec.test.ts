@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   CoursePackageCodec,
+  PackagePayloadUnavailableError,
   type CoursePackageGraph,
 } from "./course-package-codec";
-import { createZip, encodeText } from "./package-zip";
+import { createZip, encodeText, readZip } from "./package-zip";
 import { SampleSyllabusImportService } from "./syllabus-import-service";
 
 const codec = new CoursePackageCodec();
@@ -155,12 +156,21 @@ const sampleGraph: CoursePackageGraph = {
   ],
 };
 
+const payloadBytes = encodeText("probability-slides-pdf");
+const payloadResolver = {
+  resolvePayload: async () => ({
+    kind: "resolved" as const,
+    bytes: payloadBytes,
+  }),
+};
+
 describe("CoursePackageCodec", () => {
   it("round-trips a lossless Course Planner package without data loss", async () => {
     const exported = await codec.exportPackage({
       profile: "course-planner-lossless",
       scope: { kind: "course", courseId: "course-1", termId: "term-1" },
       graph: sampleGraph,
+      payloadResolver,
       packageObjectId: "pkg-1",
       exportedAt: "2026-07-12T18:30:00.000Z",
     });
@@ -173,14 +183,89 @@ describe("CoursePackageCodec", () => {
     expect(preview).toMatchObject({
       sourceFormat: "course-planner-lossless",
       isLossless: true,
+      losslessApplyAllowed: true,
       packageObjectId: "pkg-1",
       warnings: [],
       unsupportedResources: [],
+      unresolvedPayloads: [],
     });
     expect(preview.idempotencyKey).toContain("pkg-1:");
     expect(preview.graph).toEqual(sampleGraph);
     expect(preview.graph?.artifacts[0]?.generatorKey).toBe("deck-renderer");
     expect(preview.graph?.artifacts[0]?.metadata).toEqual({ template: "default" });
+    expect(preview.payloads).toHaveLength(1);
+    expect(preview.payloads?.[0]?.artifactId).toBe("artifact-1");
+  });
+
+  it("restores verified lossless payload bytes through the bounded resolver interface", async () => {
+    const exported = await codec.exportPackage({
+      profile: "course-planner-lossless",
+      scope: { kind: "course", courseId: "course-1", termId: "term-1" },
+      graph: sampleGraph,
+      payloadResolver,
+      packageObjectId: "pkg-restore",
+      exportedAt: "2026-07-12T18:30:00.000Z",
+    });
+
+    const restored = await codec.restorePayloads(exported.bytes, {
+      ...payloadResolver,
+      restorePayload: async (payload) => ({
+        artifactId: payload.artifactId,
+        restoredUri: `s3://restored/${payload.artifactId}`,
+      }),
+    });
+
+    expect(restored.restoredPayloads).toEqual([
+      {
+        artifactId: "artifact-1",
+        restoredUri: "s3://restored/artifact-1",
+      },
+    ]);
+  });
+
+  it("discloses unresolved payloads and refuses lossless apply when payload bytes are missing from a package", async () => {
+    const exported = await codec.exportPackage({
+      profile: "course-planner-lossless",
+      scope: { kind: "course", courseId: "course-1", termId: "term-1" },
+      graph: sampleGraph,
+      payloadResolver,
+      packageObjectId: "pkg-missing",
+      exportedAt: "2026-07-12T18:30:00.000Z",
+    });
+
+    const filtered = createZip(
+      readZip(exported.bytes).filter(
+        (entry) => !entry.name.startsWith("course-planner/payloads/artifact-1/"),
+      ),
+    );
+
+    const preview = await codec.importPackage(filtered, { mode: "preview-only" });
+
+    expect(preview.isLossless).toBe(false);
+    expect(preview.losslessApplyAllowed).toBe(false);
+    expect(preview.unresolvedPayloads).toEqual([
+      {
+        artifactId: "artifact-1",
+        title: "Probability slides",
+        reason: expect.stringContaining("Payload bytes are missing"),
+      },
+    ]);
+  });
+
+  it("refuses to export a lossless package when uploaded/generated payload bytes are unavailable", async () => {
+    await expect(
+      codec.exportPackage({
+        profile: "course-planner-lossless",
+        scope: { kind: "course", courseId: "course-1", termId: "term-1" },
+        graph: sampleGraph,
+        payloadResolver: {
+          resolvePayload: async () => ({
+            kind: "unresolved" as const,
+            reason: "Object storage no longer has that generated file",
+          }),
+        },
+      }),
+    ).rejects.toThrow(PackagePayloadUnavailableError);
   });
 
   it("imports a Common Cartridge subset as a mapping preview and reports unsupported resources", async () => {
@@ -239,8 +324,10 @@ describe("CoursePackageCodec", () => {
     expect(preview).toMatchObject({
       sourceFormat: "common-cartridge",
       isLossless: false,
+      losslessApplyAllowed: false,
       packageObjectId: null,
       revisionHash: null,
+      unresolvedPayloads: [],
     });
     expect(preview.commonCartridge?.title).toBe("Imported Probability Unit");
     expect(preview.commonCartridge?.learningModules).toEqual([
@@ -291,6 +378,17 @@ describe("CoursePackageCodec", () => {
 
     await expect(codec.importPackage(tampered, { mode: "preview-only" })).rejects.toThrow(
       "Unsafe ZIP entry path",
+    );
+  });
+
+  it("rejects oversized ZIP entries before inspecting package contents", async () => {
+    const bytes = createZip([
+      { name: "imsmanifest.xml", bytes: encodeText("<manifest />") },
+      { name: "course-planner/huge.bin", bytes: new Uint8Array(4 * 1024 * 1024 + 1) },
+    ]);
+
+    await expect(codec.importPackage(bytes, { mode: "preview-only" })).rejects.toThrow(
+      "ZIP entry exceeds per-entry size limit",
     );
   });
 });

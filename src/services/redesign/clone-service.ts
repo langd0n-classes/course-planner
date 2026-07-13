@@ -1,14 +1,15 @@
 import { DomainInvariantError } from "./errors";
+import {
+  type MeetingRolePattern,
+  normalizeMeetingRolePatterns,
+  previewCalendarMaterialization,
+  resolveSessionMeetingRole,
+} from "./calendar-materialization-service";
 import type { RedesignDb, RedesignTx } from "./types";
 
-const DAY_INDEX: Record<string, number> = {
-  sunday: 0,
-  monday: 1,
-  tuesday: 2,
-  wednesday: 3,
-  thursday: 4,
-  friday: 5,
-  saturday: 6,
+type CloneLearningModuleVersionSelection = {
+  termLearningModuleId: string;
+  plannedLearningModuleVersionId: string;
 };
 
 type CloneRequest = {
@@ -20,14 +21,19 @@ type CloneRequest = {
   institutionId: string;
   academicCalendarId: string;
   meetingPattern: unknown;
+  learningModuleVersionSelections?: CloneLearningModuleVersionSelection[];
 };
 
-type GeneratedCalendarSlot = {
-  date: Date;
-  slotType: "class_day" | "holiday" | "break_day" | "finals";
-  label: string | null;
-  source: string;
-  academicCalendarEventId: string | null;
+type CloneLearningModuleChoice = {
+  termLearningModuleId: string;
+  learningModuleId: string;
+  sourcePlannedLearningModuleVersionId: string;
+  sourceDeliveredLearningModuleVersionId: string;
+  defaultPlannedLearningModuleVersionId: string;
+  options: Array<{
+    learningModuleVersionId: string;
+    label: "planned" | "delivered";
+  }>;
 };
 
 function toDateKey(date: Date) {
@@ -38,45 +44,6 @@ function addDays(date: Date, days: number) {
   const next = new Date(date);
   next.setUTCDate(next.getUTCDate() + days);
   return next;
-}
-
-function eachDateInclusive(start: Date, end: Date) {
-  const dates: Date[] = [];
-  for (let current = new Date(start); current <= end; current = addDays(current, 1)) {
-    dates.push(new Date(current));
-  }
-  return dates;
-}
-
-function parseMeetingDays(meetingPattern: unknown): number[] {
-  if (
-    !meetingPattern ||
-    typeof meetingPattern !== "object" ||
-    !("days" in meetingPattern) ||
-    !Array.isArray((meetingPattern as { days?: unknown[] }).days)
-  ) {
-    return [];
-  }
-
-  return ((meetingPattern as { days: unknown[] }).days ?? [])
-    .filter((day): day is string => typeof day === "string")
-    .map((day) => DAY_INDEX[day.toLowerCase()])
-    .filter((value): value is number => value !== undefined);
-}
-
-function mapEventTypeToSlotType(eventType: string) {
-  switch (eventType) {
-    case "holiday":
-      return "holiday" as const;
-    case "break_day":
-    case "reading_day":
-      return "break_day" as const;
-    case "finals_start":
-    case "finals_end":
-      return "finals" as const;
-    default:
-      return null;
-  }
 }
 
 async function assertCloneTarget(tx: RedesignTx, sourceTerm: { courseId: string }, input: CloneRequest) {
@@ -101,6 +68,11 @@ async function loadSourceTerm(tx: RedesignTx, termId: string) {
   const term = await tx.term.findUnique({
     where: { id: termId },
     include: {
+      course: {
+        select: {
+          instructorId: true,
+        },
+      },
       learningModules: {
         orderBy: { sequence: "asc" },
       },
@@ -126,97 +98,116 @@ async function loadSourceTerm(tx: RedesignTx, termId: string) {
   return term;
 }
 
-async function generateCalendarSlots(
-  tx: RedesignTx,
-  input: Pick<CloneRequest, "academicCalendarId" | "startDate" | "endDate" | "meetingPattern">,
-) {
-  const events = await tx.academicCalendarEvent.findMany({
-    where: {
-      academicCalendarId: input.academicCalendarId,
-      startsOn: { lte: input.endDate },
-      endsOn: { gte: input.startDate },
-    },
-    orderBy: [{ startsOn: "asc" }, { endsOn: "asc" }],
-  });
-
-  const nonClassSlots = new Map<string, GeneratedCalendarSlot>();
-
-  for (const event of events) {
-    const slotType = mapEventTypeToSlotType(event.eventType);
-    if (!slotType) continue;
-    const start = event.startsOn > input.startDate ? event.startsOn : input.startDate;
-    const end = event.endsOn < input.endDate ? event.endsOn : input.endDate;
-    for (const date of eachDateInclusive(start, end)) {
-      nonClassSlots.set(toDateKey(date), {
-        date,
-        slotType,
-        label: event.label,
-        source: "academic_calendar",
-        academicCalendarEventId: event.id,
-      });
-    }
-  }
-
-  const classDays = parseMeetingDays(input.meetingPattern);
-  const slots: GeneratedCalendarSlot[] = [...nonClassSlots.values()];
-  for (const date of eachDateInclusive(input.startDate, input.endDate)) {
-    if (nonClassSlots.has(toDateKey(date))) continue;
-    if (!classDays.includes(date.getUTCDay())) continue;
-    slots.push({
-      date,
-      slotType: "class_day",
-      label: null,
-      source: "meeting_pattern",
-      academicCalendarEventId: null,
-    });
-  }
-
-  return slots.sort((left, right) => left.date.getTime() - right.date.getTime());
+function buildLearningModuleChoices(
+  sourceTerm: Awaited<ReturnType<typeof loadSourceTerm>>,
+): CloneLearningModuleChoice[] {
+  return sourceTerm.learningModules
+    .filter(
+      (offering: {
+        deliveredLearningModuleVersionId: string | null;
+        learningModuleVersionId: string;
+      }) =>
+        Boolean(offering.deliveredLearningModuleVersionId) &&
+        offering.deliveredLearningModuleVersionId !== offering.learningModuleVersionId,
+    )
+    .map((offering: {
+      id: string;
+      learningModuleId: string;
+      learningModuleVersionId: string;
+      deliveredLearningModuleVersionId: string | null;
+    }) => ({
+      termLearningModuleId: offering.id,
+      learningModuleId: offering.learningModuleId,
+      sourcePlannedLearningModuleVersionId: offering.learningModuleVersionId,
+      sourceDeliveredLearningModuleVersionId: offering.deliveredLearningModuleVersionId!,
+      defaultPlannedLearningModuleVersionId: offering.deliveredLearningModuleVersionId!,
+      options: [
+        {
+          learningModuleVersionId: offering.deliveredLearningModuleVersionId!,
+          label: "delivered" as const,
+        },
+        {
+          learningModuleVersionId: offering.learningModuleVersionId,
+          label: "planned" as const,
+        },
+      ],
+    }));
 }
 
 function mapSessionAndAssessmentDates(
   sourceTerm: Awaited<ReturnType<typeof loadSourceTerm>>,
-  targetCalendarSlots: Awaited<ReturnType<typeof generateCalendarSlots>>,
+  targetCalendar: Awaited<ReturnType<typeof previewCalendarMaterialization>>,
 ) {
   const unresolvedDates: Array<{ sourceDate: string; sourceSessionId?: string; reason: string }> = [];
-  const sourceClassDays = sourceTerm.calendarSlots
-    .filter((slot: { slotType: string }) => slot.slotType === "class_day")
-    .map((slot: { date: Date }) => slot.date);
-  const targetClassDays = targetCalendarSlots
-    .filter((slot: GeneratedCalendarSlot) => slot.slotType === "class_day")
-    .map((slot: GeneratedCalendarSlot) => slot.date);
-  const sourceOrdinalByDate = new Map<string, number>(
-    sourceClassDays.map((date: Date, index: number) => [toDateKey(date), index]),
-  );
   const mappedSessionDates = new Map<string, Date | null>();
+  const roleOrdinalByKey = new Map<string, number>();
+  const warnings: string[] = [];
+
+  let sourceMeetingRoles: MeetingRolePattern[];
+  try {
+    sourceMeetingRoles = normalizeMeetingRolePatterns(sourceTerm.meetingPattern);
+  } catch {
+    sourceMeetingRoles = [];
+    warnings.push("Source Term meeting pattern is not parseable for role-based clone mapping");
+  }
+
+  const sourceRoleCounts = new Map<string, number>();
+  for (const session of sourceTerm.sessions) {
+    if (!session.date) continue;
+    const roleKey = resolveSessionMeetingRole(sourceMeetingRoles, session);
+    if (!roleKey) continue;
+    sourceRoleCounts.set(roleKey, (sourceRoleCounts.get(roleKey) ?? 0) + 1);
+  }
+  for (const [roleKey, sourceCount] of sourceRoleCounts.entries()) {
+    const targetCount = targetCalendar.classDayDatesByRoleKey.get(roleKey)?.length ?? 0;
+    if (targetCount < sourceCount) {
+      warnings.push(`Target Term has fewer ${roleKey} meetings than the source Term`);
+    }
+  }
 
   for (const session of sourceTerm.sessions) {
     if (!session.date) {
       mappedSessionDates.set(session.id, null);
       continue;
     }
-    const ordinal = sourceOrdinalByDate.get(toDateKey(session.date));
-    if (ordinal === undefined) {
+
+    const roleKey = resolveSessionMeetingRole(sourceMeetingRoles, session);
+    if (!roleKey) {
       unresolvedDates.push({
         sourceDate: toDateKey(session.date),
         sourceSessionId: session.id,
-        reason: "Source Session date is not a source class-day slot",
+        reason: "Source Session could not be mapped to a meeting role",
       });
       mappedSessionDates.set(session.id, null);
       continue;
     }
-    const targetDate = targetClassDays[ordinal];
+
+    const ordinal = roleOrdinalByKey.get(roleKey) ?? 0;
+    const targetDate = targetCalendar.classDayDatesByRoleKey.get(roleKey)?.[ordinal] ?? null;
+    roleOrdinalByKey.set(roleKey, ordinal + 1);
+
     if (!targetDate) {
       unresolvedDates.push({
         sourceDate: toDateKey(session.date),
         sourceSessionId: session.id,
-        reason: "Target Term has fewer class meetings than the source Term",
+        reason: `Target Term has fewer ${roleKey} meetings than the source Term`,
       });
       mappedSessionDates.set(session.id, null);
       continue;
     }
+
     mappedSessionDates.set(session.id, targetDate);
   }
+
+  const sourceClassDays = sourceTerm.calendarSlots
+    .filter((slot: { slotType: string }) => slot.slotType === "class_day")
+    .map((slot: { date: Date }) => slot.date);
+  const targetClassDays = targetCalendar.candidates
+    .filter((slot) => slot.slotType === "class_day")
+    .map((slot) => slot.date);
+  const sourceOrdinalByDate = new Map<string, number>(
+    sourceClassDays.map((date: Date, index: number) => [toDateKey(date), index]),
+  );
 
   const mappedAssessmentDates = new Map<string, Date | null>();
   for (const assessment of sourceTerm.assessments) {
@@ -247,6 +238,7 @@ function mapSessionAndAssessmentDates(
       mappedAssessmentDates.set(assessment.id, null);
       continue;
     }
+
     const targetDate = targetClassDays[ordinal];
     if (!targetDate) {
       unresolvedDates.push({
@@ -256,31 +248,27 @@ function mapSessionAndAssessmentDates(
       mappedAssessmentDates.set(assessment.id, null);
       continue;
     }
+
     mappedAssessmentDates.set(assessment.id, targetDate);
   }
 
-  return { unresolvedDates, mappedSessionDates, mappedAssessmentDates };
+  return { unresolvedDates, warnings, mappedSessionDates, mappedAssessmentDates };
 }
 
 async function previewClone(tx: RedesignTx, input: CloneRequest) {
   const sourceTerm = await loadSourceTerm(tx, input.sourceTermId);
   await assertCloneTarget(tx, sourceTerm, input);
-  const targetCalendarSlots = await generateCalendarSlots(tx, input);
-  const { unresolvedDates } = mapSessionAndAssessmentDates(sourceTerm, targetCalendarSlots);
-
-  const warnings: string[] = [];
-  const sourceClassDayCount = sourceTerm.calendarSlots.filter(
-    (slot: { slotType: string }) => slot.slotType === "class_day",
-  ).length;
-  const targetClassDayCount = targetCalendarSlots.filter(
-    (slot: GeneratedCalendarSlot) => slot.slotType === "class_day",
-  ).length;
-  if (targetClassDayCount < sourceClassDayCount) {
-    warnings.push("Target Term has fewer class meetings than the source Term");
-  }
-  if (parseMeetingDays(input.meetingPattern).length === 0) {
-    warnings.push("Target meetingPattern has no parseable meeting days");
-  }
+  const targetCalendar = await previewCalendarMaterialization(tx, {
+    instructorId: sourceTerm.course.instructorId,
+    academicCalendarId: input.academicCalendarId,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    meetingPattern: input.meetingPattern,
+  });
+  const { unresolvedDates, warnings: mappingWarnings } = mapSessionAndAssessmentDates(
+    sourceTerm,
+    targetCalendar,
+  );
 
   return {
     kind: "preview" as const,
@@ -288,10 +276,31 @@ async function previewClone(tx: RedesignTx, input: CloneRequest) {
     learningModuleCount: sourceTerm.learningModules.length,
     sessionCount: sourceTerm.sessions.length,
     assessmentCount: sourceTerm.assessments.length,
-    calendarSlotCount: targetCalendarSlots.length,
+    calendarSlotCount: targetCalendar.candidates.length,
     unresolvedDates,
-    warnings,
+    warnings: [...targetCalendar.warnings, ...mappingWarnings],
+    learningModuleChoices: buildLearningModuleChoices(sourceTerm),
   };
+}
+
+function resolvePlannedVersionId(
+  offering: {
+    id: string;
+    learningModuleVersionId: string;
+    deliveredLearningModuleVersionId: string | null;
+  },
+  selectionMap: Map<string, string>,
+) {
+  if (selectionMap.has(offering.id)) {
+    return selectionMap.get(offering.id)!;
+  }
+  if (
+    offering.deliveredLearningModuleVersionId &&
+    offering.deliveredLearningModuleVersionId !== offering.learningModuleVersionId
+  ) {
+    return offering.deliveredLearningModuleVersionId;
+  }
+  return offering.learningModuleVersionId;
 }
 
 export async function previewTermClone(db: RedesignDb, input: CloneRequest) {
@@ -302,13 +311,39 @@ export async function applyTermClone(db: RedesignDb, input: CloneRequest) {
   return db.$transaction(async (tx) => {
     const sourceTerm = await loadSourceTerm(tx, input.sourceTermId);
     await assertCloneTarget(tx, sourceTerm, input);
-    const targetCalendarSlots = await generateCalendarSlots(tx, input);
+    const targetCalendar = await previewCalendarMaterialization(tx, {
+      instructorId: sourceTerm.course.instructorId,
+      academicCalendarId: input.academicCalendarId,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      meetingPattern: input.meetingPattern,
+    });
     const { unresolvedDates, mappedSessionDates, mappedAssessmentDates } = mapSessionAndAssessmentDates(
       sourceTerm,
-      targetCalendarSlots,
+      targetCalendar,
     );
     if (unresolvedDates.length > 0) {
       throw new DomainInvariantError("Clone preview has unresolved dates; apply requires a conflict-free preview");
+    }
+
+    const selectionMap = new Map(
+      (input.learningModuleVersionSelections ?? []).map((selection) => [
+        selection.termLearningModuleId,
+        selection.plannedLearningModuleVersionId,
+      ]),
+    );
+
+    const allowedSelections = new Map(
+      buildLearningModuleChoices(sourceTerm).map((choice) => [
+        choice.termLearningModuleId,
+        new Set(choice.options.map((option) => option.learningModuleVersionId)),
+      ]),
+    );
+    for (const [termLearningModuleId, plannedLearningModuleVersionId] of selectionMap.entries()) {
+      const allowed = allowedSelections.get(termLearningModuleId);
+      if (!allowed || !allowed.has(plannedLearningModuleVersionId)) {
+        throw new DomainInvariantError("Clone selection must choose the source planned or delivered Learning Module version");
+      }
     }
 
     const term = await tx.term.create({
@@ -325,17 +360,19 @@ export async function applyTermClone(db: RedesignDb, input: CloneRequest) {
       },
     });
 
-    for (const slot of targetCalendarSlots) {
-      await tx.calendarSlot.create({
+    const slotIdByDateKey = new Map<string, string>();
+    for (const candidate of targetCalendar.candidates) {
+      const slot = await tx.calendarSlot.create({
         data: {
           termId: term.id,
-          academicCalendarEventId: slot.academicCalendarEventId,
-          date: slot.date,
-          slotType: slot.slotType,
-          label: slot.label,
-          source: slot.source,
+          academicCalendarEventId: candidate.academicCalendarEventId,
+          date: candidate.date,
+          slotType: candidate.slotType,
+          label: candidate.label,
+          source: candidate.source,
         },
       });
+      slotIdByDateKey.set(toDateKey(slot.date), slot.id);
     }
 
     const offeringIdMap = new Map<string, string>();
@@ -344,8 +381,8 @@ export async function applyTermClone(db: RedesignDb, input: CloneRequest) {
         data: {
           termId: term.id,
           learningModuleId: offering.learningModuleId,
-          learningModuleVersionId: offering.learningModuleVersionId,
-          deliveredLearningModuleVersionId: offering.deliveredLearningModuleVersionId,
+          learningModuleVersionId: resolvePlannedVersionId(offering, selectionMap),
+          deliveredLearningModuleVersionId: null,
           courseId: sourceTerm.courseId,
           sequence: offering.sequence,
           notes: offering.notes,
@@ -356,6 +393,12 @@ export async function applyTermClone(db: RedesignDb, input: CloneRequest) {
 
     const sessionIdMap = new Map<string, string>();
     for (const session of sourceTerm.sessions) {
+      const mappedDate = mappedSessionDates.get(session.id) ?? null;
+      const calendarSlotId = mappedDate ? slotIdByDateKey.get(toDateKey(mappedDate)) ?? null : null;
+      if (mappedDate && !calendarSlotId) {
+        throw new DomainInvariantError("Clone preview produced a Session date without a matching materialized class-day slot");
+      }
+
       const created = await tx.session.create({
         data: {
           termId: term.id,
@@ -366,34 +409,39 @@ export async function applyTermClone(db: RedesignDb, input: CloneRequest) {
           sessionType: session.sessionType,
           code: session.code,
           title: session.title,
-          date: mappedSessionDates.get(session.id) ?? null,
+          date: mappedDate,
+          calendarSlotId,
           description: session.description,
           format: session.format,
           notes: session.notes,
+          status: session.status,
           instructionalMode: session.instructionalMode,
+          canceledAt: session.canceledAt,
+          canceledReason: session.canceledReason,
+          archivedAt: session.archivedAt,
         },
       });
       sessionIdMap.set(session.id, created.id);
 
-      await tx.sessionPriorArt.create({
-        data: {
-          sessionId: created.id,
-          sourceSessionId: session.id,
-          note: "Cloned from prior Term",
-        },
-      });
-    }
+      for (const priorArt of session.priorArt) {
+        await tx.sessionPriorArt.create({
+          data: {
+            sessionId: created.id,
+            sourceSessionId: priorArt.sourceSessionId,
+            note: priorArt.note ?? null,
+          },
+        });
+      }
 
-    for (const session of sourceTerm.sessions) {
-      const newSessionId = sessionIdMap.get(session.id);
-      if (!newSessionId) continue;
       for (const coverage of session.coverages) {
         await tx.coverage.create({
           data: {
-            sessionId: newSessionId,
+            sessionId: created.id,
             topicVersionId: coverage.topicVersionId,
             level: coverage.level,
             notes: coverage.notes,
+            redistributedFrom: coverage.redistributedFrom,
+            redistributedAt: coverage.redistributedAt,
           },
         });
       }
@@ -412,6 +460,7 @@ export async function applyTermClone(db: RedesignDb, input: CloneRequest) {
           dueDate: mappedAssessmentDates.get(assessment.id) ?? null,
           rubric: assessment.rubric,
           progressionStage: assessment.progressionStage,
+          archivedAt: assessment.archivedAt,
           topics: {
             create: assessment.topics.map((topic: { topicVersionId: string }) => ({
               topicVersionId: topic.topicVersionId,

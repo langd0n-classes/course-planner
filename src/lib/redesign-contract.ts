@@ -78,6 +78,17 @@ export type CapacitySource = "baseline" | "heuristic" | "instructor_override";
 // the lecture/lab SessionType.
 export type InstructionalMode = "standard" | "recovery" | "review" | "buffer" | "assessment" | "other";
 
+export type MeetingRolePatternDto = {
+  roleKey: string;
+  label: string;
+  sessionType: SessionType;
+  days: string[];
+};
+
+export type MeetingPatternDto = {
+  roles: MeetingRolePatternDto[];
+};
+
 export type InstitutionDto = {
   id: Id;
   name: string;
@@ -263,6 +274,7 @@ export type TermDto = {
   archivedAt: IsoDateTime | null;
 };
 export type CreateTermRequest = {
+  mode: "preview" | "apply";
   courseId: Id;
   institutionId: Id;
   academicCalendarId: Id;
@@ -270,12 +282,45 @@ export type CreateTermRequest = {
   name: string;
   startDate: IsoDate;
   endDate: IsoDate;
-  meetingPattern?: unknown | null;
+  meetingPattern: MeetingPatternDto;
 };
 export type ListTermsResponse = { terms: TermDto[] };
-export type CreateTermResponse = { term: TermDto };
+export type TermCalendarSlotProvenanceDto = {
+  source: "academic_calendar_event" | "instructor_override" | "meeting_role_pattern";
+  referenceId: Id | null;
+  detail: string;
+};
+export type CalendarSlotCandidateDto = {
+  date: IsoDate;
+  slotType: SlotType;
+  label: string | null;
+  source: string;
+  academicCalendarEventId: Id | null;
+  meetingRoleKeys: string[];
+  meetingRoleLabels: string[];
+  provenance: TermCalendarSlotProvenanceDto[];
+};
+export type CalendarMaterializationConflictDto = {
+  code: string;
+  date: IsoDate | null;
+  meetingRoleKey: string | null;
+  message: string;
+};
+export type CreateTermPreviewResponse = {
+  kind: "preview";
+  calendarSlotCandidates: CalendarSlotCandidateDto[];
+  conflicts: CalendarMaterializationConflictDto[];
+  warnings: string[];
+};
+export type CreateTermApplyResponse = {
+  kind: "applied";
+  term: TermDto;
+  calendarSlotCount: number;
+  warnings: string[];
+};
+export type CreateTermResponse = CreateTermPreviewResponse | CreateTermApplyResponse;
 export type GetTermResponse = { term: TermDto };
-export type UpdateTermRequest = Partial<Omit<CreateTermRequest, "courseId" | "institutionId">>;
+export type UpdateTermRequest = Partial<Omit<CreateTermRequest, "mode" | "courseId" | "institutionId">>;
 export type UpdateTermResponse = { term: TermDto };
 
 // Term lifecycle is an explicit state machine (planned -> active -> closed,
@@ -297,7 +342,22 @@ export type CloneTermRequest = {
   endDate: IsoDate;
   institutionId: Id;
   academicCalendarId: Id;
-  meetingPattern: unknown;
+  meetingPattern: MeetingPatternDto;
+  learningModuleVersionSelections?: Array<{
+    termLearningModuleId: Id;
+    plannedLearningModuleVersionId: Id;
+  }>;
+};
+export type CloneLearningModuleChoiceDto = {
+  termLearningModuleId: Id;
+  learningModuleId: Id;
+  sourcePlannedLearningModuleVersionId: Id;
+  sourceDeliveredLearningModuleVersionId: Id;
+  defaultPlannedLearningModuleVersionId: Id;
+  options: Array<{
+    learningModuleVersionId: Id;
+    label: "planned" | "delivered";
+  }>;
 };
 export type CloneTermPreviewResponse = {
   kind: "preview";
@@ -312,6 +372,7 @@ export type CloneTermPreviewResponse = {
     reason: string;
   }>;
   warnings: string[];
+  learningModuleChoices: CloneLearningModuleChoiceDto[];
 };
 export type CloneTermApplyResponse = { kind: "applied"; term: TermDto };
 export type CloneTermResponse = CloneTermPreviewResponse | CloneTermApplyResponse;
@@ -402,11 +463,13 @@ export type SessionDto = {
   id: Id;
   termId: Id;
   termLearningModuleId: Id | null;
+  calendarSlotId: Id | null;
   sequence: number;
   sessionType: SessionType;
   code: string;
   title: string;
   date: IsoDate | null;
+  scheduleOverrideLabel: string | null;
   description: string | null;
   format: string | null;
   notes: string | null;
@@ -423,6 +486,7 @@ export type CreateSessionRequest = {
   code: string;
   title: string;
   date?: IsoDate | null;
+  scheduleOverrideLabel?: string | null;
   description?: string | null;
   format?: string | null;
   notes?: string | null;
@@ -432,12 +496,13 @@ export type ListTermSessionsResponse = { sessions: SessionDto[] };
 export type CreateTermSessionResponse = { session: SessionDto };
 export type GetSessionResponse = { session: SessionDto };
 export type UpdateSessionRequest = Partial<
-  Omit<SessionDto, "id" | "termId" | "status" | "canceledAt" | "canceledReason">
+  Omit<SessionDto, "id" | "termId" | "calendarSlotId" | "status" | "canceledAt" | "canceledReason">
 >;
 export type UpdateSessionResponse = { session: SessionDto };
 
 export type MoveSessionRequest = {
   date?: IsoDate | null;
+  scheduleOverrideLabel?: string | null;
   termLearningModuleId?: Id | null;
   sequence?: number;
 };
@@ -586,6 +651,27 @@ export type UpdateArtifactRequest = Partial<CreateArtifactRequest> & {
   archivedAt?: IsoDateTime | null;
 };
 export type UpdateArtifactResponse = { artifact: ArtifactDto };
+export type ArtifactHardRemovalPreviewResponse = {
+  kind: "hard_removal_preview";
+  artifactId: Id;
+  canRemove: boolean;
+  blockers: Array<{
+    code: string;
+    count: number;
+    message: string;
+  }>;
+};
+export type DeleteArtifactResponse =
+  | { kind: "archived"; artifact: ArtifactDto }
+  | ArtifactHardRemovalPreviewResponse
+  | {
+      kind: "hard_removed";
+      artifactId: Id;
+      audit: {
+        removedAt: IsoDateTime;
+        summary: string;
+      };
+    };
 
 // Array-first so tests can validate route stubs at runtime against the same
 // source of truth the CanonicalRoute type is derived from.

@@ -1,5 +1,6 @@
 export * from "./archive-removal-service";
 export * from "./artifact-service";
+export * from "./calendar-materialization-service";
 export * from "./clone-service";
 export * from "./course-service";
 export * from "./course-package-codec";

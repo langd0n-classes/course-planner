@@ -4,10 +4,21 @@
 import { z } from "zod";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected an ISO date (YYYY-MM-DD)");
+const meetingRolePatternSchema = z.object({
+  roleKey: z.string().min(1),
+  label: z.string().min(1),
+  sessionType: z.enum(["lecture", "lab"]),
+  days: z.array(z.string().min(1)).min(1),
+});
+
+export const meetingPatternSchema = z.object({
+  roles: z.array(meetingRolePatternSchema).min(1),
+});
 
 // ─── Terms ──────────────────────────────────────────────
 
 export const createTermSchema = z.object({
+  mode: z.enum(["preview", "apply"]),
   courseId: z.string().uuid(),
   institutionId: z.string().uuid(),
   academicCalendarId: z.string().uuid(),
@@ -15,7 +26,7 @@ export const createTermSchema = z.object({
   name: z.string().min(1),
   startDate: isoDate,
   endDate: isoDate,
-  meetingPattern: z.unknown().nullable().optional(),
+  meetingPattern: meetingPatternSchema,
 });
 
 export const updateTermSchema = z
@@ -25,7 +36,7 @@ export const updateTermSchema = z
     name: z.string().min(1),
     startDate: isoDate,
     endDate: isoDate,
-    meetingPattern: z.unknown().nullable(),
+    meetingPattern: meetingPatternSchema,
   })
   .partial();
 
@@ -43,7 +54,15 @@ export const cloneTermSchema = z.object({
   endDate: isoDate,
   institutionId: z.string().uuid(),
   academicCalendarId: z.string().uuid(),
-  meetingPattern: z.unknown(),
+  meetingPattern: meetingPatternSchema,
+  learningModuleVersionSelections: z
+    .array(
+      z.object({
+        termLearningModuleId: z.string().uuid(),
+        plannedLearningModuleVersionId: z.string().uuid(),
+      }),
+    )
+    .optional(),
 });
 
 // ─── Calendar slots ─────────────────────────────────────
@@ -96,6 +115,7 @@ export const createSessionSchema = z.object({
   code: z.string().min(1),
   title: z.string().min(1),
   date: isoDate.nullable().optional(),
+  scheduleOverrideLabel: z.string().min(1).nullable().optional(),
   description: z.string().nullable().optional(),
   format: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
@@ -110,6 +130,7 @@ export const updateSessionSchema = z
     code: z.string().min(1),
     title: z.string().min(1),
     date: isoDate.nullable(),
+    scheduleOverrideLabel: z.string().min(1).nullable(),
     description: z.string().nullable(),
     format: z.string().nullable(),
     notes: z.string().nullable(),
@@ -120,6 +141,7 @@ export const updateSessionSchema = z
 
 export const moveSessionSchema = z.object({
   date: isoDate.nullable().optional(),
+  scheduleOverrideLabel: z.string().min(1).nullable().optional(),
   termLearningModuleId: z.string().uuid().nullable().optional(),
   sequence: z.number().int().min(0).optional(),
 });

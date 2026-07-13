@@ -442,11 +442,13 @@ model Session {
   id                   String        @id @default(uuid()) @db.Uuid
   termId               String        @map("term_id") @db.Uuid
   termLearningModuleId String?       @map("term_learning_module_id") @db.Uuid
+  calendarSlotId       String?       @map("calendar_slot_id") @db.Uuid
   sequence             Int
   sessionType          SessionType   @map("session_type")
   code                 String
   title                String
   date                 DateTime?     @db.Date
+  scheduleOverrideLabel String?      @map("schedule_override_label")
   description          String?       @db.Text
   format               String?
   notes                String?       @db.Text
@@ -460,6 +462,7 @@ model Session {
 
   term               Term                @relation(fields: [termId], references: [id], onDelete: Cascade)
   termLearningModule TermLearningModule? @relation(fields: [termLearningModuleId, termId], references: [id, termId], onDelete: SetNull)
+  calendarSlot       CalendarSlot?       @relation(fields: [calendarSlotId], references: [id], onDelete: SetNull)
   coverages          Coverage[]
   assessments        Assessment[]
   artifacts          Artifact[]
@@ -467,6 +470,7 @@ model Session {
   reusedBy           SessionPriorArt[]   @relation("SourceSession")
 
   @@unique([termId, code])
+  @@index([calendarSlotId])
   @@index([termLearningModuleId, sequence])
   @@map("sessions")
 }
@@ -553,6 +557,7 @@ model CalendarSlot {
 
   term                  Term                   @relation(fields: [termId], references: [id], onDelete: Cascade)
   academicCalendarEvent AcademicCalendarEvent? @relation(fields: [academicCalendarEventId], references: [id], onDelete: SetNull)
+  sessions              Session[]
 
   @@unique([termId, date])
   @@map("calendar_slots")

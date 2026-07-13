@@ -26,6 +26,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           : parsed.data.date === null
             ? null
             : new Date(parsed.data.date),
+      scheduleOverrideLabel: parsed.data.scheduleOverrideLabel,
     });
     return ok({ session: toSessionDto(session) } satisfies MoveSessionResponse);
   } catch (error) {

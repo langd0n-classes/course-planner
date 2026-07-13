@@ -1,11 +1,21 @@
 import { ZodError, z } from "zod";
 import { badRequest, handleZodError, notFound, ok, serverError } from "@/lib/api-helpers";
 import prisma from "@/lib/prisma";
-import type { GetArtifactResponse, UpdateArtifactRequest, UpdateArtifactResponse } from "@/lib/redesign-contract";
-import { deleteArtifact, updateArtifact } from "@/services/redesign";
+import type {
+  DeleteArtifactResponse,
+  GetArtifactResponse,
+  UpdateArtifactRequest,
+  UpdateArtifactResponse,
+} from "@/lib/redesign-contract";
+import { archiveArtifact, hardRemoveArtifact, previewHardRemoval, updateArtifact } from "@/services/redesign";
 import { DomainInvariantError } from "@/services/redesign/errors";
 
-export type { GetArtifactResponse, UpdateArtifactRequest, UpdateArtifactResponse };
+export type {
+  DeleteArtifactResponse,
+  GetArtifactResponse,
+  UpdateArtifactRequest,
+  UpdateArtifactResponse,
+};
 
 const artifactParentTypeSchema = z.enum([
   "learning_module_version",
@@ -85,13 +95,45 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   const { id } = await context.params;
   try {
-    await deleteArtifact(prisma, id);
-    return ok({ deleted: true });
+    const url = new URL(request.url);
+    const mode = url.searchParams.get("mode") ?? "archive";
+
+    if (mode === "hard-preview") {
+      const preview = await previewHardRemoval(prisma, "artifact", id);
+      return ok({
+        kind: "hard_removal_preview",
+        artifactId: id,
+        canRemove: preview.canRemove,
+        blockers: preview.blockers,
+      } satisfies DeleteArtifactResponse);
+    }
+
+    if (mode === "hard-apply") {
+      const confirmTitle = url.searchParams.get("confirmTitle");
+      if (!confirmTitle) {
+        return badRequest("Hard removal requires confirmTitle");
+      }
+      const removed = await hardRemoveArtifact(prisma, id, confirmTitle);
+      return ok({
+        kind: "hard_removed",
+        artifactId: removed.artifactId,
+        audit: {
+          removedAt: removed.audit.removedAt.toISOString(),
+          summary: removed.audit.summary,
+        },
+      } satisfies DeleteArtifactResponse);
+    }
+
+    const artifact = await archiveArtifact(prisma, id);
+    return ok({
+      kind: "archived",
+      artifact: toArtifactDto(artifact),
+    } satisfies DeleteArtifactResponse);
   } catch (error) {
     return handleArtifactError(error);
   }

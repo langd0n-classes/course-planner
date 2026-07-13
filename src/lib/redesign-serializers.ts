@@ -75,11 +75,13 @@ type SessionRow = {
   id: string;
   termId: string;
   termLearningModuleId: string | null;
+  calendarSlotId: string | null;
   sequence: number;
   sessionType: "lecture" | "lab";
   code: string;
   title: string;
   date: Date | null;
+  scheduleOverrideLabel: string | null;
   description: string | null;
   format: string | null;
   notes: string | null;
@@ -205,11 +207,13 @@ export function toSessionDto(session: SessionRow): SessionDto {
     id: session.id,
     termId: session.termId,
     termLearningModuleId: session.termLearningModuleId,
+    calendarSlotId: session.calendarSlotId,
     sequence: session.sequence,
     sessionType: session.sessionType,
     code: session.code,
     title: session.title,
     date: toIsoDateNullable(session.date),
+    scheduleOverrideLabel: session.scheduleOverrideLabel,
     description: session.description,
     format: session.format,
     notes: session.notes,
