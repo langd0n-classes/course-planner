@@ -27,16 +27,10 @@ export default async function RootLayout({
               </Link>
               <div className="flex gap-4 text-sm">
                 <Link
-                  href="/terms"
+                  href="/"
                   className="text-gray-600 hover:text-gray-900"
                 >
-                  Terms
-                </Link>
-                <Link
-                  href="/skills"
-                  className="text-gray-600 hover:text-gray-900"
-                >
-                  Skills
+                  Courses
                 </Link>
               </div>
             </div>
