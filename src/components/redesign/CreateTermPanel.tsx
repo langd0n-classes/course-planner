@@ -236,24 +236,45 @@ export default function CreateTermPanel({ courseId, institutions, calendars, onT
           <div className="mt-4">
             <p className="text-sm font-medium text-slate-700">Candidate class days (first 10)</p>
             <div className="mt-2 space-y-2">
-              {previewClassDays.map((slot: CalendarSlotCandidateDto) => (
-                <article key={slot.date} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">{slot.date}</p>
-                      <p className="mt-1 text-xs uppercase tracking-wide text-slate-500">
-                        {formatSlotTypeLabel(slot.slotType)}
-                      </p>
-                    </div>
-                    <span
-                      className={`rounded-full border px-2 py-1 text-xs font-medium ${capacityBadgeClass(slot.instructionalCapacity)}`}
-                      aria-label={`Instructional capacity: ${formatInstructionalCapacityLabel(slot.instructionalCapacity)}`}
+              {previewClassDays.map((slot: CalendarSlotCandidateDto) => {
+                if (!isCapacityAdvisory(slot)) {
+                  return (
+                    <div
+                      key={slot.date}
+                      aria-label={`Candidate class day ${slot.date}`}
+                      className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-700"
                     >
-                      {formatInstructionalCapacityLabel(slot.instructionalCapacity)}
-                    </span>
-                  </div>
+                      <span className="font-medium text-slate-900">{slot.date}</span>
+                      <span className="uppercase tracking-wide text-slate-500">
+                        {formatSlotTypeLabel(slot.slotType)}
+                      </span>
+                      <span
+                        className={`rounded-full border px-2 py-1 font-medium ${capacityBadgeClass(slot.instructionalCapacity)}`}
+                        aria-label={`Instructional capacity: ${formatInstructionalCapacityLabel(slot.instructionalCapacity)}`}
+                      >
+                        {formatInstructionalCapacityLabel(slot.instructionalCapacity)}
+                      </span>
+                    </div>
+                  );
+                }
 
-                  {isCapacityAdvisory(slot) ? (
+                return (
+                  <article key={slot.date} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-slate-900">{slot.date}</p>
+                        <p className="mt-1 text-xs uppercase tracking-wide text-slate-500">
+                          {formatSlotTypeLabel(slot.slotType)}
+                        </p>
+                      </div>
+                      <span
+                        className={`rounded-full border px-2 py-1 text-xs font-medium ${capacityBadgeClass(slot.instructionalCapacity)}`}
+                        aria-label={`Instructional capacity: ${formatInstructionalCapacityLabel(slot.instructionalCapacity)}`}
+                      >
+                        {formatInstructionalCapacityLabel(slot.instructionalCapacity)}
+                      </span>
+                    </div>
+
                     <div className="mt-3 space-y-2">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700">
@@ -268,20 +289,20 @@ export default function CreateTermPanel({ courseId, institutions, calendars, onT
 
                       {slot.capacityReason ? <p className="text-sm text-slate-600">{slot.capacityReason}</p> : null}
                     </div>
-                  ) : null}
 
-                  {slot.provenance.length > 0 ? (
-                    <ul className="mt-2 space-y-1 text-xs text-slate-500">
-                      {slot.provenance.map((entry, index) => (
-                        <li key={`${entry.source}-${entry.referenceId ?? "none"}-${index}`}>
-                          <span className="font-medium text-slate-600">{formatProvenanceLabel(entry.source)}:</span>{" "}
-                          {entry.detail}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </article>
-              ))}
+                    {slot.provenance.length > 0 ? (
+                      <ul className="mt-2 space-y-1 text-xs text-slate-500">
+                        {slot.provenance.map((entry, index) => (
+                          <li key={`${entry.source}-${entry.referenceId ?? "none"}-${index}`}>
+                            <span className="font-medium text-slate-600">{formatProvenanceLabel(entry.source)}:</span>{" "}
+                            {entry.detail}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </article>
+                );
+              })}
               {classDays.length > 10 ? (
                 <span className="inline-flex rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-600">
                   +{classDays.length - 10} more

@@ -200,6 +200,16 @@ describe("CreateTermPanel", () => {
     expect(within(firstAdvisoryCard).getByText("Schedule source: meeting_roles:lecture")).toBeInTheDocument();
     expect(within(firstAdvisoryCard).getByText("Reduced capacity before the midterm break.")).toBeInTheDocument();
 
+    const baselinePreviewRow = screen.getByLabelText("Candidate class day 2027-01-01");
+    const baselinePreviewWithin = within(baselinePreviewRow);
+    expect(baselinePreviewWithin.getByText("Normal capacity")).toBeInTheDocument();
+    expect(baselinePreviewWithin.queryByText("Capacity source:")).not.toBeInTheDocument();
+    expect(baselinePreviewWithin.queryByText("Schedule source:")).not.toBeInTheDocument();
+    expect(
+      baselinePreviewWithin.queryByText("No explicit break-proximity signal in the calendar."),
+    ).not.toBeInTheDocument();
+    expect(baselinePreviewWithin.queryByText("Meeting role pattern:")).not.toBeInTheDocument();
+
     const advisoriesSection = screen.getByText("Capacity advisories").closest("div");
     expect(advisoriesSection).not.toBeNull();
     if (!advisoriesSection) throw new Error("Expected the capacity advisories section to exist.");
