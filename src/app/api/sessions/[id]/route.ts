@@ -40,6 +40,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           : parsed.data.date === null
             ? null
             : new Date(parsed.data.date),
+      scheduleOverrideLabel: parsed.data.scheduleOverrideLabel,
       description: parsed.data.description,
       format: parsed.data.format,
       notes: parsed.data.notes,

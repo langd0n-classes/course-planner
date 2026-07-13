@@ -25,6 +25,9 @@ describe("artifacts collection route", () => {
             ...data,
           })),
         },
+        session: {
+          findUnique: vi.fn(async () => ({ id: "session-1", term: { status: "active" } })),
+        },
       }),
     );
 

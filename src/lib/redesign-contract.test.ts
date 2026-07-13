@@ -5,10 +5,12 @@ import {
   CANONICAL_ROUTES,
   type AssessmentType,
   type CalendarSlotDto,
+  type CreateTermRequest,
   type CanonicalRoute,
   type CapacitySource,
   type InstructionalCapacity,
   type InstructionalMode,
+  type MeetingPatternDto,
   type SessionDto,
   type TermDto,
   type TermLifecycleTransition,
@@ -40,6 +42,16 @@ const sampleInstructionalModes: InstructionalMode[] = [
   "assessment",
   "other",
 ];
+const sampleMeetingPattern: MeetingPatternDto = {
+  roles: [
+    {
+      roleKey: "lecture",
+      label: "Lecture",
+      sessionType: "lecture",
+      days: ["tuesday", "thursday"],
+    },
+  ],
+};
 
 const sampleTerm: TermDto = {
   id: "term-1",
@@ -74,11 +86,13 @@ const sampleSession: SessionDto = {
   id: "session-1",
   termId: "term-1",
   termLearningModuleId: null,
+  calendarSlotId: "slot-1",
   sequence: 1,
   sessionType: "lecture",
   code: "lec-01",
   title: "Probability Foundations",
   date: "2026-01-20",
+  scheduleOverrideLabel: null,
   description: null,
   format: null,
   notes: null,
@@ -107,6 +121,18 @@ const sampleUpdateTopic: UpdateTopicRequest = {
   stableCode: "PROB1",
   learningModuleId: null,
   archivedAt: null,
+};
+
+const sampleCreateTermRequest: CreateTermRequest = {
+  mode: "preview",
+  courseId: "course-1",
+  institutionId: "institution-1",
+  academicCalendarId: "calendar-1",
+  code: "S26",
+  name: "Spring 2026",
+  startDate: "2026-01-20",
+  endDate: "2026-05-08",
+  meetingPattern: sampleMeetingPattern,
 };
 const _rejectsDirectDeliveredPointerMutation: UpdateTermLearningModuleRequest = {
   // @ts-expect-error deliveredLearningModuleVersionId is service-owned, not a plain field
@@ -139,8 +165,10 @@ describe("redesign-contract Phase A.1 additions", () => {
     expect(sampleTerm.status).toBe("active");
     expect(sampleCalendarSlot.instructionalCapacity).toBe("reduced_engagement");
     expect(sampleSession.instructionalMode).toBe("recovery");
+    expect(sampleSession.calendarSlotId).toBe("slot-1");
     expect(sampleAssessmentType).toBe("gaie");
     expect(sampleGenericAssessmentType).toBe("final-project-milestone-2");
+    expect(sampleCreateTermRequest.meetingPattern.roles[0]?.roleKey).toBe("lecture");
     expect(sampleUpdateTermLearningModule).not.toHaveProperty("deliveredLearningModuleVersionId");
     expect(sampleUpdateLearningModule.archivedAt).toBeNull();
     expect(sampleUpdateTopic.learningModuleId).toBeNull();

@@ -1,4 +1,8 @@
 import { DomainInvariantError } from "./errors";
+import {
+  previewCalendarMaterialization,
+  type CalendarMaterializationPreview,
+} from "./calendar-materialization-service";
 import { assertInstructorInstitution } from "./course-service";
 import { assertSameCourse } from "./invariants";
 import type { RedesignDb, RedesignTx } from "./types";
@@ -15,29 +19,76 @@ export type CreateTermInput = {
   clonedFromId?: string | null;
 };
 
+export type TermCreationPreview = {
+  kind: "preview";
+  calendarSlotCandidates: CalendarMaterializationPreview["candidates"];
+  conflicts: CalendarMaterializationPreview["conflicts"];
+  warnings: string[];
+};
+
+type TermRecord = {
+  id: string;
+  courseId: string;
+  institutionId: string;
+  academicCalendarId: string;
+  code: string;
+  name: string;
+  startDate: Date;
+  endDate: Date;
+  meetingPattern: unknown;
+  status: "planned" | "active" | "closed";
+  closedAt: Date | null;
+  clonedFromId: string | null;
+  archivedAt: Date | null;
+};
+
+export type AppliedTermCreation = {
+  kind: "applied";
+  term: TermRecord;
+  calendarSlotCount: number;
+  warnings: string[];
+};
+
 export async function createTerm(db: RedesignDb, input: CreateTermInput) {
+  const applied = await applyTermCreation(db, input);
+  return applied.term;
+}
+
+export async function previewTermCreation(db: RedesignDb, input: CreateTermInput): Promise<TermCreationPreview> {
   return db.$transaction(async (tx) => {
-    const course = await tx.course.findUnique({
-      where: { id: input.courseId },
-      include: { institutions: true },
+    const { course } = await loadAndValidateTermContext(tx, input);
+    const preview = await previewCalendarMaterialization(tx, {
+      instructorId: course.instructorId,
+      academicCalendarId: input.academicCalendarId,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      meetingPattern: input.meetingPattern ?? null,
     });
-    if (!course) throw new DomainInvariantError("Course not found");
 
-    const institutionId = await resolveTermInstitution(tx, course, input.institutionId);
-    await assertInstructorInstitution(tx, course.instructorId, institutionId);
-    await assertCourseInstitution(tx, input.courseId, institutionId);
-    await assertCalendarInstitution(tx, input.academicCalendarId, institutionId);
+    return {
+      kind: "preview",
+      calendarSlotCandidates: preview.candidates,
+      conflicts: preview.conflicts,
+      warnings: preview.warnings,
+    };
+  });
+}
 
-    if (input.clonedFromId) {
-      const source = await tx.term.findUnique({
-        where: { id: input.clonedFromId },
-        select: { courseId: true },
-      });
-      if (!source) throw new DomainInvariantError("Source Term not found");
-      assertSameCourse(input.courseId, source.courseId, "Term cloning");
-    }
+export async function applyTermCreation(
+  db: RedesignDb,
+  input: CreateTermInput,
+): Promise<AppliedTermCreation> {
+  return db.$transaction(async (tx) => {
+    const { course, institutionId } = await loadAndValidateTermContext(tx, input);
+    const preview = await previewCalendarMaterialization(tx, {
+      instructorId: course.instructorId,
+      academicCalendarId: input.academicCalendarId,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      meetingPattern: input.meetingPattern ?? null,
+    });
 
-    return tx.term.create({
+    const term = await tx.term.create({
       data: {
         courseId: input.courseId,
         institutionId,
@@ -50,7 +101,51 @@ export async function createTerm(db: RedesignDb, input: CreateTermInput) {
         clonedFromId: input.clonedFromId ?? null,
       },
     });
+
+    for (const candidate of preview.candidates) {
+      await tx.calendarSlot.create({
+        data: {
+          termId: term.id,
+          academicCalendarEventId: candidate.academicCalendarEventId,
+          date: candidate.date,
+          slotType: candidate.slotType,
+          label: candidate.label,
+          source: candidate.source,
+        },
+      });
+    }
+
+    return {
+      kind: "applied",
+      term,
+      calendarSlotCount: preview.candidates.length,
+      warnings: preview.warnings,
+    } as const;
   });
+}
+
+async function loadAndValidateTermContext(tx: RedesignTx, input: CreateTermInput) {
+  const course = await tx.course.findUnique({
+    where: { id: input.courseId },
+    include: { institutions: true },
+  });
+  if (!course) throw new DomainInvariantError("Course not found");
+
+  const institutionId = await resolveTermInstitution(tx, course, input.institutionId);
+  await assertInstructorInstitution(tx, course.instructorId, institutionId);
+  await assertCourseInstitution(tx, input.courseId, institutionId);
+  await assertCalendarInstitution(tx, input.academicCalendarId, institutionId);
+
+  if (input.clonedFromId) {
+    const source = await tx.term.findUnique({
+      where: { id: input.clonedFromId },
+      select: { courseId: true },
+    });
+    if (!source) throw new DomainInvariantError("Source Term not found");
+    assertSameCourse(input.courseId, source.courseId, "Term cloning");
+  }
+
+  return { course, institutionId };
 }
 
 async function resolveTermInstitution(

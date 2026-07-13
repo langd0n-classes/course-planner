@@ -36,6 +36,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       termId: id,
       ...parsed.data,
       date: parsed.data.date ? new Date(parsed.data.date) : null,
+      scheduleOverrideLabel: parsed.data.scheduleOverrideLabel ?? null,
     });
     return created({ session: toSessionDto(session) } satisfies CreateTermSessionResponse);
   } catch (error) {

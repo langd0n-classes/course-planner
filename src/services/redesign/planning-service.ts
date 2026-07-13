@@ -19,11 +19,13 @@ type SessionWithTerm = {
   id: string;
   termId: string;
   termLearningModuleId: string | null;
+  calendarSlotId: string | null;
   sequence: number;
   sessionType: "lecture" | "lab";
   code: string;
   title: string;
   date: Date | null;
+  scheduleOverrideLabel: string | null;
   description: string | null;
   format: string | null;
   notes: string | null;
@@ -66,6 +68,7 @@ export type CreateSessionInput = {
   code: string;
   title: string;
   date?: Date | null;
+  scheduleOverrideLabel?: string | null;
   description?: string | null;
   format?: string | null;
   notes?: string | null;
@@ -79,6 +82,7 @@ export type UpdateSessionInput = {
   code?: string;
   title?: string;
   date?: Date | null;
+  scheduleOverrideLabel?: string | null;
   description?: string | null;
   format?: string | null;
   notes?: string | null;
@@ -88,6 +92,7 @@ export type UpdateSessionInput = {
 
 export type MoveSessionInput = {
   date?: Date | null;
+  scheduleOverrideLabel?: string | null;
   termLearningModuleId?: string | null;
   sequence?: number;
 };
@@ -167,6 +172,53 @@ async function loadTermLearningModuleForTerm(
   });
   if (!offering) throw new DomainInvariantError("Term Learning Module not found");
   return offering;
+}
+
+async function resolveSessionSchedule(
+  tx: RedesignTx,
+  termId: string,
+  date: Date | null,
+  scheduleOverrideLabel: string | null,
+) {
+  if (!date) {
+    if (scheduleOverrideLabel) {
+      throw new DomainInvariantError("Session override labels require an explicit date");
+    }
+    return {
+      date: null,
+      calendarSlotId: null,
+      scheduleOverrideLabel: null,
+    };
+  }
+
+  if (scheduleOverrideLabel) {
+    return {
+      date,
+      calendarSlotId: null,
+      scheduleOverrideLabel,
+    };
+  }
+
+  const slot = await tx.calendarSlot.findUnique({
+    where: {
+      termId_date: {
+        termId,
+        date,
+      },
+    },
+    select: { id: true, slotType: true },
+  });
+  if (!slot || slot.slotType !== "class_day") {
+    throw new DomainInvariantError(
+      "Session scheduling requires a materialized class-day slot unless an explicit override label is supplied",
+    );
+  }
+
+  return {
+    date,
+    calendarSlotId: slot.id,
+    scheduleOverrideLabel: null,
+  };
 }
 
 async function loadTopicVersionForCourse(
@@ -684,15 +736,24 @@ export async function createSession(db: RedesignDb, input: CreateSessionInput) {
       await loadTermLearningModuleForTerm(tx, term.id, input.termLearningModuleId);
     }
 
+    const schedule = await resolveSessionSchedule(
+      tx,
+      term.id,
+      input.date ?? null,
+      input.scheduleOverrideLabel ?? null,
+    );
+
     return tx.session.create({
       data: {
         termId: term.id,
         termLearningModuleId: input.termLearningModuleId ?? null,
+        calendarSlotId: schedule.calendarSlotId,
         sequence: input.sequence,
         sessionType: input.sessionType,
         code: input.code,
         title: input.title,
-        date: input.date ?? null,
+        date: schedule.date,
+        scheduleOverrideLabel: schedule.scheduleOverrideLabel,
         description: input.description ?? null,
         format: input.format ?? null,
         notes: input.notes ?? null,
@@ -726,9 +787,25 @@ async function updateSessionInternal(
     }
   }
 
+  const nextDate =
+    "date" in input && input.date !== undefined ? input.date : session.date;
+  const nextScheduleOverrideLabel =
+    "scheduleOverrideLabel" in input && input.scheduleOverrideLabel !== undefined
+      ? input.scheduleOverrideLabel
+      : session.scheduleOverrideLabel;
+  const schedule = await resolveSessionSchedule(
+    tx,
+    session.termId,
+    nextDate ?? null,
+    nextScheduleOverrideLabel ?? null,
+  );
+
   const moved =
     markMoved &&
     (("date" in input && input.date !== undefined && input.date?.getTime?.() !== session.date?.getTime?.()) ||
+      ("scheduleOverrideLabel" in input &&
+        input.scheduleOverrideLabel !== undefined &&
+        input.scheduleOverrideLabel !== session.scheduleOverrideLabel) ||
       ("termLearningModuleId" in input && input.termLearningModuleId !== undefined && input.termLearningModuleId !== session.termLearningModuleId) ||
       ("sequence" in input && input.sequence !== undefined && input.sequence !== session.sequence));
 
@@ -736,11 +813,13 @@ async function updateSessionInternal(
     where: { id: sessionId },
     data: {
       termLearningModuleId: nextTermLearningModuleId,
+      calendarSlotId: schedule.calendarSlotId,
       sequence: "sequence" in input ? input.sequence : undefined,
       sessionType: "sessionType" in input ? input.sessionType : undefined,
       code: "code" in input ? input.code : undefined,
       title: "title" in input ? input.title : undefined,
-      date: "date" in input ? input.date : undefined,
+      date: schedule.date,
+      scheduleOverrideLabel: schedule.scheduleOverrideLabel,
       description: "description" in input ? input.description : undefined,
       format: "format" in input ? input.format : undefined,
       notes: "notes" in input ? input.notes : undefined,

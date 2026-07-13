@@ -52,6 +52,7 @@ export type PackageExportInput = {
   profile: PackageProfile;
   scope: PackageScope;
   graph: CoursePackageGraph;
+  payloadResolver?: CoursePackagePayloadResolver;
   packageObjectId?: string;
   exportedAt?: string;
 };
@@ -83,15 +84,34 @@ export type ImportedCommonCartridgeModule = {
   }>;
 };
 
+export type PackagePayloadSummary = {
+  artifactId: string;
+  filename: string | null;
+  mimeType: string | null;
+  path: string;
+  sha256: string;
+  size: number;
+  sourceType: "uploaded_file" | "generated_file";
+};
+
+export type UnresolvedPackagePayload = {
+  artifactId: string;
+  title: string;
+  reason: string;
+};
+
 export type PackageImportPreview = {
   sourceFormat: "course-planner-lossless" | "common-cartridge";
   isLossless: boolean;
+  losslessApplyAllowed: boolean;
   packageObjectId: string | null;
   revisionHash: string | null;
   warnings: string[];
   unsupportedResources: Array<{ identifier: string; type: string | null; href: string | null }>;
   idempotencyKey: string | null;
   graph?: CoursePackageGraph;
+  payloads?: PackagePayloadSummary[];
+  unresolvedPayloads: UnresolvedPackagePayload[];
   commonCartridge?: {
     title: string | null;
     version: string | null;
@@ -105,12 +125,64 @@ export type PackageResult = {
   inspection: PackageInspection;
 };
 
+export type ResolvedExportPayload = {
+  kind: "resolved";
+  bytes: Uint8Array;
+};
+
+export type UnresolvedExportPayload = {
+  kind: "unresolved";
+  reason: string;
+};
+
+export type ResolvedImportPayload = PackagePayloadSummary & {
+  bytes: Uint8Array;
+};
+
+export type RestoredPayloadResult = {
+  artifactId: string;
+  restoredUri?: string | null;
+};
+
+export interface CoursePackagePayloadResolver {
+  resolvePayload(artifact: PackageArtifact): Promise<ResolvedExportPayload | UnresolvedExportPayload>;
+  restorePayload?(payload: ResolvedImportPayload): Promise<RestoredPayloadResult>;
+}
+
+export class PackagePayloadUnavailableError extends Error {
+  constructor(public readonly unresolvedPayloads: UnresolvedPackagePayload[]) {
+    super(
+      `Lossless package payloads were unavailable: ${unresolvedPayloads
+        .map((payload) => payload.artifactId)
+        .join(", ")}`,
+    );
+    this.name = "PackagePayloadUnavailableError";
+  }
+}
+
 const LOSSLESS_METADATA_PATH = "course-planner/package.json";
 const LOSSLESS_GRAPH_PATH = "course-planner/course-package.json";
+const LOSSLESS_PAYLOAD_MANIFEST_PATH = "course-planner/payloads.json";
+const LOSSLESS_PAYLOAD_PREFIX = "course-planner/payloads/";
 const IMS_MANIFEST_PATH = "imsmanifest.xml";
 const SCHEMA_VERSION = "2026-07-12";
-const COMMON_CARTRIDGE_WEB_TYPES = new Set(["webcontent", "associatedcontent/imscc_xmlv1p1/learning-application-resource"]);
+const COMMON_CARTRIDGE_WEB_TYPES = new Set([
+  "webcontent",
+  "associatedcontent/imscc_xmlv1p1/learning-application-resource",
+]);
 const COMMON_CARTRIDGE_LINK_TYPES = new Set(["imswl_xmlv1p1"]);
+
+type LosslessMetadata = {
+  profile: PackageProfile;
+  scope: PackageScope;
+  schemaVersion: string;
+  exportedAt: string;
+  packageObjectId: string;
+  revisionHash: string;
+  title: string;
+};
+
+type PayloadManifestEntry = PackagePayloadSummary;
 
 export class CoursePackageCodec {
   async exportPackage(input: PackageExportInput): Promise<PackageResult> {
@@ -122,7 +194,12 @@ export class CoursePackageCodec {
     const packageObjectId = input.packageObjectId ?? randomUUID();
     const normalizedGraph = normalizeGraph(input.graph);
     const revisionHash = sha256(JSON.stringify(normalizedGraph));
-    const metadata = {
+    const payloadBundle = await collectPayloadEntries(normalizedGraph.artifacts, input.payloadResolver);
+    if (payloadBundle.unresolvedPayloads.length > 0) {
+      throw new PackagePayloadUnavailableError(payloadBundle.unresolvedPayloads);
+    }
+
+    const metadata: LosslessMetadata = {
       profile: input.profile,
       scope: input.scope,
       schemaVersion: SCHEMA_VERSION,
@@ -137,6 +214,11 @@ export class CoursePackageCodec {
       { name: IMS_MANIFEST_PATH, bytes: encodeText(manifest) },
       { name: LOSSLESS_METADATA_PATH, bytes: encodeText(JSON.stringify(metadata, null, 2)) },
       { name: LOSSLESS_GRAPH_PATH, bytes: encodeText(JSON.stringify(normalizedGraph, null, 2)) },
+      {
+        name: LOSSLESS_PAYLOAD_MANIFEST_PATH,
+        bytes: encodeText(JSON.stringify(payloadBundle.manifest, null, 2)),
+      },
+      ...payloadBundle.entries,
     ]);
 
     return {
@@ -153,13 +235,7 @@ export class CoursePackageCodec {
 
     const metadataEntry = findEntry(entries, LOSSLESS_METADATA_PATH);
     if (metadataEntry) {
-      const metadata = JSON.parse(decodeText(metadataEntry.bytes)) as {
-        profile?: PackageProfile;
-        packageObjectId?: string;
-        revisionHash?: string;
-        schemaVersion?: string;
-        title?: string;
-      };
+      const metadata = JSON.parse(decodeText(metadataEntry.bytes)) as Partial<LosslessMetadata>;
       return {
         detectedProfile: metadata.profile ?? "unknown",
         packageObjectId: metadata.packageObjectId ?? null,
@@ -187,9 +263,17 @@ export class CoursePackageCodec {
     }
 
     const manifest = parseXml(decodeText(manifestEntry.bytes));
-    const title = findFirstText(manifest, ["manifest", "metadata", "lomimscc:lom", "lomimscc:general", "lomimscc:title", "lomimscc:string"])
-      ?? findFirstText(manifest, ["manifest", "organizations", "organization", "title"])
-      ?? null;
+    const title =
+      findFirstText(manifest, [
+        "manifest",
+        "metadata",
+        "lomimscc:lom",
+        "lomimscc:general",
+        "lomimscc:title",
+        "lomimscc:string",
+      ]) ??
+      findFirstText(manifest, ["manifest", "organizations", "organization", "title"]) ??
+      null;
     const schemaVersion = findFirstText(manifest, ["manifest", "metadata", "schemaversion"]);
     return {
       detectedProfile: "common-cartridge",
@@ -211,28 +295,29 @@ export class CoursePackageCodec {
     const entries = readZip(bytes);
 
     if (inspection.detectedProfile === "course-planner-lossless") {
-      const graphEntry = findEntry(entries, LOSSLESS_GRAPH_PATH);
-      if (!graphEntry) {
-        throw new ZipFormatError("Lossless Course Planner package is missing course-package.json");
-      }
-      const graph = normalizeGraph(
-        JSON.parse(decodeText(graphEntry.bytes)) as CoursePackageGraph,
-      );
-      const revisionHash = sha256(JSON.stringify(graph));
+      const parsed = parseLosslessPackage(entries);
       const idempotencyKey = inspection.packageObjectId
-        ? `${inspection.packageObjectId}:${revisionHash}`
-        : revisionHash;
+        ? `${inspection.packageObjectId}:${parsed.revisionHash}`
+        : parsed.revisionHash;
+      const warnings = decisions.mode === "merge-into-existing"
+        ? ["Merge mode is preview-only in Lane B; no revisions are overwritten."]
+        : [];
+      if (parsed.unresolvedPayloads.length > 0) {
+        warnings.push("Lossless apply is blocked until every uploaded/generated payload is available and verified.");
+      }
+
       return {
         sourceFormat: "course-planner-lossless",
-        isLossless: true,
+        isLossless: parsed.unresolvedPayloads.length === 0,
+        losslessApplyAllowed: parsed.unresolvedPayloads.length === 0,
         packageObjectId: inspection.packageObjectId,
-        revisionHash,
-        warnings: decisions.mode === "merge-into-existing"
-          ? ["Merge mode is preview-only in Lane B; no revisions are overwritten."]
-          : [],
+        revisionHash: parsed.revisionHash,
+        warnings,
         unsupportedResources: [],
         idempotencyKey,
-        graph,
+        graph: parsed.graph,
+        payloads: parsed.payloads,
+        unresolvedPayloads: parsed.unresolvedPayloads,
       };
     }
 
@@ -248,11 +333,13 @@ export class CoursePackageCodec {
     return {
       sourceFormat: "common-cartridge",
       isLossless: false,
+      losslessApplyAllowed: false,
       packageObjectId: null,
       revisionHash: null,
       warnings: parsed.warnings,
       unsupportedResources: parsed.unsupportedResources,
       idempotencyKey: null,
+      unresolvedPayloads: [],
       commonCartridge: {
         title: parsed.title,
         version: parsed.version,
@@ -260,6 +347,163 @@ export class CoursePackageCodec {
       },
     };
   }
+
+  async restorePayloads(
+    bytes: Uint8Array,
+    resolver: CoursePackagePayloadResolver,
+  ) {
+    if (!resolver.restorePayload) {
+      throw new Error("Payload resolver does not implement restorePayload");
+    }
+
+    const parsed = parseLosslessPackage(readZip(bytes));
+    if (parsed.unresolvedPayloads.length > 0) {
+      throw new PackagePayloadUnavailableError(parsed.unresolvedPayloads);
+    }
+
+    const restored = [];
+    for (const payload of parsed.resolvedPayloads) {
+      restored.push(await resolver.restorePayload(payload));
+    }
+
+    return { restoredPayloads: restored };
+  }
+}
+
+async function collectPayloadEntries(
+  artifacts: PackageArtifact[],
+  payloadResolver: CoursePackagePayloadResolver | undefined,
+) {
+  const manifest: PayloadManifestEntry[] = [];
+  const entries: ZipEntry[] = [];
+  const unresolvedPayloads: UnresolvedPackagePayload[] = [];
+
+  for (const artifact of artifacts.filter((candidate) => candidate.sourceType !== "external_uri")) {
+    const payloadSourceType = artifact.sourceType === "generated_file" ? "generated_file" : "uploaded_file";
+    if (!payloadResolver) {
+      unresolvedPayloads.push({
+        artifactId: artifact.id,
+        title: artifact.title,
+        reason: "No payload resolver was provided for uploaded/generated Artifact bytes.",
+      });
+      continue;
+    }
+
+    const resolved = await payloadResolver.resolvePayload(artifact);
+    if (resolved.kind === "unresolved") {
+      unresolvedPayloads.push({
+        artifactId: artifact.id,
+        title: artifact.title,
+        reason: resolved.reason,
+      });
+      continue;
+    }
+
+    const sha256Hash = sha256Bytes(resolved.bytes);
+    const path = buildPayloadPath(artifact.id, sha256Hash, artifact.filename);
+    manifest.push({
+      artifactId: artifact.id,
+      filename: artifact.filename ?? null,
+      mimeType: artifact.mimeType ?? null,
+      path,
+      sha256: sha256Hash,
+      size: resolved.bytes.length,
+      sourceType: payloadSourceType,
+    });
+    entries.push({
+      name: path,
+      bytes: resolved.bytes,
+    });
+  }
+
+  return {
+    manifest: manifest.sort((left, right) => left.artifactId.localeCompare(right.artifactId)),
+    entries: entries.sort((left, right) => left.name.localeCompare(right.name)),
+    unresolvedPayloads,
+  };
+}
+
+function parseLosslessPackage(entries: ZipEntry[]) {
+  const metadataEntry = findEntry(entries, LOSSLESS_METADATA_PATH);
+  const graphEntry = findEntry(entries, LOSSLESS_GRAPH_PATH);
+  if (!metadataEntry || !graphEntry) {
+    throw new ZipFormatError("Lossless Course Planner package is missing metadata or course-package.json");
+  }
+
+  const metadata = JSON.parse(decodeText(metadataEntry.bytes)) as Partial<LosslessMetadata>;
+  const graph = normalizeGraph(JSON.parse(decodeText(graphEntry.bytes)) as CoursePackageGraph);
+  const revisionHash = sha256(JSON.stringify(graph));
+  if (metadata.revisionHash && metadata.revisionHash !== revisionHash) {
+    throw new ZipFormatError("Lossless Course Planner package revision hash does not match course-package.json");
+  }
+
+  const payloadManifest = parsePayloadManifest(entries);
+  const payloadEntryMap = new Map(payloadManifest.map((entry) => [entry.artifactId, entry]));
+  const unresolvedPayloads: UnresolvedPackagePayload[] = [];
+  const resolvedPayloads: ResolvedImportPayload[] = [];
+
+  for (const artifact of graph.artifacts.filter((candidate) => candidate.sourceType !== "external_uri")) {
+    const manifestEntry = payloadEntryMap.get(artifact.id);
+    if (!manifestEntry) {
+      unresolvedPayloads.push({
+        artifactId: artifact.id,
+        title: artifact.title,
+        reason: "Payload manifest entry is missing for an uploaded/generated Artifact.",
+      });
+      continue;
+    }
+
+    const payloadFile = findEntry(entries, manifestEntry.path);
+    if (!payloadFile) {
+      unresolvedPayloads.push({
+        artifactId: artifact.id,
+        title: artifact.title,
+        reason: `Payload bytes are missing at ${manifestEntry.path}.`,
+      });
+      continue;
+    }
+
+    const actualHash = sha256Bytes(payloadFile.bytes);
+    if (actualHash !== manifestEntry.sha256) {
+      unresolvedPayloads.push({
+        artifactId: artifact.id,
+        title: artifact.title,
+        reason: `Payload hash mismatch for ${manifestEntry.path}.`,
+      });
+      continue;
+    }
+    if (payloadFile.bytes.length !== manifestEntry.size) {
+      unresolvedPayloads.push({
+        artifactId: artifact.id,
+        title: artifact.title,
+        reason: `Payload size mismatch for ${manifestEntry.path}.`,
+      });
+      continue;
+    }
+
+    resolvedPayloads.push({
+      ...manifestEntry,
+      bytes: payloadFile.bytes,
+    });
+  }
+
+  return {
+    metadata,
+    graph,
+    revisionHash,
+    payloads: payloadManifest,
+    resolvedPayloads,
+    unresolvedPayloads,
+  };
+}
+
+function parsePayloadManifest(entries: ZipEntry[]) {
+  const manifestEntry = findEntry(entries, LOSSLESS_PAYLOAD_MANIFEST_PATH);
+  if (!manifestEntry) return [];
+  const parsed = JSON.parse(decodeText(manifestEntry.bytes)) as PayloadManifestEntry[];
+  return [...parsed]
+    .filter((entry) => entry.path.startsWith(LOSSLESS_PAYLOAD_PREFIX))
+    .sort((left, right) => left.artifactId.localeCompare(right.artifactId));
 }
 
 function parseCommonCartridge(entries: ZipEntry[], xml: string) {
@@ -314,9 +558,16 @@ function parseCommonCartridge(entries: ZipEntry[], xml: string) {
 
   return {
     title:
-      findFirstText(manifest, ["manifest", "metadata", "lomimscc:lom", "lomimscc:general", "lomimscc:title", "lomimscc:string"])
-      ?? textFromChild(organizationNode, "title")
-      ?? null,
+      findFirstText(manifest, [
+        "manifest",
+        "metadata",
+        "lomimscc:lom",
+        "lomimscc:general",
+        "lomimscc:title",
+        "lomimscc:string",
+      ]) ??
+      textFromChild(organizationNode, "title") ??
+      null,
     version: findFirstText(manifest, ["manifest", "metadata", "schemaversion"]) ?? null,
     warnings,
     unsupportedResources,
@@ -356,6 +607,18 @@ function deriveTitle(graph: CoursePackageGraph) {
   return courseTitle;
 }
 
+function buildPayloadPath(artifactId: string, sha256Hash: string, filename: string | null) {
+  const safeName = sanitizeFilename(filename ?? "payload.bin");
+  return `${LOSSLESS_PAYLOAD_PREFIX}${artifactId}/${sha256Hash}-${safeName}`;
+}
+
+function sanitizeFilename(value: string) {
+  return value
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120) || "payload.bin";
+}
+
 function normalizeGraph(graph: CoursePackageGraph): CoursePackageGraph {
   return {
     ...graph,
@@ -380,6 +643,10 @@ function sortById(rows: Array<Record<string, unknown>>) {
 }
 
 function sha256(value: string) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function sha256Bytes(value: Uint8Array) {
   return createHash("sha256").update(value).digest("hex");
 }
 

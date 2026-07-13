@@ -325,11 +325,13 @@ function seedSession(
     id: nextId("sess"),
     termId,
     termLearningModuleId,
+    calendarSlotId: null,
     sequence,
     sessionType,
     code,
     title,
     date,
+    scheduleOverrideLabel: null,
     description: null,
     format: null,
     notes: null,
@@ -829,6 +831,7 @@ export function previewCloneTerm(
     calendarSlotCount,
     unresolvedDates,
     warnings: sessionCount === 0 ? ["Source term has no sessions yet — clone will only bring over learning module adoption."] : [],
+    learningModuleChoices: [],
   };
 }
 

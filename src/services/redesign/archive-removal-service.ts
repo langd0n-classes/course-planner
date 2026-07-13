@@ -17,6 +17,13 @@ export type HardRemovalPreview = {
   cascadeDeletes: string[];
 };
 
+export type HardRemovalAudit = {
+  entityType: ArchiveableEntityType;
+  entityId: string;
+  removedAt: Date;
+  summary: string;
+};
+
 export async function setArchivedState(
   db: RedesignDb,
   entityType: ArchiveableEntityType,
@@ -39,10 +46,47 @@ export async function setArchivedState(
 
 export async function previewHardRemoval(
   db: RedesignDb,
-  entityType: Exclude<ArchiveableEntityType, "artifact">,
+  entityType: ArchiveableEntityType,
   entityId: string,
 ) {
   return db.$transaction((tx) => previewHardRemovalTx(tx, entityType, entityId));
+}
+
+export async function hardRemoveArtifact(
+  db: RedesignDb,
+  artifactId: string,
+  confirmTitle: string,
+) {
+  return db.$transaction(async (tx) => {
+    const preview = await previewArtifactHardRemoval(tx, artifactId);
+    if (!preview.canRemove) {
+      throw new DomainInvariantError(
+        `Artifact cannot be hard-removed while references exist: ${preview.blockers
+          .map((blocker) => blocker.code)
+          .join(", ")}`,
+      );
+    }
+
+    const artifact = await tx.artifact.findUnique({
+      where: { id: artifactId },
+      select: { id: true, title: true },
+    });
+    if (!artifact) throw new DomainInvariantError("Artifact not found");
+    if (artifact.title !== confirmTitle) {
+      throw new DomainInvariantError("Hard removal requires confirmation with the exact Artifact title");
+    }
+
+    await tx.artifact.delete({ where: { id: artifactId } });
+    return {
+      artifactId,
+      audit: {
+        entityType: "artifact",
+        entityId: artifactId,
+        removedAt: new Date(),
+        summary: `Hard-removed artifact "${artifact.title}" after impact preview.`,
+      } satisfies HardRemovalAudit,
+    };
+  });
 }
 
 export async function hardRemoveTopic(db: RedesignDb, topicId: string) {
@@ -68,7 +112,7 @@ export async function hardRemoveTopic(db: RedesignDb, topicId: string) {
 
 async function previewHardRemovalTx(
   tx: RedesignTx,
-  entityType: Exclude<ArchiveableEntityType, "artifact">,
+  entityType: ArchiveableEntityType,
   entityId: string,
 ): Promise<HardRemovalPreview> {
   switch (entityType) {
@@ -78,6 +122,8 @@ async function previewHardRemovalTx(
       return previewLearningModuleHardRemoval(tx, entityId);
     case "topic":
       return previewTopicHardRemoval(tx, entityId);
+    case "artifact":
+      return previewArtifactHardRemoval(tx, entityId);
   }
 }
 
@@ -192,6 +238,53 @@ async function previewTopicHardRemoval(
     ],
     ["topic_prerequisites", "topic_versions", "topic"],
   );
+}
+
+async function previewArtifactHardRemoval(
+  tx: RedesignTx,
+  artifactId: string,
+): Promise<HardRemovalPreview> {
+  const artifact = await tx.artifact.findUnique({
+    where: { id: artifactId },
+    include: {
+      session: { include: { term: { select: { status: true } } } },
+      assessment: { include: { term: { select: { status: true } } } },
+      learningModuleVersion: { select: { publishedAt: true } },
+      topicVersion: { select: { publishedAt: true } },
+    },
+  });
+  if (!artifact) throw new DomainInvariantError("Artifact not found");
+
+  const blockers: HardRemovalBlocker[] = [];
+  if (artifact.session?.term.status === "closed" || artifact.assessment?.term.status === "closed") {
+    blockers.push(
+      blocker(
+        "closed_term_evidence",
+        1,
+        "Hard removal may not mutate closed-Term Session or Assessment evidence.",
+      ),
+    );
+  }
+  if (artifact.learningModuleVersion?.publishedAt) {
+    blockers.push(
+      blocker(
+        "published_learning_module_version",
+        1,
+        "Hard removal may not mutate published Learning Module history.",
+      ),
+    );
+  }
+  if (artifact.topicVersion?.publishedAt) {
+    blockers.push(
+      blocker(
+        "published_topic_version",
+        1,
+        "Hard removal may not mutate published Topic history.",
+      ),
+    );
+  }
+
+  return finalizePreview("artifact", artifactId, blockers, ["artifact"]);
 }
 
 function finalizePreview(

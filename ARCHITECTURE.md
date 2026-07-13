@@ -258,6 +258,28 @@ On the redesign branch, every route that queried the removed `Module`,
 - **Canonical paths** (listed in `CanonicalRoute`, `src/lib/redesign-contract.ts`)
   return a typed `501 not_implemented` via `notImplemented()` in
   `src/app/api/redesign-stub.ts`. These are Phase B's job to implement.
+
+## Redesign Phase B.1B recovery seam
+
+The accepted B.1B recovery work tightens four invariant boundaries without
+pulling in the sibling CRUD or cockpit packets:
+
+- **Term creation is preview/apply**. `POST /api/terms` first previews
+  materialized `CalendarSlot` candidates from academic-calendar events,
+  instructor overrides, meeting-role patterns, and the requested date range;
+  only `mode: "apply"` creates the `Term` plus `CalendarSlot` rows.
+- **Calendar materialization is shared**. `src/services/redesign/calendar-materialization-service.ts`
+  is the single source for meeting-role normalization, override application,
+  calendar-fit checks, provenance, and warning/conflict reporting. Term clone
+  reuses the same service for target-slot generation.
+- **Session scheduling records its evidence**. A scheduled Session now either
+  points at a materialized `CalendarSlot` (`calendarSlotId`) or carries an
+  explicit `scheduleOverrideLabel`; closed-Term Session/Assessment Artifacts
+  remain read-only.
+- **Artifact/package history is guarded**. Ordinary Artifact removal archives;
+  hard removal is a separate impact-preview path. Lossless package export now
+  packages uploaded/generated payload bytes through a bounded resolver with
+  hashes and restore hooks instead of claiming a metadata-only round trip.
 - **Obsolete paths** (old Module/Skill CRUD, old JSON/CSV import routes, the
   old artifact export route, the ad-hoc calendar import route) return an
   explicit `410 legacy_route_retired` via `retired()` in the same file, and
