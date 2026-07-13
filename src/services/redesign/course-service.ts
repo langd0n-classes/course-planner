@@ -1,5 +1,6 @@
 import { DomainInvariantError } from "./errors";
 import type { RedesignDb, RedesignTx } from "./types";
+import type { AcademicCalendar, Course, CourseInstitution, Institution } from "@prisma/client";
 
 export type CreateInstitutionInput = {
   instructorId: string;
@@ -77,7 +78,10 @@ export async function createCourse(db: RedesignDb, input: CreateCourseInput) {
   });
 }
 
-export async function listCoursesForInstructor(db: RedesignDb, instructorId: string) {
+export async function listCoursesForInstructor(
+  db: RedesignDb,
+  instructorId: string,
+): Promise<Course[]> {
   return db.$transaction((tx) =>
     tx.course.findMany({
       where: { instructorId, archivedAt: null },
@@ -152,7 +156,10 @@ export async function createInstitution(db: RedesignDb, input: CreateInstitution
   });
 }
 
-export async function listInstitutionsForInstructor(db: RedesignDb, instructorId: string) {
+export async function listInstitutionsForInstructor(
+  db: RedesignDb,
+  instructorId: string,
+): Promise<Institution[]> {
   return db.$transaction((tx) =>
     tx.institution.findMany({
       where: {
@@ -185,9 +192,9 @@ export async function listAcademicCalendarsForInstructor(
   db: RedesignDb,
   instructorId: string,
   institutionId?: string | null,
-) {
+): Promise<AcademicCalendar[]> {
   return db.$transaction(async (tx) => {
-    const memberships = await tx.instructorInstitution.findMany({
+    const memberships: Array<{ institutionId: string }> = await tx.instructorInstitution.findMany({
       where: { instructorId, status: "active" },
       select: { institutionId: true },
     });
@@ -223,7 +230,7 @@ export async function listCourseInstitutionsForInstructor(
   db: RedesignDb,
   instructorId: string,
   courseId: string,
-) {
+): Promise<Institution[]> {
   return db.$transaction(async (tx) => {
     await assertOwnedCourse(tx, instructorId, courseId);
     return tx.institution.findMany({
@@ -239,7 +246,7 @@ export async function listCourseInstitutionsForInstructor(
 export async function replaceCourseInstitutions(
   db: RedesignDb,
   input: ReplaceCourseInstitutionsInput,
-) {
+): Promise<CourseInstitution[]> {
   return db.$transaction(async (tx) => {
     await assertOwnedCourse(tx, input.instructorId, input.courseId);
     const uniqueInstitutionIds = [...new Set(input.institutionIds)];

@@ -1,12 +1,13 @@
 import { DomainInvariantError } from "./errors";
 import { assertAcyclicTopicPrerequisite, assertSameCourse } from "./invariants";
 import type { RedesignDb, RedesignTx } from "./types";
+import type { TopicPrerequisite } from "@prisma/client";
 
 export async function listTopicPrerequisitesForInstructor(
   db: RedesignDb,
   instructorId: string,
   topicId: string,
-) {
+): Promise<TopicPrerequisite[]> {
   return db.$transaction(async (tx) => {
     const topic = await tx.topic.findUnique({
       where: { id: topicId },
@@ -57,7 +58,7 @@ export async function addTopicPrerequisite(
 export async function replaceTopicPrerequisitesForInstructor(
   db: RedesignDb,
   input: { instructorId: string; topicId: string; prerequisiteTopicIds: string[] },
-) {
+): Promise<TopicPrerequisite[]> {
   return db.$transaction(async (tx) => {
     const topic = await tx.topic.findUnique({
       where: { id: input.topicId },
@@ -78,7 +79,8 @@ export async function replaceTopicPrerequisitesForInstructor(
       throw new DomainInvariantError("Topic prerequisite must belong to the same Course");
     }
 
-    const existingEdges = await tx.topicPrerequisite.findMany({
+    const existingEdges: Array<{ topicId: string; prerequisiteTopicId: string }> =
+      await tx.topicPrerequisite.findMany({
       where: { courseId: topic.courseId },
       select: { topicId: true, prerequisiteTopicId: true },
     });

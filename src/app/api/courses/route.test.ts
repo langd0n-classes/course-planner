@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
 import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 
 const prismaMock = {
@@ -74,17 +75,17 @@ describe("courses collection route", () => {
 
   it("rejects creating a course on behalf of a different instructor", async () => {
     authMock.mockResolvedValue({
-      id: "instructor-1",
+      id: "00000000-0000-4000-8000-000000000001",
       email: "alice@example.edu",
       name: "Alice",
     });
 
     const { POST } = await import("./route");
     const response = await POST(
-      new Request("http://localhost/api/courses", {
+      new NextRequest("http://localhost/api/courses", {
         method: "POST",
         body: JSON.stringify({
-          instructorId: "instructor-2",
+          instructorId: "00000000-0000-4000-8000-000000000002",
           title: "Course Planning",
           number: "CP 101",
         }),

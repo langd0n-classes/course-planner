@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
-import { badRequest, ok, unauthorized } from "@/lib/api-helpers";
+import { badRequest, notFound, ok, unauthorized } from "@/lib/api-helpers";
 import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 import { toTopicPrerequisiteDto } from "@/lib/redesign-serializers";
 import { replaceTopicPrerequisitesSchema } from "@/lib/redesign-schemas";
