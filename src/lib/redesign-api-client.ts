@@ -313,6 +313,10 @@ const _api = {
       institutionId: Id;
       academicCalendarId: Id;
       meetingPattern: MeetingPatternDto;
+      learningModuleVersionSelections?: Array<{
+        termLearningModuleId: Id;
+        plannedLearningModuleVersionId: Id;
+      }>;
     },
   ): Promise<CloneTermPreviewResponse> =>
     post<CloneTermPreviewResponse>(`/api/terms/${sourceTermId}/clone`, { ...input, mode: "preview" }),
@@ -327,6 +331,10 @@ const _api = {
       institutionId: Id;
       academicCalendarId: Id;
       meetingPattern: MeetingPatternDto;
+      learningModuleVersionSelections?: Array<{
+        termLearningModuleId: Id;
+        plannedLearningModuleVersionId: Id;
+      }>;
     },
   ): Promise<CloneTermApplyResponse> =>
     post<CloneTermApplyResponse>(`/api/terms/${sourceTermId}/clone`, { ...input, mode: "apply" }),

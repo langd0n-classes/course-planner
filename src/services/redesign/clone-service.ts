@@ -36,6 +36,11 @@ type CloneLearningModuleChoice = {
   }>;
 };
 
+type SessionCloneEvidence = {
+  sourceSessionId: string;
+  note: string;
+};
+
 function toDateKey(date: Date) {
   return date.toISOString().slice(0, 10);
 }
@@ -44,6 +49,36 @@ function addDays(date: Date, days: number) {
   const next = new Date(date);
   next.setUTCDate(next.getUTCDate() + days);
   return next;
+}
+
+function buildSessionCloneEvidence(
+  session: {
+    id: string;
+    date: Date | null;
+    scheduleOverrideLabel?: string | null;
+  },
+  mappedDate: Date | null,
+  unresolvedReason: string | null,
+): SessionCloneEvidence {
+  const details: string[] = [];
+  if (session.date) {
+    details.push(`Source date ${toDateKey(session.date)}.`);
+  } else {
+    details.push("Source Session was unscheduled.");
+  }
+  if (session.scheduleOverrideLabel) {
+    details.push(`Source override: ${session.scheduleOverrideLabel}.`);
+  }
+  if (mappedDate) {
+    details.push(`Cloned to ${toDateKey(mappedDate)}.`);
+  } else if (unresolvedReason) {
+    details.push(`Cloned without a target class-day slot: ${unresolvedReason}.`);
+  }
+
+  return {
+    sourceSessionId: session.id,
+    note: details.join(" "),
+  };
 }
 
 async function assertCloneTarget(tx: RedesignTx, sourceTerm: { courseId: string }, input: CloneRequest) {
@@ -140,6 +175,7 @@ function mapSessionAndAssessmentDates(
 ) {
   const unresolvedDates: Array<{ sourceDate: string; sourceSessionId?: string; reason: string }> = [];
   const mappedSessionDates = new Map<string, Date | null>();
+  const unresolvedReasonBySessionId = new Map<string, string>();
   const roleOrdinalByKey = new Map<string, number>();
   const warnings: string[] = [];
 
@@ -178,6 +214,7 @@ function mapSessionAndAssessmentDates(
         sourceSessionId: session.id,
         reason: "Source Session could not be mapped to a meeting role",
       });
+      unresolvedReasonBySessionId.set(session.id, "Source Session could not be mapped to a meeting role");
       mappedSessionDates.set(session.id, null);
       continue;
     }
@@ -192,6 +229,10 @@ function mapSessionAndAssessmentDates(
         sourceSessionId: session.id,
         reason: `Target Term has fewer ${roleKey} meetings than the source Term`,
       });
+      unresolvedReasonBySessionId.set(
+        session.id,
+        `Target Term has fewer ${roleKey} meetings than the source Term`,
+      );
       mappedSessionDates.set(session.id, null);
       continue;
     }
@@ -252,7 +293,13 @@ function mapSessionAndAssessmentDates(
     mappedAssessmentDates.set(assessment.id, targetDate);
   }
 
-  return { unresolvedDates, warnings, mappedSessionDates, mappedAssessmentDates };
+  return {
+    unresolvedDates,
+    warnings,
+    mappedSessionDates,
+    mappedAssessmentDates,
+    unresolvedReasonBySessionId,
+  };
 }
 
 async function previewClone(tx: RedesignTx, input: CloneRequest) {
@@ -318,13 +365,11 @@ export async function applyTermClone(db: RedesignDb, input: CloneRequest) {
       endDate: input.endDate,
       meetingPattern: input.meetingPattern,
     });
-    const { unresolvedDates, mappedSessionDates, mappedAssessmentDates } = mapSessionAndAssessmentDates(
-      sourceTerm,
-      targetCalendar,
-    );
-    if (unresolvedDates.length > 0) {
-      throw new DomainInvariantError("Clone preview has unresolved dates; apply requires a conflict-free preview");
+    if (targetCalendar.conflicts.length > 0) {
+      throw new DomainInvariantError("Clone target preview contains materialization conflicts; resolve them before apply");
     }
+    const { mappedSessionDates, mappedAssessmentDates, unresolvedReasonBySessionId } =
+      mapSessionAndAssessmentDates(sourceTerm, targetCalendar);
 
     const selectionMap = new Map(
       (input.learningModuleVersionSelections ?? []).map((selection) => [
@@ -370,6 +415,9 @@ export async function applyTermClone(db: RedesignDb, input: CloneRequest) {
           slotType: candidate.slotType,
           label: candidate.label,
           source: candidate.source,
+          instructionalCapacity: candidate.instructionalCapacity,
+          capacitySource: candidate.capacitySource,
+          capacityReason: candidate.capacityReason,
         },
       });
       slotIdByDateKey.set(toDateKey(slot.date), slot.id);
@@ -411,6 +459,7 @@ export async function applyTermClone(db: RedesignDb, input: CloneRequest) {
           title: session.title,
           date: mappedDate,
           calendarSlotId,
+          scheduleOverrideLabel: null,
           description: session.description,
           format: session.format,
           notes: session.notes,
@@ -423,7 +472,21 @@ export async function applyTermClone(db: RedesignDb, input: CloneRequest) {
       });
       sessionIdMap.set(session.id, created.id);
 
+      const sourceEvidence = buildSessionCloneEvidence(
+        session,
+        mappedDate,
+        unresolvedReasonBySessionId.get(session.id) ?? null,
+      );
+      await tx.sessionPriorArt.create({
+        data: {
+          sessionId: created.id,
+          sourceSessionId: sourceEvidence.sourceSessionId,
+          note: sourceEvidence.note,
+        },
+      });
+
       for (const priorArt of session.priorArt) {
+        if (priorArt.sourceSessionId === session.id) continue;
         await tx.sessionPriorArt.create({
           data: {
             sessionId: created.id,
