@@ -191,7 +191,9 @@ export async function assertPublishedTopicVersionImmutable(tx: RedesignTx, versi
   if (version?.publishedAt) throw new ImmutablePublishedVersionError();
 }
 
-async function createLearningModuleVersion(
+// Exported so offering-service can create delivered-revision versions with
+// the same topic-snapshot validation, without duplicating it.
+export async function createLearningModuleVersion(
   tx: RedesignTx,
   input: {
     learningModule: { id: string; courseId: string };
@@ -227,6 +229,7 @@ async function createLearningModuleVersion(
         })),
       },
     },
+    include: { topics: { orderBy: { sequence: "asc" } } },
   });
 }
 
