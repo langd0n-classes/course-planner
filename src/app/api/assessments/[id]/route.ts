@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
-import { badRequest, notFound, ok } from "@/lib/api-helpers";
+import { badRequest, notFound, ok, unauthorized } from "@/lib/api-helpers";
+import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 import { updateAssessmentSchema } from "@/lib/redesign-schemas";
 import { toAssessmentDto } from "@/lib/redesign-serializers";
 import { archiveAssessment, DomainInvariantError, getAssessment, updateAssessment } from "@/services/redesign";
@@ -14,8 +15,11 @@ export type { GetAssessmentResponse, UpdateAssessmentRequest, UpdateAssessmentRe
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const instructor = await getAuthenticatedInstructor(prisma);
+  if (!instructor) return unauthorized();
+
   try {
-    const assessment = await getAssessment(prisma, id);
+    const assessment = await getAssessment(prisma, instructor.id, id);
     return ok({ assessment: toAssessmentDto(assessment) } satisfies GetAssessmentResponse);
   } catch (error) {
     if (error instanceof DomainInvariantError) return notFound(error.message);
@@ -25,6 +29,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const instructor = await getAuthenticatedInstructor(prisma);
+  if (!instructor) return unauthorized();
+
   const body = await request.json();
   const parsed = updateAssessmentSchema.safeParse(body);
   if (!parsed.success) {
@@ -32,7 +39,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   try {
-    const assessment = await updateAssessment(prisma, id, {
+    const assessment = await updateAssessment(prisma, instructor.id, id, {
       code: parsed.data.code,
       title: parsed.data.title,
       assessmentType: parsed.data.assessmentType,
@@ -60,8 +67,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const instructor = await getAuthenticatedInstructor(prisma);
+  if (!instructor) return unauthorized();
+
   try {
-    const assessment = await archiveAssessment(prisma, id);
+    const assessment = await archiveAssessment(prisma, instructor.id, id);
     return ok({ assessment: toAssessmentDto(assessment) } satisfies UpdateAssessmentResponse);
   } catch (error) {
     if (error instanceof DomainInvariantError) {

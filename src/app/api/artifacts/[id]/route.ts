@@ -1,14 +1,22 @@
 import { ZodError, z } from "zod";
-import { badRequest, handleZodError, notFound, ok, serverError } from "@/lib/api-helpers";
+import { badRequest, handleZodError, notFound, ok, serverError, unauthorized } from "@/lib/api-helpers";
 import prisma from "@/lib/prisma";
+import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 import type {
   DeleteArtifactResponse,
   GetArtifactResponse,
   UpdateArtifactRequest,
   UpdateArtifactResponse,
 } from "@/lib/redesign-contract";
-import { archiveArtifact, hardRemoveArtifact, previewHardRemoval, updateArtifact } from "@/services/redesign";
+import {
+  archiveArtifact,
+  getOwnedArtifactForInstructor,
+  hardRemoveArtifact,
+  previewHardRemoval,
+  updateArtifact,
+} from "@/services/redesign";
 import { DomainInvariantError } from "@/services/redesign/errors";
+import type { RedesignTx } from "@/services/redesign/types";
 
 export type {
   DeleteArtifactResponse,
@@ -63,8 +71,12 @@ export async function GET(
 ) {
   const { id } = await context.params;
   try {
-    const artifact = await prisma.artifact.findUnique({ where: { id } });
-    if (!artifact) return notFound("Artifact not found");
+    const instructor = await getAuthenticatedInstructor(prisma);
+    if (!instructor) return unauthorized();
+
+    const artifact = await prisma.$transaction((tx: RedesignTx) =>
+      getOwnedArtifactForInstructor(tx, instructor.id, id),
+    );
     return ok({ artifact: toArtifactDto(artifact) } satisfies GetArtifactResponse);
   } catch (error) {
     return handleArtifactError(error);
@@ -77,8 +89,11 @@ export async function PATCH(
 ) {
   const { id } = await context.params;
   try {
+    const instructor = await getAuthenticatedInstructor(prisma);
+    if (!instructor) return unauthorized();
+
     const body = updateArtifactRequestSchema.parse(await request.json());
-    const artifact = await updateArtifact(prisma, id, {
+    const artifact = await updateArtifact(prisma, instructor.id, id, {
       ...body,
       generatedAt:
         body.generatedAt === undefined
@@ -100,11 +115,14 @@ export async function DELETE(
 ) {
   const { id } = await context.params;
   try {
+    const instructor = await getAuthenticatedInstructor(prisma);
+    if (!instructor) return unauthorized();
+
     const url = new URL(request.url);
     const mode = url.searchParams.get("mode") ?? "archive";
 
     if (mode === "hard-preview") {
-      const preview = await previewHardRemoval(prisma, "artifact", id);
+      const preview = await previewHardRemoval(prisma, "artifact", id, instructor.id);
       return ok({
         kind: "hard_removal_preview",
         artifactId: id,
@@ -118,7 +136,7 @@ export async function DELETE(
       if (!confirmTitle) {
         return badRequest("Hard removal requires confirmTitle");
       }
-      const removed = await hardRemoveArtifact(prisma, id, confirmTitle);
+      const removed = await hardRemoveArtifact(prisma, instructor.id, id, confirmTitle);
       return ok({
         kind: "hard_removed",
         artifactId: removed.artifactId,
@@ -129,7 +147,7 @@ export async function DELETE(
       } satisfies DeleteArtifactResponse);
     }
 
-    const artifact = await archiveArtifact(prisma, id);
+    const artifact = await archiveArtifact(prisma, instructor.id, id);
     return ok({
       kind: "archived",
       artifact: toArtifactDto(artifact),
@@ -180,7 +198,7 @@ function toArtifactDto(artifact: {
 function handleArtifactError(error: unknown) {
   if (error instanceof ZodError) return handleZodError(error);
   if (error instanceof DomainInvariantError) {
-    if (error.message === "Artifact not found") return notFound(error.message);
+    if (error.message.endsWith("not found")) return notFound(error.message);
     return badRequest(error.message);
   }
   return serverError(error instanceof Error ? error.message : "Internal server error");

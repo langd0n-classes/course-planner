@@ -8,6 +8,7 @@ export * from "./errors";
 export * from "./invariants";
 export * from "./lifecycle-service";
 export * from "./offering-service";
+export * from "./ownership-service";
 export * from "./package-zip";
 export * from "./planning-service";
 export * from "./prerequisite-service";

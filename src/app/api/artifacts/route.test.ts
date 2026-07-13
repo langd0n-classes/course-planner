@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 
 const prismaMock = {
   $transaction: vi.fn(),
@@ -10,9 +11,21 @@ vi.mock("@/lib/prisma", () => ({
   prisma: prismaMock,
 }));
 
+vi.mock("@/lib/redesign-auth", () => ({
+  getAuthenticatedInstructor: vi.fn(),
+}));
+
+const authMock = vi.mocked(getAuthenticatedInstructor);
+
 describe("artifacts collection route", () => {
   beforeEach(() => {
     prismaMock.$transaction.mockReset();
+    authMock.mockReset();
+    authMock.mockResolvedValue({
+      id: "instructor-1",
+      email: "alice@example.edu",
+      name: "Alice",
+    });
   });
 
   it("creates an artifact with durable URI validation", async () => {
@@ -26,7 +39,11 @@ describe("artifacts collection route", () => {
           })),
         },
         session: {
-          findUnique: vi.fn(async () => ({ id: "session-1", term: { status: "active" } })),
+          findUnique: vi.fn(async () => ({
+            id: "session-1",
+            term: { status: "active", course: { instructorId: "instructor-1" } },
+            termLearningModule: null,
+          })),
         },
       }),
     );
@@ -95,6 +112,13 @@ describe("artifacts collection route", () => {
               archivedAt: null,
             },
           ]),
+        },
+        assessment: {
+          findUnique: vi.fn(async () => ({
+            id: "assessment-1",
+            term: { status: "active", course: { instructorId: "instructor-1" } },
+            topics: [],
+          })),
         },
       }),
     );

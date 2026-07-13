@@ -5,9 +5,11 @@ import {
 } from "./calendar-materialization-service";
 import { assertInstructorInstitution } from "./course-service";
 import { assertSameCourse } from "./invariants";
+import { getOwnedCourseForInstructor, getOwnedTermForInstructor } from "./ownership-service";
 import type { RedesignDb, RedesignTx } from "./types";
 
 export type CreateTermInput = {
+  instructorId: string;
   courseId: string;
   institutionId?: string;
   academicCalendarId: string;
@@ -125,23 +127,20 @@ export async function applyTermCreation(
 }
 
 async function loadAndValidateTermContext(tx: RedesignTx, input: CreateTermInput) {
-  const course = await tx.course.findUnique({
-    where: { id: input.courseId },
-    include: { institutions: true },
-  });
-  if (!course) throw new DomainInvariantError("Course not found");
+  const course = await getOwnedCourseForInstructor(tx, input.instructorId, input.courseId);
+  const institutions = await tx.courseInstitution.findMany({ where: { courseId: course.id } });
 
-  const institutionId = await resolveTermInstitution(tx, course, input.institutionId);
+  const institutionId = await resolveTermInstitution(
+    tx,
+    { id: course.id, institutions },
+    input.institutionId,
+  );
   await assertInstructorInstitution(tx, course.instructorId, institutionId);
   await assertCourseInstitution(tx, input.courseId, institutionId);
   await assertCalendarInstitution(tx, input.academicCalendarId, institutionId);
 
   if (input.clonedFromId) {
-    const source = await tx.term.findUnique({
-      where: { id: input.clonedFromId },
-      select: { courseId: true },
-    });
-    if (!source) throw new DomainInvariantError("Source Term not found");
+    const source = await getOwnedTermForInstructor(tx, input.instructorId, input.clonedFromId);
     assertSameCourse(input.courseId, source.courseId, "Term cloning");
   }
 
@@ -190,6 +189,7 @@ async function assertCalendarInstitution(
 }
 
 export type UpdateTermInput = {
+  instructorId: string;
   academicCalendarId?: string;
   code?: string;
   name?: string;
@@ -200,8 +200,7 @@ export type UpdateTermInput = {
 
 export async function updateTerm(db: RedesignDb, termId: string, input: UpdateTermInput) {
   return db.$transaction(async (tx) => {
-    const term = await tx.term.findUnique({ where: { id: termId } });
-    if (!term) throw new DomainInvariantError("Term not found");
+    const term = await getOwnedTermForInstructor(tx, input.instructorId, termId);
     if (term.status === "closed") {
       throw new DomainInvariantError("Closed Terms are read-only");
     }
@@ -228,10 +227,9 @@ export async function updateTerm(db: RedesignDb, termId: string, input: UpdateTe
 // versus hard removal"): the frozen contract exposes no separate guarded
 // hard-removal command for Term, so DELETE sets archivedAt rather than
 // physically removing rows that historical Sessions/Coverage may reference.
-export async function archiveTerm(db: RedesignDb, termId: string) {
+export async function archiveTerm(db: RedesignDb, instructorId: string, termId: string) {
   return db.$transaction(async (tx) => {
-    const term = await tx.term.findUnique({ where: { id: termId } });
-    if (!term) throw new DomainInvariantError("Term not found");
+    const term = await getOwnedTermForInstructor(tx, instructorId, termId);
     if (term.archivedAt) return term;
     return tx.term.update({ where: { id: termId }, data: { archivedAt: new Date() } });
   });

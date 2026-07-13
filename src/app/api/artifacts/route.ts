@@ -1,6 +1,7 @@
 import { ZodError, z } from "zod";
-import { badRequest, created, handleZodError, serverError } from "@/lib/api-helpers";
+import { badRequest, created, handleZodError, notFound, serverError, unauthorized } from "@/lib/api-helpers";
 import prisma from "@/lib/prisma";
+import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 import type {
   CreateArtifactRequest,
   CreateArtifactResponse,
@@ -52,9 +53,12 @@ const createArtifactRequestSchema = z.object({
 
 export async function GET(request: Request) {
   try {
+    const instructor = await getAuthenticatedInstructor(prisma);
+    if (!instructor) return unauthorized();
+
     const params = new URL(request.url).searchParams;
     const parentType = params.get("parentType");
-    const artifacts = await listArtifacts(prisma, {
+    const artifacts = await listArtifacts(prisma, instructor.id, {
       parentType: parentType ? artifactParentTypeSchema.parse(parentType) : undefined,
       learningModuleVersionId: params.get("learningModuleVersionId") ?? undefined,
       topicVersionId: params.get("topicVersionId") ?? undefined,
@@ -73,8 +77,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const instructor = await getAuthenticatedInstructor(prisma);
+    if (!instructor) return unauthorized();
+
     const body = createArtifactRequestSchema.parse(await request.json());
     const artifact = await createArtifact(prisma, {
+      instructorId: instructor.id,
       ...body,
       generatedAt: body.generatedAt ? new Date(body.generatedAt) : null,
     });
@@ -126,6 +134,8 @@ function toArtifactDto(artifact: {
 
 function handleArtifactError(error: unknown) {
   if (error instanceof ZodError) return handleZodError(error);
-  if (error instanceof DomainInvariantError) return badRequest(error.message);
+  if (error instanceof DomainInvariantError) {
+    return error.message.endsWith("not found") ? notFound(error.message) : badRequest(error.message);
+  }
   return serverError(error instanceof Error ? error.message : "Internal server error");
 }

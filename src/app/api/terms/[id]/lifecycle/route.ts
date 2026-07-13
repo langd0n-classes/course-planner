@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
-import { ok, badRequest, notFound, conflict } from "@/lib/api-helpers";
+import { ok, badRequest, notFound, conflict, unauthorized } from "@/lib/api-helpers";
+import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 import { toTermDto } from "@/lib/redesign-serializers";
 import { termLifecycleTransitionSchema } from "@/lib/redesign-schemas";
 import { ConcurrencyConflictError, DomainInvariantError } from "@/services/redesign";
@@ -14,6 +15,9 @@ export type { TermLifecycleTransitionRequest, TermLifecycleTransitionResponse };
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const instructor = await getAuthenticatedInstructor(prisma);
+  if (!instructor) return unauthorized();
+
   const body = await request.json();
   const parsed = termLifecycleTransitionSchema.safeParse(body);
   if (!parsed.success) {
@@ -22,6 +26,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   try {
     const term = await transitionTermLifecycle(prisma, {
+      instructorId: instructor.id,
       termId: id,
       transition: parsed.data.transition,
       expectedStatus: parsed.data.expectedStatus,

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
-import { badRequest, notFound, ok } from "@/lib/api-helpers";
+import { badRequest, notFound, ok, unauthorized } from "@/lib/api-helpers";
+import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 import { updateSessionSchema } from "@/lib/redesign-schemas";
 import { toSessionDto } from "@/lib/redesign-serializers";
 import { archiveSession, DomainInvariantError, getSession, updateSession } from "@/services/redesign";
@@ -10,8 +11,11 @@ export type { GetSessionResponse, UpdateSessionRequest, UpdateSessionResponse };
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const instructor = await getAuthenticatedInstructor(prisma);
+  if (!instructor) return unauthorized();
+
   try {
-    const session = await getSession(prisma, id);
+    const session = await getSession(prisma, instructor.id, id);
     return ok({ session: toSessionDto(session) } satisfies GetSessionResponse);
   } catch (error) {
     if (error instanceof DomainInvariantError) return notFound(error.message);
@@ -21,6 +25,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const instructor = await getAuthenticatedInstructor(prisma);
+  if (!instructor) return unauthorized();
+
   const body = await request.json();
   const parsed = updateSessionSchema.safeParse(body);
   if (!parsed.success) {
@@ -28,7 +35,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   try {
-    const session = await updateSession(prisma, id, {
+    const session = await updateSession(prisma, instructor.id, id, {
       termLearningModuleId: parsed.data.termLearningModuleId,
       sequence: parsed.data.sequence,
       sessionType: parsed.data.sessionType,
@@ -63,8 +70,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const instructor = await getAuthenticatedInstructor(prisma);
+  if (!instructor) return unauthorized();
+
   try {
-    const session = await archiveSession(prisma, id);
+    const session = await archiveSession(prisma, instructor.id, id);
     return ok({ session: toSessionDto(session) } satisfies UpdateSessionResponse);
   } catch (error) {
     if (error instanceof DomainInvariantError) {

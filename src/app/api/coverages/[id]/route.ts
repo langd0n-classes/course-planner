@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
-import { badRequest, notFound, ok } from "@/lib/api-helpers";
+import { badRequest, notFound, ok, unauthorized } from "@/lib/api-helpers";
+import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 import { updateCoverageSchema } from "@/lib/redesign-schemas";
 import { toCoverageDto } from "@/lib/redesign-serializers";
 import { deleteCoverage, DomainInvariantError, getCoverage, updateCoverage } from "@/services/redesign";
@@ -10,8 +11,11 @@ export type { GetCoverageResponse, UpdateCoverageRequest, UpdateCoverageResponse
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const instructor = await getAuthenticatedInstructor(prisma);
+  if (!instructor) return unauthorized();
+
   try {
-    const coverage = await getCoverage(prisma, id);
+    const coverage = await getCoverage(prisma, instructor.id, id);
     return ok({ coverage: toCoverageDto(coverage) } satisfies GetCoverageResponse);
   } catch (error) {
     if (error instanceof DomainInvariantError) return notFound(error.message);
@@ -21,6 +25,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const instructor = await getAuthenticatedInstructor(prisma);
+  if (!instructor) return unauthorized();
+
   const body = await request.json();
   const parsed = updateCoverageSchema.safeParse(body);
   if (!parsed.success) {
@@ -28,7 +35,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   try {
-    const coverage = await updateCoverage(prisma, id, parsed.data);
+    const coverage = await updateCoverage(prisma, instructor.id, id, parsed.data);
     return ok({ coverage: toCoverageDto(coverage) } satisfies UpdateCoverageResponse);
   } catch (error) {
     if (error instanceof DomainInvariantError) {
@@ -40,8 +47,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const instructor = await getAuthenticatedInstructor(prisma);
+  if (!instructor) return unauthorized();
+
   try {
-    const coverage = await deleteCoverage(prisma, id);
+    const coverage = await deleteCoverage(prisma, instructor.id, id);
     return ok({ coverage: toCoverageDto(coverage) } satisfies UpdateCoverageResponse);
   } catch (error) {
     if (error instanceof DomainInvariantError) {

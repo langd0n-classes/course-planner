@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
-import { badRequest, ok } from "@/lib/api-helpers";
+import { badRequest, notFound, ok, unauthorized } from "@/lib/api-helpers";
+import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 import { cloneTermSchema } from "@/lib/redesign-schemas";
 import { toTermDto } from "@/lib/redesign-serializers";
 import { applyTermClone, DomainInvariantError, previewTermClone } from "@/services/redesign";
@@ -20,6 +21,9 @@ export type {
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const instructor = await getAuthenticatedInstructor(prisma);
+  if (!instructor) return unauthorized();
+
   const body = await request.json();
   const parsed = cloneTermSchema.safeParse(body);
   if (!parsed.success) {
@@ -29,6 +33,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     if (parsed.data.mode === "preview") {
       const preview = await previewTermClone(prisma, {
+        instructorId: instructor.id,
         sourceTermId: id,
         ...parsed.data,
         startDate: new Date(parsed.data.startDate),
@@ -38,6 +43,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const applied = await applyTermClone(prisma, {
+      instructorId: instructor.id,
       sourceTermId: id,
       ...parsed.data,
       startDate: new Date(parsed.data.startDate),
@@ -48,7 +54,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       term: toTermDto(applied.term),
     } satisfies CloneTermApplyResponse);
   } catch (error) {
-    if (error instanceof DomainInvariantError) return badRequest(error.message);
+    if (error instanceof DomainInvariantError) {
+      return error.message === "Source Term not found" ? notFound(error.message) : badRequest(error.message);
+    }
     throw error;
   }
 }
