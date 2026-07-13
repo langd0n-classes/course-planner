@@ -5,6 +5,7 @@ import { previewTermClone } from "./clone-service";
 import { createCourse } from "./course-service";
 import { ConcurrencyConflictError, DomainInvariantError, ImmutablePublishedVersionError } from "./errors";
 import { assertAcyclicTopicPrerequisite, assertSameCourse } from "./invariants";
+import { transitionTermLifecycle } from "./lifecycle-service";
 import { computePlannedDeliveredDiff, createDeliveredRevision } from "./offering-service";
 import { assertPublishedLearningModuleVersionImmutable, reviseLearningModule } from "./revision-service";
 import { createTerm } from "./term-service";
@@ -14,6 +15,47 @@ function createTransactionalDb(tx: Record<string, any>) {
     $transaction: async <T>(fn: (tx: Record<string, any>) => Promise<T>) => fn(tx),
   };
 }
+
+describe("term lifecycle concurrency", () => {
+  it("changes status with an atomic expected-status predicate", async () => {
+    let updateWhere: Record<string, unknown> | null = null;
+    const db = createTransactionalDb({
+      term: {
+        findUnique: async () => ({ id: "term-1", status: "planned", closedAt: null }),
+        updateMany: async ({ where }: any) => {
+          updateWhere = where;
+          return { count: 1 };
+        },
+      },
+    });
+
+    const term = await transitionTermLifecycle(db, {
+      termId: "term-1",
+      transition: "activate",
+      expectedStatus: "planned",
+    });
+
+    expect(updateWhere).toEqual({ id: "term-1", status: "planned" });
+    expect(term.status).toBe("active");
+  });
+
+  it("rejects a race lost between the status read and update", async () => {
+    const db = createTransactionalDb({
+      term: {
+        findUnique: async () => ({ id: "term-1", status: "planned", closedAt: null }),
+        updateMany: async () => ({ count: 0 }),
+      },
+    });
+
+    await expect(
+      transitionTermLifecycle(db, {
+        termId: "term-1",
+        transition: "activate",
+        expectedStatus: "planned",
+      }),
+    ).rejects.toThrow(ConcurrencyConflictError);
+  });
+});
 
 describe("redesign service invariants", () => {
   it("requires an Artifact parent to be singular and agree with parentType", async () => {
