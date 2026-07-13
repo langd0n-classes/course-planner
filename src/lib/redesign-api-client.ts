@@ -16,8 +16,10 @@ import type {
   CloneTermPreviewResponse,
   CourseDto,
   CoverageHealthDto,
+  CreateAcademicCalendarRequest,
   CreateDeliveredRevisionRequest,
   CreateDeliveredRevisionResponse,
+  CreateInstitutionRequest,
   CreateTermApplyResponse,
   CreateTermPreviewResponse,
   Id,
@@ -28,6 +30,7 @@ import type {
   ListArtifactsResponse,
   ListTermsResponse,
   PlannedDeliveredDiffResponse,
+  ReplaceCourseInstitutionsResponse,
   SessionDto,
   TermDto,
   TermLearningModuleDto,
@@ -131,12 +134,20 @@ const _api = {
   listInstitutions: (): Promise<InstitutionDto[]> =>
     get<{ institutions: InstitutionDto[] }>("/api/institutions").then((d) => d.institutions),
 
+  createInstitution: (input: CreateInstitutionRequest): Promise<InstitutionDto> =>
+    post<{ institution: InstitutionDto }>("/api/institutions", input).then((d) => d.institution),
+
   listAcademicCalendars: (institutionId?: Id): Promise<AcademicCalendarDto[]> => {
     const qs = institutionId ? `?institutionId=${encodeURIComponent(institutionId)}` : "";
     return get<{ academicCalendars: AcademicCalendarDto[] }>(`/api/academic-calendars${qs}`).then(
       (d) => d.academicCalendars,
     );
   },
+
+  createAcademicCalendar: (input: CreateAcademicCalendarRequest): Promise<AcademicCalendarDto> =>
+    post<{ academicCalendar: AcademicCalendarDto }>("/api/academic-calendars", input).then(
+      (d) => d.academicCalendar,
+    ),
 
   // Courses -------------------------------------------------------------------
   listCourses: (): Promise<CourseDto[]> =>
@@ -164,6 +175,9 @@ const _api = {
     get<{ institutions: InstitutionDto[] }>(`/api/courses/${courseId}/institutions`).then(
       (d) => d.institutions,
     ),
+
+  replaceCourseInstitutions: (courseId: Id, institutionIds: Id[]): Promise<ReplaceCourseInstitutionsResponse> =>
+    put<ReplaceCourseInstitutionsResponse>(`/api/courses/${courseId}/institutions`, { institutionIds }),
 
   // Learning modules ----------------------------------------------------------
   listLearningModules: (courseId: Id): Promise<LearningModuleDto[]> =>

@@ -41,6 +41,30 @@ export type TermPlanningGaps = {
   canceledSessions: SessionDto[];
 };
 
+export type CalendarTimelineRow = {
+  slot: CalendarSlotDto;
+  session: SessionDto | null;
+  isClassDay: boolean;
+  isGap: boolean;
+  isToday: boolean;
+};
+
+export type TermCalendarTimeline = {
+  allRows: CalendarTimelineRow[];
+  windowRows: CalendarTimelineRow[];
+  hiddenBeforeCount: number;
+  hiddenAfterCount: number;
+  progressPercent: number;
+  completedClassDays: number;
+  totalClassDays: number;
+  todaySignal:
+    | "no_class_days"
+    | "before_term"
+    | "today_class_day"
+    | "between_class_days"
+    | "after_term";
+};
+
 function sortText(value: string | null | undefined): string {
   return (value ?? "").toLocaleLowerCase();
 }
@@ -176,5 +200,109 @@ export function deriveTermPlanningGaps(args: {
       (slot) => slot.slotType === "class_day" && !activeSessionDates.has(slot.date),
     ),
     canceledSessions: args.sessions.filter((session) => session.status === "canceled"),
+  };
+}
+
+const DEFAULT_WINDOW_RADIUS = 7;
+
+function clamp(value: number, lower: number, upper: number) {
+  return Math.min(upper, Math.max(lower, value));
+}
+
+export function buildTermCalendarTimeline(args: {
+  calendarSlots: CalendarSlotDto[];
+  sessions: SessionDto[];
+  today: string;
+  windowRadius?: number;
+}): TermCalendarTimeline {
+  const orderedSlots = [...args.calendarSlots].sort((left, right) => left.date.localeCompare(right.date));
+  const sessionsBySlotId = new Map<string, SessionDto>();
+  const sessionsByDate = new Map<string, SessionDto>();
+
+  for (const session of args.sessions) {
+    if (session.calendarSlotId && !sessionsBySlotId.has(session.calendarSlotId)) {
+      sessionsBySlotId.set(session.calendarSlotId, session);
+    }
+    if (session.date && !sessionsByDate.has(session.date)) {
+      sessionsByDate.set(session.date, session);
+    }
+  }
+
+  const allRows = orderedSlots.map((slot) => {
+    const session = sessionsBySlotId.get(slot.id) ?? sessionsByDate.get(slot.date) ?? null;
+    const isClassDay = slot.slotType === "class_day";
+    const isGap = isClassDay && (!session || session.status === "canceled");
+    return {
+      slot,
+      session,
+      isClassDay,
+      isGap,
+      isToday: slot.date === args.today,
+    };
+  });
+
+  const totalClassDays = allRows.filter((row) => row.isClassDay).length;
+  const completedClassDays = allRows.filter((row) => row.isClassDay && row.slot.date <= args.today).length;
+  const progressPercent =
+    totalClassDays === 0 ? 0 : Math.round((completedClassDays / totalClassDays) * 100);
+
+  const classDayDates = allRows.filter((row) => row.isClassDay).map((row) => row.slot.date);
+  let todaySignal: TermCalendarTimeline["todaySignal"] = "no_class_days";
+  if (classDayDates.length > 0) {
+    const firstClassDay = classDayDates[0]!;
+    const lastClassDay = classDayDates[classDayDates.length - 1]!;
+    if (args.today < firstClassDay) {
+      todaySignal = "before_term";
+    } else if (args.today > lastClassDay) {
+      todaySignal = "after_term";
+    } else if (classDayDates.includes(args.today)) {
+      todaySignal = "today_class_day";
+    } else {
+      todaySignal = "between_class_days";
+    }
+  }
+
+  if (allRows.length === 0) {
+    return {
+      allRows,
+      windowRows: [],
+      hiddenBeforeCount: 0,
+      hiddenAfterCount: 0,
+      progressPercent,
+      completedClassDays,
+      totalClassDays,
+      todaySignal,
+    };
+  }
+
+  const radius = args.windowRadius ?? DEFAULT_WINDOW_RADIUS;
+  const exactIndex = allRows.findIndex((row) => row.slot.date === args.today);
+  const insertionIndex = allRows.findIndex((row) => row.slot.date > args.today);
+  const anchorIndex =
+    exactIndex >= 0
+      ? exactIndex
+      : insertionIndex >= 0
+        ? insertionIndex
+        : allRows.length - 1;
+
+  let startIndex = clamp(anchorIndex - radius, 0, allRows.length - 1);
+  let endIndex = clamp(anchorIndex + radius, 0, allRows.length - 1);
+
+  const targetSize = Math.min(allRows.length, radius * 2 + 1);
+  while (endIndex - startIndex + 1 < targetSize && (startIndex > 0 || endIndex < allRows.length - 1)) {
+    if (startIndex > 0) startIndex -= 1;
+    if (endIndex - startIndex + 1 >= targetSize) break;
+    if (endIndex < allRows.length - 1) endIndex += 1;
+  }
+
+  return {
+    allRows,
+    windowRows: allRows.slice(startIndex, endIndex + 1),
+    hiddenBeforeCount: startIndex,
+    hiddenAfterCount: allRows.length - endIndex - 1,
+    progressPercent,
+    completedClassDays,
+    totalClassDays,
+    todaySignal,
   };
 }

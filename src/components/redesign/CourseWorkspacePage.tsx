@@ -6,6 +6,7 @@ import { redesignApi } from "@/lib/redesign-api-client";
 import type {
   AcademicCalendarDto,
   Id,
+  InstitutionDto,
   LearningModuleDto,
   LearningModuleVersionDto,
   TermDto,
@@ -22,11 +23,64 @@ type Props = {
   courseId: string;
 };
 
+// ---------------------------------------------------------------------------
+// Bootstrap: institution + calendar creation
+// ---------------------------------------------------------------------------
+
+type InstitutionFormState =
+  | { open: false }
+  | { open: true; name: string; shortName: string; submitting: boolean; error: string | null };
+
+type CalendarFormState =
+  | { open: false }
+  | {
+      open: true;
+      institutionId: Id;
+      name: string;
+      academicYear: string;
+      sourceUri: string;
+      submitting: boolean;
+      error: string | null;
+    };
+
+type LinkInstitutionState =
+  | { open: false }
+  | { open: true; selectedId: Id; submitting: boolean; error: string | null };
+
+// ---------------------------------------------------------------------------
+// Course content: learning module + topic creation
+// ---------------------------------------------------------------------------
+
+type CreateLmState =
+  | { open: false }
+  | {
+      open: true;
+      stableCode: string;
+      title: string;
+      description: string;
+      objectives: string;
+      submitting: boolean;
+      error: string | null;
+    };
+
+type CreateTopicState =
+  | { open: false }
+  | {
+      open: true;
+      stableCode: string;
+      title: string;
+      category: string;
+      learningModuleId: Id | "";
+      submitting: boolean;
+      error: string | null;
+    };
+
 export default function CourseWorkspacePage({ courseId }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [course, setCourse] = useState<Awaited<ReturnType<typeof redesignApi.getCourse>> | null>(null);
-  const [institutions, setInstitutions] = useState<Awaited<ReturnType<typeof redesignApi.listCourseInstitutions>>>([]);
+  const [allInstitutions, setAllInstitutions] = useState<InstitutionDto[]>([]);
+  const [institutions, setInstitutions] = useState<InstitutionDto[]>([]);
   const [calendars, setCalendars] = useState<AcademicCalendarDto[]>([]);
   const [terms, setTerms] = useState<TermDto[]>([]);
   const [learningModules, setLearningModules] = useState<LearningModuleDto[]>([]);
@@ -41,13 +95,21 @@ export default function CourseWorkspacePage({ courseId }: Props) {
   const [topicVersionsById, setTopicVersionsById] = useState(new Map<Id, TopicVersionDto>());
   const [prerequisites, setPrerequisites] = useState<Awaited<ReturnType<typeof redesignApi.listTopicPrerequisites>>>([]);
 
+  // Form states
+  const [institutionForm, setInstitutionForm] = useState<InstitutionFormState>({ open: false });
+  const [calendarForm, setCalendarForm] = useState<CalendarFormState>({ open: false });
+  const [linkInstForm, setLinkInstForm] = useState<LinkInstitutionState>({ open: false });
+  const [createLmState, setCreateLmState] = useState<CreateLmState>({ open: false });
+  const [createTopicState, setCreateTopicState] = useState<CreateTopicState>({ open: false });
+
   async function loadWorkspace() {
     setLoading(true);
     setError(null);
     try {
-      const [loadedCourse, loadedInstitutions, loadedTerms, loadedLearningModules, loadedTopics, loadedPrerequisites] =
+      const [loadedCourse, loadedAllInstitutions, loadedInstitutions, loadedTerms, loadedLearningModules, loadedTopics, loadedPrerequisites] =
         await Promise.all([
           redesignApi.getCourse(courseId),
+          redesignApi.listInstitutions(),
           redesignApi.listCourseInstitutions(courseId),
           redesignApi.listTerms(courseId),
           redesignApi.listLearningModules(courseId),
@@ -56,22 +118,19 @@ export default function CourseWorkspacePage({ courseId }: Props) {
         ]);
 
       const [moduleDetails, moduleVersions, topicDetails, institutionCalendars] = await Promise.all([
-        Promise.all(loadedLearningModules.map((learningModule) => redesignApi.getLearningModule(learningModule.id))),
-        Promise.all(loadedLearningModules.map((learningModule) => redesignApi.listLearningModuleVersions(learningModule.id))),
+        Promise.all(loadedLearningModules.map((lm) => redesignApi.getLearningModule(lm.id))),
+        Promise.all(loadedLearningModules.map((lm) => redesignApi.listLearningModuleVersions(lm.id))),
         Promise.all(loadedTopics.map((topic) => redesignApi.getTopic(topic.id))),
-        Promise.all(loadedInstitutions.map((institution) => redesignApi.listAcademicCalendars(institution.id))),
+        Promise.all(loadedInstitutions.map((inst) => redesignApi.listAcademicCalendars(inst.id))),
       ]);
 
-      const nextCurrentLearningModuleVersions = new Map<Id, LearningModuleVersionDto | null>();
+      const nextCurrentLmVersions = new Map<Id, LearningModuleVersionDto | null>();
       for (const detail of moduleDetails) {
-        nextCurrentLearningModuleVersions.set(detail.learningModule.id, detail.currentVersion);
+        nextCurrentLmVersions.set(detail.learningModule.id, detail.currentVersion);
       }
-
-      const nextVersionsByLearningModuleId = new Map<Id, LearningModuleVersionDto[]>();
+      const nextVersionsByLmId = new Map<Id, LearningModuleVersionDto[]>();
       for (const versions of moduleVersions) {
-        if (versions[0]) {
-          nextVersionsByLearningModuleId.set(versions[0].learningModuleId, versions);
-        }
+        if (versions[0]) nextVersionsByLmId.set(versions[0].learningModuleId, versions);
       }
 
       const nextCurrentTopicVersions = new Map<Id, TopicVersionDto | null>();
@@ -80,7 +139,7 @@ export default function CourseWorkspacePage({ courseId }: Props) {
         nextCurrentTopicVersions.set(detail.topic.id, detail.currentVersion);
         if (detail.currentVersion) neededTopicVersionIds.add(detail.currentVersion.id);
       }
-      for (const versions of nextVersionsByLearningModuleId.values()) {
+      for (const versions of nextVersionsByLmId.values()) {
         for (const version of versions) {
           for (const topic of version.topics) {
             neededTopicVersionIds.add(topic.topicVersionId);
@@ -89,20 +148,19 @@ export default function CourseWorkspacePage({ courseId }: Props) {
       }
 
       const loadedTopicVersions = await Promise.all(
-        [...neededTopicVersionIds].map((topicVersionId) => redesignApi.getTopicVersion(topicVersionId)),
+        [...neededTopicVersionIds].map((id) => redesignApi.getTopicVersion(id)),
       );
       const nextTopicVersionsById = new Map<Id, TopicVersionDto>();
-      for (const topicVersion of loadedTopicVersions) {
-        nextTopicVersionsById.set(topicVersion.id, topicVersion);
-      }
+      for (const tv of loadedTopicVersions) nextTopicVersionsById.set(tv.id, tv);
 
       setCourse(loadedCourse);
+      setAllInstitutions(loadedAllInstitutions.filter((i) => !i.archivedAt));
       setInstitutions(loadedInstitutions);
       setCalendars(institutionCalendars.flat());
-      setTerms(loadedTerms.slice().sort((left, right) => left.startDate.localeCompare(right.startDate)));
+      setTerms(loadedTerms.slice().sort((a, b) => a.startDate.localeCompare(b.startDate)));
       setLearningModules(loadedLearningModules);
-      setCurrentVersionsByLearningModuleId(nextCurrentLearningModuleVersions);
-      setVersionsByLearningModuleId(nextVersionsByLearningModuleId);
+      setCurrentVersionsByLearningModuleId(nextCurrentLmVersions);
+      setVersionsByLearningModuleId(nextVersionsByLmId);
       setTopics(loadedTopics);
       setCurrentVersionsByTopicId(nextCurrentTopicVersions);
       setTopicVersionsById(nextTopicVersionsById);
@@ -159,6 +217,131 @@ export default function CourseWorkspacePage({ courseId }: Props) {
     await loadWorkspace();
   }
 
+  // -------------------------------------------------------------------------
+  // Institution bootstrap handlers
+  // -------------------------------------------------------------------------
+
+  async function handleCreateInstitution(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!institutionForm.open) return;
+    setInstitutionForm({ ...institutionForm, submitting: true, error: null });
+    try {
+      const inst = await redesignApi.createInstitution({
+        name: institutionForm.name,
+        shortName: institutionForm.shortName || null,
+      });
+      // Automatically link the new institution to this course
+      const currentIds = institutions.map((i) => i.id);
+      await redesignApi.replaceCourseInstitutions(courseId, [...currentIds, inst.id]);
+      setInstitutionForm({ open: false });
+      await loadWorkspace();
+    } catch (err) {
+      setInstitutionForm({
+        ...institutionForm,
+        submitting: false,
+        error: err instanceof Error ? err.message : "Failed to create institution.",
+      });
+    }
+  }
+
+  async function handleLinkInstitution(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!linkInstForm.open) return;
+    setLinkInstForm({ ...linkInstForm, submitting: true, error: null });
+    try {
+      const currentIds = institutions.map((i) => i.id);
+      await redesignApi.replaceCourseInstitutions(courseId, [...currentIds, linkInstForm.selectedId]);
+      setLinkInstForm({ open: false });
+      await loadWorkspace();
+    } catch (err) {
+      setLinkInstForm({
+        ...linkInstForm,
+        submitting: false,
+        error: err instanceof Error ? err.message : "Failed to link institution.",
+      });
+    }
+  }
+
+  async function handleCreateCalendar(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!calendarForm.open) return;
+    setCalendarForm({ ...calendarForm, submitting: true, error: null });
+    try {
+      await redesignApi.createAcademicCalendar({
+        institutionId: calendarForm.institutionId,
+        name: calendarForm.name,
+        academicYear: calendarForm.academicYear,
+        sourceUri: calendarForm.sourceUri || null,
+      });
+      setCalendarForm({ open: false });
+      await loadWorkspace();
+    } catch (err) {
+      setCalendarForm({
+        ...calendarForm,
+        submitting: false,
+        error: err instanceof Error ? err.message : "Failed to create academic calendar.",
+      });
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Learning module creation handler
+  // -------------------------------------------------------------------------
+
+  async function handleCreateLm(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!createLmState.open) return;
+    setCreateLmState({ ...createLmState, submitting: true, error: null });
+    try {
+      const objectives = createLmState.objectives
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      await redesignApi.createLearningModule(courseId, createLmState.stableCode, {
+        title: createLmState.title,
+        description: createLmState.description || null,
+        learningObjectives: objectives,
+      });
+      setCreateLmState({ open: false });
+      await loadWorkspace();
+    } catch (err) {
+      setCreateLmState({
+        ...createLmState,
+        submitting: false,
+        error: err instanceof Error ? err.message : "Failed to create learning module.",
+      });
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Topic creation handler
+  // -------------------------------------------------------------------------
+
+  async function handleCreateTopic(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!createTopicState.open) return;
+    setCreateTopicState({ ...createTopicState, submitting: true, error: null });
+    try {
+      await redesignApi.createTopic(
+        courseId,
+        createTopicState.stableCode,
+        createTopicState.learningModuleId || null,
+        {
+          title: createTopicState.title,
+          category: createTopicState.category || null,
+        },
+      );
+      setCreateTopicState({ open: false });
+      await loadWorkspace();
+    } catch (err) {
+      setCreateTopicState({
+        ...createTopicState,
+        submitting: false,
+        error: err instanceof Error ? err.message : "Failed to create topic.",
+      });
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-4 animate-pulse">
@@ -181,10 +364,16 @@ export default function CourseWorkspacePage({ courseId }: Props) {
     return <p className="text-sm text-rose-700">Course not found.</p>;
   }
 
-  const activeTerms = terms.filter((term) => term.status === "active");
-  const plannedTerms = terms.filter((term) => term.status === "planned");
-  const closedTerms = terms.filter((term) => term.status === "closed");
+  const activeTerms = terms.filter((t) => t.status === "active");
+  const plannedTerms = terms.filter((t) => t.status === "planned");
+  const closedTerms = terms.filter((t) => t.status === "closed");
   const unassignedTopicCount = topics.filter((t) => t.learningModuleId === null).length;
+
+  // Institutions not yet linked to this course (for link-existing flow)
+  const unlinkedInstitutions = allInstitutions.filter((i) => !institutions.some((li) => li.id === i.id));
+
+  const needsInstitution = institutions.length === 0;
+  const needsCalendar = institutions.length > 0 && calendars.length === 0;
 
   return (
     <div className="space-y-8">
@@ -222,7 +411,6 @@ export default function CourseWorkspacePage({ courseId }: Props) {
           ) : null}
         </div>
 
-        {/* Quick stats row */}
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-2xl bg-slate-50 px-4 py-3">
             <p className="text-xs uppercase tracking-wide text-slate-500">Learning modules</p>
@@ -244,6 +432,231 @@ export default function CourseWorkspacePage({ courseId }: Props) {
           </div>
         </div>
       </section>
+
+      {/* Bootstrap: institution setup */}
+      {needsInstitution ? (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
+          <h2 className="text-lg font-semibold text-slate-900">Link an institution</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            A term requires an institution and an academic calendar. Link one to this course to unlock term creation.
+          </p>
+
+          {/* Link existing institution */}
+          {unlinkedInstitutions.length > 0 ? (
+            <div className="mt-5">
+              {!linkInstForm.open ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setLinkInstForm({
+                      open: true,
+                      selectedId: unlinkedInstitutions[0]!.id,
+                      submitting: false,
+                      error: null,
+                    })
+                  }
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700"
+                >
+                  Link existing institution
+                </button>
+              ) : (
+                <form onSubmit={handleLinkInstitution} className="mt-3 flex flex-wrap items-end gap-3">
+                  <label className="text-sm text-slate-700">
+                    <span className="mb-1 block font-medium">Institution</span>
+                    <select
+                      value={linkInstForm.selectedId}
+                      onChange={(e) => setLinkInstForm({ ...linkInstForm, selectedId: e.target.value })}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-2"
+                      disabled={linkInstForm.submitting}
+                    >
+                      {unlinkedInstitutions.map((i) => (
+                        <option key={i.id} value={i.id}>
+                          {i.shortName ?? i.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {linkInstForm.error ? <p className="text-sm text-rose-700">{linkInstForm.error}</p> : null}
+                  <button
+                    type="submit"
+                    disabled={linkInstForm.submitting}
+                    className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:bg-slate-400"
+                  >
+                    {linkInstForm.submitting ? "Linking..." : "Link"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLinkInstForm({ open: false })}
+                    className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+                  >
+                    Cancel
+                  </button>
+                </form>
+              )}
+              <p className="mt-4 text-xs text-slate-500">Or create a new institution:</p>
+            </div>
+          ) : null}
+
+          {/* Create institution */}
+          {!institutionForm.open ? (
+            <button
+              type="button"
+              onClick={() =>
+                setInstitutionForm({ open: true, name: "", shortName: "", submitting: false, error: null })
+              }
+              className={`${unlinkedInstitutions.length > 0 ? "mt-2" : "mt-5"} rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white`}
+            >
+              Create institution
+            </button>
+          ) : (
+            <form onSubmit={handleCreateInstitution} className="mt-4 grid gap-4 sm:grid-cols-2">
+              <label className="text-sm text-slate-700">
+                <span className="mb-1 block font-medium">Institution name</span>
+                <input
+                  value={institutionForm.name}
+                  onChange={(e) => setInstitutionForm({ ...institutionForm, name: e.target.value })}
+                  placeholder="University of California, Berkeley"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                  required
+                  disabled={institutionForm.submitting}
+                />
+              </label>
+              <label className="text-sm text-slate-700">
+                <span className="mb-1 block font-medium">Short name (optional)</span>
+                <input
+                  value={institutionForm.shortName}
+                  onChange={(e) => setInstitutionForm({ ...institutionForm, shortName: e.target.value })}
+                  placeholder="UC Berkeley"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                  disabled={institutionForm.submitting}
+                />
+              </label>
+              {institutionForm.error ? (
+                <p className="col-span-full text-sm text-rose-700">{institutionForm.error}</p>
+              ) : null}
+              <div className="col-span-full flex gap-3">
+                <button
+                  type="submit"
+                  disabled={institutionForm.submitting}
+                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:bg-slate-400"
+                >
+                  {institutionForm.submitting ? "Creating..." : "Create and link"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInstitutionForm({ open: false })}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+        </section>
+      ) : null}
+
+      {/* Bootstrap: academic calendar setup */}
+      {needsCalendar ? (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
+          <h2 className="text-lg font-semibold text-slate-900">Add an academic calendar</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Each term uses an academic calendar from its institution. Create one for{" "}
+            {institutions.map((i) => i.shortName ?? i.name).join(", ")}.
+          </p>
+
+          {!calendarForm.open ? (
+            <button
+              type="button"
+              onClick={() =>
+                setCalendarForm({
+                  open: true,
+                  institutionId: institutions[0]!.id,
+                  name: "",
+                  academicYear: "",
+                  sourceUri: "",
+                  submitting: false,
+                  error: null,
+                })
+              }
+              className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+            >
+              Create academic calendar
+            </button>
+          ) : (
+            <form onSubmit={handleCreateCalendar} className="mt-4 grid gap-4 sm:grid-cols-2">
+              {institutions.length > 1 ? (
+                <label className="text-sm text-slate-700">
+                  <span className="mb-1 block font-medium">Institution</span>
+                  <select
+                    value={calendarForm.institutionId}
+                    onChange={(e) => setCalendarForm({ ...calendarForm, institutionId: e.target.value })}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                    disabled={calendarForm.submitting}
+                  >
+                    {institutions.map((i) => (
+                      <option key={i.id} value={i.id}>
+                        {i.shortName ?? i.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              <label className="text-sm text-slate-700">
+                <span className="mb-1 block font-medium">Calendar name</span>
+                <input
+                  value={calendarForm.name}
+                  onChange={(e) => setCalendarForm({ ...calendarForm, name: e.target.value })}
+                  placeholder="AY 2026–27"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                  required
+                  disabled={calendarForm.submitting}
+                />
+              </label>
+              <label className="text-sm text-slate-700">
+                <span className="mb-1 block font-medium">Academic year</span>
+                <input
+                  value={calendarForm.academicYear}
+                  onChange={(e) => setCalendarForm({ ...calendarForm, academicYear: e.target.value })}
+                  placeholder="2026-27"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                  required
+                  disabled={calendarForm.submitting}
+                />
+              </label>
+              <label className="text-sm text-slate-700">
+                <span className="mb-1 block font-medium">Source URL (optional)</span>
+                <input
+                  type="url"
+                  value={calendarForm.sourceUri}
+                  onChange={(e) => setCalendarForm({ ...calendarForm, sourceUri: e.target.value })}
+                  placeholder="https://registrar.example.edu/calendar"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                  disabled={calendarForm.submitting}
+                />
+              </label>
+              {calendarForm.error ? (
+                <p className="col-span-full text-sm text-rose-700">{calendarForm.error}</p>
+              ) : null}
+              <div className="col-span-full flex gap-3">
+                <button
+                  type="submit"
+                  disabled={calendarForm.submitting}
+                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:bg-slate-400"
+                >
+                  {calendarForm.submitting ? "Creating..." : "Create calendar"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCalendarForm({ open: false })}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+        </section>
+      ) : null}
 
       {/* Terms + term creation */}
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(21rem,0.95fr)]">
@@ -299,15 +712,242 @@ export default function CourseWorkspacePage({ courseId }: Props) {
         />
       </section>
 
-      {/* Topic-first browser */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900">Topic-first browser</h2>
-          <p className="mt-1 text-sm text-slate-600">
-            Topics are the planning atoms. Unassigned topics stay visible until they have a learning module home.
-            Prerequisite edits stay at the course level.
-          </p>
+      {/* Learning modules section */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Learning modules</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Modules group related topics. Create modules here, then add topics and assign them.
+            </p>
+          </div>
+          {!createLmState.open ? (
+            <button
+              type="button"
+              onClick={() =>
+                setCreateLmState({
+                  open: true,
+                  stableCode: "",
+                  title: "",
+                  description: "",
+                  objectives: "",
+                  submitting: false,
+                  error: null,
+                })
+              }
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+            >
+              New module
+            </button>
+          ) : null}
         </div>
+
+        {createLmState.open ? (
+          <form onSubmit={handleCreateLm} className="mt-5 grid gap-4 sm:grid-cols-2">
+            <label className="text-sm text-slate-700">
+              <span className="mb-1 block font-medium">Stable code</span>
+              <input
+                value={createLmState.stableCode}
+                onChange={(e) => setCreateLmState({ ...createLmState, stableCode: e.target.value })}
+                placeholder="lm-intro-ds"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                required
+                disabled={createLmState.submitting}
+              />
+              <p className="mt-1 text-xs text-slate-500">Lowercase slug used in exports and cross-references.</p>
+            </label>
+            <label className="text-sm text-slate-700">
+              <span className="mb-1 block font-medium">Title</span>
+              <input
+                value={createLmState.title}
+                onChange={(e) => setCreateLmState({ ...createLmState, title: e.target.value })}
+                placeholder="Introduction to Data Science"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                required
+                disabled={createLmState.submitting}
+              />
+            </label>
+            <label className="col-span-full text-sm text-slate-700">
+              <span className="mb-1 block font-medium">Description (optional)</span>
+              <textarea
+                value={createLmState.description}
+                onChange={(e) => setCreateLmState({ ...createLmState, description: e.target.value })}
+                rows={2}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                disabled={createLmState.submitting}
+              />
+            </label>
+            <label className="col-span-full text-sm text-slate-700">
+              <span className="mb-1 block font-medium">Learning objectives (one per line, optional)</span>
+              <textarea
+                value={createLmState.objectives}
+                onChange={(e) => setCreateLmState({ ...createLmState, objectives: e.target.value })}
+                rows={3}
+                placeholder={"Understand the data science lifecycle\nApply Python for exploratory analysis"}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                disabled={createLmState.submitting}
+              />
+            </label>
+            {createLmState.error ? (
+              <p className="col-span-full text-sm text-rose-700">{createLmState.error}</p>
+            ) : null}
+            <div className="col-span-full flex gap-3">
+              <button
+                type="submit"
+                disabled={createLmState.submitting}
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:bg-slate-400"
+              >
+                {createLmState.submitting ? "Creating..." : "Create module"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreateLmState({ open: false })}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : null}
+
+        {learningModules.length === 0 && !createLmState.open ? (
+          <div className="mt-4">
+            <GapNotice title="No learning modules yet.">
+              Create modules to organize topics into coherent groups before building terms.
+            </GapNotice>
+          </div>
+        ) : null}
+
+        {learningModules.length > 0 ? (
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            {learningModules.map((lm) => {
+              const v = currentVersionsByLearningModuleId.get(lm.id);
+              return (
+                <div key={lm.id} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-sm font-medium text-slate-900">{v?.title ?? lm.stableCode}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {lm.stableCode}
+                    {v ? ` · rev. ${v.revision}` : " · no version yet"}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+      </section>
+
+      {/* Topics section */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Topic-first browser</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Topics are the planning atoms. Unassigned topics stay visible until they have a learning module home.
+              Prerequisite edits stay at the course level.
+            </p>
+          </div>
+          {!createTopicState.open ? (
+            <button
+              type="button"
+              onClick={() =>
+                setCreateTopicState({
+                  open: true,
+                  stableCode: "",
+                  title: "",
+                  category: "",
+                  learningModuleId: "",
+                  submitting: false,
+                  error: null,
+                })
+              }
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+            >
+              New topic
+            </button>
+          ) : null}
+        </div>
+
+        {createTopicState.open ? (
+          <form onSubmit={handleCreateTopic} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="mb-4 text-base font-semibold text-slate-900">New topic</h3>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="text-sm text-slate-700">
+                <span className="mb-1 block font-medium">Stable code</span>
+                <input
+                  value={createTopicState.stableCode}
+                  onChange={(e) => setCreateTopicState({ ...createTopicState, stableCode: e.target.value })}
+                  placeholder="topic-pandas-basics"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                  required
+                  disabled={createTopicState.submitting}
+                />
+              </label>
+              <label className="text-sm text-slate-700">
+                <span className="mb-1 block font-medium">Title</span>
+                <input
+                  value={createTopicState.title}
+                  onChange={(e) => setCreateTopicState({ ...createTopicState, title: e.target.value })}
+                  placeholder="Pandas basics"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                  required
+                  disabled={createTopicState.submitting}
+                />
+              </label>
+              <label className="text-sm text-slate-700">
+                <span className="mb-1 block font-medium">Category (optional)</span>
+                <input
+                  value={createTopicState.category}
+                  onChange={(e) => setCreateTopicState({ ...createTopicState, category: e.target.value })}
+                  placeholder="tools / concepts / skills"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                  disabled={createTopicState.submitting}
+                />
+              </label>
+              <label className="text-sm text-slate-700">
+                <span className="mb-1 block font-medium">Learning module (optional)</span>
+                <select
+                  value={createTopicState.learningModuleId}
+                  onChange={(e) =>
+                    setCreateTopicState({ ...createTopicState, learningModuleId: e.target.value as Id | "" })
+                  }
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                  disabled={createTopicState.submitting}
+                >
+                  <option value="">— Unassigned —</option>
+                  {learningModules.map((lm) => {
+                    const v = currentVersionsByLearningModuleId.get(lm.id);
+                    return (
+                      <option key={lm.id} value={lm.id}>
+                        {v?.title ?? lm.stableCode}
+                      </option>
+                    );
+                  })}
+                </select>
+                <p className="mt-1 text-xs text-slate-500">Unassigned topics remain visible in the browser until placed.</p>
+              </label>
+            </div>
+            {createTopicState.error ? (
+              <p className="mt-3 text-sm text-rose-700">{createTopicState.error}</p>
+            ) : null}
+            <div className="mt-4 flex gap-3">
+              <button
+                type="submit"
+                disabled={createTopicState.submitting}
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:bg-slate-400"
+              >
+                {createTopicState.submitting ? "Creating..." : "Create topic"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreateTopicState({ open: false })}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : null}
+
         <TopicBrowser
           buckets={topicBuckets}
           learningModules={learningModules}
