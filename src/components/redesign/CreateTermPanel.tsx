@@ -11,6 +11,12 @@ import type {
   MeetingPatternDto,
 } from "@/lib/redesign-contract";
 import { redesignApi } from "@/lib/redesign-api-client";
+import {
+  capacityBadgeClass,
+  formatCapacitySourceLabel,
+  formatInstructionalCapacityLabel,
+  isCapacityAdvisory,
+} from "./CalendarCapacityPresentation";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"] as const;
 
@@ -46,6 +52,30 @@ function buildMeetingPattern(selectedDays: string[]): MeetingPatternDto {
       },
     ],
   };
+}
+
+function formatSlotTypeLabel(slotType: CalendarSlotCandidateDto["slotType"]) {
+  switch (slotType) {
+    case "class_day":
+      return "Class day";
+    case "holiday":
+      return "Holiday";
+    case "finals":
+      return "Finals";
+    case "break_day":
+      return "Break day";
+  }
+}
+
+function formatProvenanceLabel(source: CalendarSlotCandidateDto["provenance"][number]["source"]) {
+  switch (source) {
+    case "academic_calendar_event":
+      return "Academic calendar event";
+    case "instructor_override":
+      return "Instructor override";
+    case "meeting_role_pattern":
+      return "Meeting role pattern";
+  }
 }
 
 export default function CreateTermPanel({ courseId, institutions, calendars, onTermCreated }: Props) {
@@ -150,6 +180,10 @@ export default function CreateTermPanel({ courseId, institutions, calendars, onT
     const { preview, applying, error } = panelState;
     const classDays = preview.calendarSlotCandidates.filter((s) => s.slotType === "class_day");
     const nonClassDays = preview.calendarSlotCandidates.filter((s) => s.slotType !== "class_day");
+    const previewClassDays = classDays.slice(0, 10);
+    const previewClassDayDates = new Set(previewClassDays.map((slot) => slot.date));
+    const capacityAdvisories = classDays.filter(isCapacityAdvisory);
+    const additionalCapacityAdvisories = capacityAdvisories.filter((slot) => !previewClassDayDates.has(slot.date));
     const hasBlockers = preview.conflicts.length > 0;
 
     return (
@@ -201,21 +235,120 @@ export default function CreateTermPanel({ courseId, institutions, calendars, onT
         {classDays.length > 0 ? (
           <div className="mt-4">
             <p className="text-sm font-medium text-slate-700">Candidate class days (first 10)</p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {classDays.slice(0, 10).map((slot: CalendarSlotCandidateDto) => (
-                <span
-                  key={slot.date}
-                  className="rounded-lg bg-sky-50 px-2 py-1 text-xs text-sky-800"
-                >
-                  {slot.date}
-                </span>
+            <div className="mt-2 space-y-2">
+              {previewClassDays.map((slot: CalendarSlotCandidateDto) => (
+                <article key={slot.date} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">{slot.date}</p>
+                      <p className="mt-1 text-xs uppercase tracking-wide text-slate-500">
+                        {formatSlotTypeLabel(slot.slotType)}
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded-full border px-2 py-1 text-xs font-medium ${capacityBadgeClass(slot.instructionalCapacity)}`}
+                      aria-label={`Instructional capacity: ${formatInstructionalCapacityLabel(slot.instructionalCapacity)}`}
+                    >
+                      {formatInstructionalCapacityLabel(slot.instructionalCapacity)}
+                    </span>
+                  </div>
+
+                  {isCapacityAdvisory(slot) ? (
+                    <div className="mt-3 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700">
+                          Capacity source: {formatCapacitySourceLabel(slot.capacitySource)}
+                        </span>
+                        {slot.source ? (
+                          <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700">
+                            Schedule source: {slot.source}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {slot.capacityReason ? <p className="text-sm text-slate-600">{slot.capacityReason}</p> : null}
+                    </div>
+                  ) : null}
+
+                  {slot.provenance.length > 0 ? (
+                    <ul className="mt-2 space-y-1 text-xs text-slate-500">
+                      {slot.provenance.map((entry, index) => (
+                        <li key={`${entry.source}-${entry.referenceId ?? "none"}-${index}`}>
+                          <span className="font-medium text-slate-600">{formatProvenanceLabel(entry.source)}:</span>{" "}
+                          {entry.detail}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </article>
               ))}
               {classDays.length > 10 ? (
-                <span className="rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-600">
+                <span className="inline-flex rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-600">
                   +{classDays.length - 10} more
                 </span>
               ) : null}
             </div>
+          </div>
+        ) : null}
+
+        {capacityAdvisories.length > 0 ? (
+          <div className="mt-4">
+            <p className="text-sm font-medium text-slate-700">Capacity advisories</p>
+            <p className="mt-1 text-xs text-slate-500">
+              {additionalCapacityAdvisories.length > 0
+                ? `${additionalCapacityAdvisories.length} ${
+                    additionalCapacityAdvisories.length === 1 ? "advisory" : "advisories"
+                  } beyond the first ten are listed here.`
+                : "All advisory class days are already visible in the first-ten preview above."}
+            </p>
+            {additionalCapacityAdvisories.length > 0 ? (
+              <div className="mt-2 space-y-2">
+                {additionalCapacityAdvisories.map((slot) => (
+                  <article key={`advisory-${slot.date}`} className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-slate-900">{slot.date}</p>
+                        <p className="mt-1 text-xs uppercase tracking-wide text-slate-500">
+                          {formatSlotTypeLabel(slot.slotType)}
+                        </p>
+                      </div>
+                      <span
+                        className={`rounded-full border px-2 py-1 text-xs font-medium ${capacityBadgeClass(slot.instructionalCapacity)}`}
+                        aria-label={`Instructional capacity: ${formatInstructionalCapacityLabel(slot.instructionalCapacity)}`}
+                      >
+                        {formatInstructionalCapacityLabel(slot.instructionalCapacity)}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700">
+                          Capacity source: {formatCapacitySourceLabel(slot.capacitySource)}
+                        </span>
+                        {slot.source ? (
+                          <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700">
+                            Schedule source: {slot.source}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {slot.capacityReason ? <p className="text-sm text-slate-600">{slot.capacityReason}</p> : null}
+                    </div>
+
+                    {slot.provenance.length > 0 ? (
+                      <ul className="mt-2 space-y-1 text-xs text-slate-500">
+                        {slot.provenance.map((entry, index) => (
+                          <li key={`${entry.source}-${entry.referenceId ?? "none"}-${index}`}>
+                            <span className="font-medium text-slate-600">{formatProvenanceLabel(entry.source)}:</span>{" "}
+                            {entry.detail}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+            ) : null}
           </div>
         ) : null}
 

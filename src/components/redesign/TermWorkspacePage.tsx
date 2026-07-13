@@ -4,15 +4,23 @@ import Link from "next/link";
 import { useEffect, useEffectEvent, useMemo, useState } from "react";
 import { redesignApi } from "@/lib/redesign-api-client";
 import type {
+  CalendarSlotDto,
   CreateDeliveredRevisionRequest,
   Id,
   LearningModuleDto,
   LearningModuleVersionDto,
   PlannedDeliveredDiffResponse,
+  SessionDto,
   TermLifecycleTransition,
   TopicVersionDto,
 } from "@/lib/redesign-contract";
 import { buildTermCalendarTimeline, deriveTermPlanningGaps } from "@/lib/redesign-workspace";
+import {
+  capacityBadgeClass,
+  formatCapacitySourceLabel,
+  formatInstructionalCapacityLabel,
+  isCapacityAdvisory,
+} from "./CalendarCapacityPresentation";
 import AdoptLearningModulePanel from "./AdoptLearningModulePanel";
 import DeliveredRevisionEditor from "./DeliveredRevisionEditor";
 import GapNotice from "./GapNotice";
@@ -46,6 +54,36 @@ const TODAY_SIGNAL_COPY = {
   between_class_days: "Today falls between scheduled class days.",
   after_term: "Today is after the last class day in this term.",
 } as const;
+
+function formatSlotTypeLabel(slotType: CalendarSlotDto["slotType"]) {
+  switch (slotType) {
+    case "class_day":
+      return "Class day";
+    case "holiday":
+      return "Holiday";
+    case "finals":
+      return "Finals";
+    case "break_day":
+      return "Break day";
+  }
+}
+
+function formatInstructionalModeLabel(mode: SessionDto["instructionalMode"]) {
+  switch (mode) {
+    case "standard":
+      return "Standard";
+    case "recovery":
+      return "Recovery";
+    case "review":
+      return "Review";
+    case "buffer":
+      return "Buffer";
+    case "assessment":
+      return "Assessment";
+    case "other":
+      return "Other";
+  }
+}
 
 function getTodayIsoDate() {
   const now = new Date();
@@ -474,7 +512,7 @@ export default function TermWorkspacePage({ termId }: Props) {
                     {slot.date}
                   </span>
                   <span
-                    className={`w-20 shrink-0 rounded-md px-1.5 py-0.5 text-center text-xs font-medium ${
+                    className={`w-24 shrink-0 rounded-md px-1.5 py-0.5 text-center text-xs font-medium ${
                       slot.slotType === "class_day"
                         ? "bg-sky-50 text-sky-800"
                         : slot.slotType === "holiday"
@@ -482,24 +520,49 @@ export default function TermWorkspacePage({ termId }: Props) {
                           : "bg-slate-100 text-slate-600"
                     }`}
                   >
-                    {slot.slotType === "class_day" ? "class" : slot.slotType.replace("_", " ")}
+                    {formatSlotTypeLabel(slot.slotType)}
                   </span>
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="flex flex-wrap items-start gap-2">
+                      <span
+                        className={`rounded-full border px-2 py-1 text-xs font-medium ${capacityBadgeClass(slot.instructionalCapacity)}`}
+                        aria-label={`Instructional capacity: ${formatInstructionalCapacityLabel(slot.instructionalCapacity)}`}
+                      >
+                        {formatInstructionalCapacityLabel(slot.instructionalCapacity)}
+                      </span>
+                      {isCapacityAdvisory(slot) ? (
+                        <>
+                          <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700">
+                            Capacity source: {formatCapacitySourceLabel(slot.capacitySource)}
+                          </span>
+                          {slot.capacityReason ? (
+                            <span className="min-w-0 text-xs text-slate-500">{slot.capacityReason}</span>
+                          ) : null}
+                          {slot.source ? (
+                            <span className="min-w-0 text-xs text-slate-500">Schedule source: {slot.source}</span>
+                          ) : null}
+                        </>
+                      ) : null}
+                    </div>
+
                     {session ? (
                       <>
-                        <p className="truncate text-sm font-medium text-slate-900">
-                          {session.code}: {session.title}
-                          {session.status === "canceled" ? (
-                            <span className="ml-2 text-xs font-normal text-rose-600">canceled</span>
-                          ) : null}
-                        </p>
-                        {session.scheduleOverrideLabel ? (
-                          <p className="mt-1 text-xs text-slate-500">
-                            Override: {session.scheduleOverrideLabel}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate text-sm font-medium text-slate-900">
+                            {session.code}: {session.title}
+                            {session.status === "canceled" ? (
+                              <span className="ml-2 text-xs font-normal text-rose-600">canceled</span>
+                            ) : null}
                           </p>
+                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700">
+                            Mode: {formatInstructionalModeLabel(session.instructionalMode)}
+                          </span>
+                        </div>
+                        {session.scheduleOverrideLabel ? (
+                          <p className="text-xs text-slate-500">Override: {session.scheduleOverrideLabel}</p>
                         ) : null}
                         {isGap ? (
-                          <p className="mt-1 text-xs font-medium text-amber-700">
+                          <p className="text-xs font-medium text-amber-700">
                             Planning gap: this class day needs an active replacement session.
                           </p>
                         ) : null}
@@ -507,7 +570,7 @@ export default function TermWorkspacePage({ termId }: Props) {
                     ) : isClassDay ? (
                       <>
                         <p className="text-sm text-amber-700">No session assigned</p>
-                        <p className="mt-1 text-xs font-medium text-amber-700">
+                        <p className="text-xs font-medium text-amber-700">
                           Planning gap: this materialized class day is still empty.
                         </p>
                       </>

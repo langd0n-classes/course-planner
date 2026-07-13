@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setMockBackend } from "@/lib/redesign-api-client";
 import type {
@@ -71,10 +71,31 @@ function buildTermWorkspaceBackend() {
     date: `2026-02-${String(index + 1).padStart(2, "0")}`,
     slotType: "class_day",
     label: null,
-    source: null,
-    instructionalCapacity: "normal",
-    capacitySource: "baseline",
-    capacityReason: null,
+    source: "meeting_roles:lecture",
+    instructionalCapacity:
+      index === 7
+        ? "reduced_engagement"
+        : index === 8
+          ? "recovery"
+          : index === 10
+            ? "assessment_period"
+          : "normal",
+    capacitySource:
+      index === 7
+        ? "heuristic"
+        : index === 8
+          ? "instructor_override"
+          : index === 10
+            ? "instructor_override"
+          : "baseline",
+    capacityReason:
+      index === 7
+        ? "Reduced capacity before a long weekend."
+        : index === 8
+          ? "Recovery class after the long weekend."
+          : index === 10
+            ? "Assessment period session with tightened instructional load."
+          : "No explicit break-proximity signal in the calendar.",
   }));
 
   let termLearningModules: TermLearningModuleDto[] = [];
@@ -148,7 +169,7 @@ function buildTermWorkspaceBackend() {
         format: null,
         notes: null,
         status: "scheduled",
-        instructionalMode: "standard",
+        instructionalMode: "recovery",
         canceledAt: null,
         canceledReason: null,
         archivedAt: null,
@@ -191,8 +212,29 @@ describe("TermWorkspacePage", () => {
     render(<TermWorkspacePage termId="term-1" />);
 
     await screen.findByText("Calendar timeline");
-    expect(screen.queryByText("2026-02-01")).not.toBeInTheDocument();
+    expect(screen.getByText("Reduced capacity")).toBeInTheDocument();
+    expect(screen.getByText("Recovery capacity")).toBeInTheDocument();
+    expect(screen.getByText("Assessment-period capacity")).toBeInTheDocument();
+    expect(screen.queryByText("Provenance:")).not.toBeInTheDocument();
+    expect(screen.getByText("Mode: Recovery")).toBeInTheDocument();
     expect(screen.getByText("2026-02-09")).toBeInTheDocument();
+
+    const baselineRow = screen.getByText("2026-02-05", { selector: "span" }).closest("div");
+    expect(baselineRow).not.toBeNull();
+    if (!baselineRow) throw new Error("Expected the baseline calendar row to exist.");
+    const baselineWithin = within(baselineRow);
+    expect(baselineWithin.getByText("Normal capacity")).toBeInTheDocument();
+    expect(baselineWithin.queryByText("Capacity source:")).not.toBeInTheDocument();
+    expect(baselineWithin.queryByText("Schedule source:")).not.toBeInTheDocument();
+
+    const advisoryRow = screen.getByText("2026-02-11").closest("div");
+    expect(advisoryRow).not.toBeNull();
+    if (!advisoryRow) throw new Error("Expected the advisory calendar row to exist.");
+    const advisoryWithin = within(advisoryRow);
+    expect(advisoryWithin.getByText("Assessment-period capacity")).toBeInTheDocument();
+    expect(advisoryWithin.getByText("Capacity source: Instructor override")).toBeInTheDocument();
+    expect(advisoryWithin.getByText("Schedule source: meeting_roles:lecture")).toBeInTheDocument();
+    expect(advisoryWithin.getByText("Assessment period session with tightened instructional load.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Show all" }));
     await screen.findByText("2026-02-01");

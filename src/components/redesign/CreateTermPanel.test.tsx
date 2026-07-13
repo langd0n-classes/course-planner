@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { setMockBackend } from "@/lib/redesign-api-client";
 import CreateTermPanel from "./CreateTermPanel";
@@ -35,34 +35,103 @@ describe("CreateTermPanel", () => {
   const onTermCreated = vi.fn();
   const previewTermCreation = vi.fn().mockResolvedValue({
     kind: "preview",
-    calendarSlotCandidates: [
-      {
-        date: "2027-01-21",
-        slotType: "class_day",
+    calendarSlotCandidates: Array.from({ length: 13 }, (_, index) => {
+      const date = `2027-01-${String(index + 1).padStart(2, "0")}`;
+      const advisoryByDate: Record<
+        string,
+        {
+          instructionalCapacity: "reduced_engagement" | "recovery" | "assessment_period";
+          capacitySource: "heuristic" | "instructor_override";
+          capacityReason: string;
+          provenance: Array<{
+            source: "academic_calendar_event" | "instructor_override" | "meeting_role_pattern";
+            referenceId: string | null;
+            detail: string;
+          }>;
+        }
+      > = {
+        "2027-01-03": {
+          instructionalCapacity: "reduced_engagement",
+          capacitySource: "heuristic",
+          capacityReason: "Reduced capacity before the midterm break.",
+          provenance: [
+            {
+              source: "academic_calendar_event",
+              referenceId: "event-1",
+              detail: "Break day on 2027-01-05.",
+            },
+            {
+              source: "meeting_role_pattern",
+              referenceId: null,
+              detail: "Lecture role remains scheduled on adjacent class days.",
+            },
+          ],
+        },
+        "2027-01-06": {
+          instructionalCapacity: "recovery",
+          capacitySource: "instructor_override",
+          capacityReason: "Recovery class after the break week.",
+          provenance: [
+            {
+              source: "instructor_override",
+              referenceId: null,
+              detail: "Instructor override keeps the class meeting after the break.",
+            },
+          ],
+        },
+        "2027-01-11": {
+          instructionalCapacity: "assessment_period",
+          capacitySource: "instructor_override",
+          capacityReason: "Assessment period session with tightened instructional load.",
+          provenance: [
+            {
+              source: "instructor_override",
+              referenceId: null,
+              detail: "Instructor override marks the assessment period advisory.",
+            },
+          ],
+        },
+        "2027-01-12": {
+          instructionalCapacity: "reduced_engagement",
+          capacitySource: "heuristic",
+          capacityReason: "Reduced capacity as the term closes.",
+          provenance: [
+            {
+              source: "academic_calendar_event",
+              referenceId: "event-2",
+              detail: "Finals week begins on 2027-01-13.",
+            },
+            {
+              source: "meeting_role_pattern",
+              referenceId: null,
+              detail: "Lecture role remains scheduled on the last class day.",
+            },
+          ],
+        },
+      };
+      const advisory = advisoryByDate[date];
+
+      return {
+        date,
+        slotType: "class_day" as const,
         label: null,
-        source: "meeting_role",
+        source: "meeting_roles:lecture",
         academicCalendarEventId: null,
         meetingRoleKeys: ["lecture"],
         meetingRoleLabels: ["Lecture"],
-        instructionalCapacity: "normal",
-        capacitySource: "baseline",
-        capacityReason: "No explicit break-proximity signal in the calendar.",
-        provenance: [],
-      },
-      {
-        date: "2027-01-24",
-        slotType: "class_day",
-        label: null,
-        source: "meeting_role",
-        academicCalendarEventId: null,
-        meetingRoleKeys: ["lecture"],
-        meetingRoleLabels: ["Lecture"],
-        instructionalCapacity: "normal",
-        capacitySource: "baseline",
-        capacityReason: "No explicit break-proximity signal in the calendar.",
-        provenance: [],
-      },
-    ],
+        instructionalCapacity: advisory?.instructionalCapacity ?? "normal",
+        capacitySource: advisory?.capacitySource ?? "baseline",
+        capacityReason: advisory?.capacityReason ?? "No explicit break-proximity signal in the calendar.",
+        provenance:
+          advisory?.provenance ?? [
+            {
+              source: "meeting_role_pattern" as const,
+              referenceId: null,
+              detail: "Lecture role remains scheduled on the class day.",
+            },
+          ],
+      };
+    }),
     conflicts: [],
     warnings: [],
   });
@@ -121,7 +190,28 @@ describe("CreateTermPanel", () => {
     await waitFor(() => {
       expect(screen.getByText("Preview: Spring 2027")).toBeInTheDocument();
       expect(screen.getByText("Confirm and create term")).toBeInTheDocument();
+      expect(screen.getByText("Capacity advisories")).toBeInTheDocument();
     });
+
+    const firstAdvisoryCard = screen.getByText("2027-01-03").closest("article");
+    expect(firstAdvisoryCard).not.toBeNull();
+    if (!firstAdvisoryCard) throw new Error("Expected the first advisory card to exist.");
+    expect(within(firstAdvisoryCard).getByText("Capacity source: Heuristic")).toBeInTheDocument();
+    expect(within(firstAdvisoryCard).getByText("Schedule source: meeting_roles:lecture")).toBeInTheDocument();
+    expect(within(firstAdvisoryCard).getByText("Reduced capacity before the midterm break.")).toBeInTheDocument();
+
+    const advisoriesSection = screen.getByText("Capacity advisories").closest("div");
+    expect(advisoriesSection).not.toBeNull();
+    if (!advisoriesSection) throw new Error("Expected the capacity advisories section to exist.");
+    const advisoriesWithin = within(advisoriesSection);
+    const laterAdvisoryCard = advisoriesWithin.getByText("2027-01-11").closest("article");
+    expect(laterAdvisoryCard).not.toBeNull();
+    if (!laterAdvisoryCard) throw new Error("Expected the later advisory card to exist.");
+    expect(within(laterAdvisoryCard).getByText("Capacity source: Instructor override")).toBeInTheDocument();
+    expect(within(laterAdvisoryCard).getByText("Schedule source: meeting_roles:lecture")).toBeInTheDocument();
+    expect(within(laterAdvisoryCard).getByText("Assessment period session with tightened instructional load.")).toBeInTheDocument();
+    expect(advisoriesWithin.queryByText("2027-01-03")).not.toBeInTheDocument();
+    expect(advisoriesWithin.queryByText("2027-01-13")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText("Confirm and create term"));
 
