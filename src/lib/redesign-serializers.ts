@@ -2,14 +2,60 @@
 // redesign handlers. Keeping these in one place means every route produces
 // byte-identical shapes for the same underlying row.
 import type {
+  AcademicCalendarDto,
   AssessmentDto,
   CalendarSlotDto,
   CoverageDto,
+  CourseDto,
+  InstitutionDto,
+  LearningModuleDto,
   LearningModuleVersionDto,
   SessionDto,
   TermDto,
   TermLearningModuleDto,
+  TopicDto,
+  TopicPrerequisiteDto,
+  TopicVersionDto,
 } from "./redesign-contract";
+
+type InstitutionRow = {
+  id: string;
+  name: string;
+  shortName: string | null;
+  canonicalUri: string | null;
+  archivedAt: Date | null;
+};
+
+type AcademicCalendarRow = {
+  id: string;
+  institutionId: string;
+  name: string;
+  academicYear: string;
+  version: number;
+  sourceUri: string | null;
+  publishedAt: Date | null;
+  archivedAt: Date | null;
+};
+
+type CourseRow = {
+  id: string;
+  instructorId: string;
+  shortId: string;
+  title: string;
+  titleIsPlaceholder: boolean;
+  number: string;
+  numberIsPlaceholder: boolean;
+  description: string | null;
+  archivedAt: Date | null;
+};
+
+type LearningModuleRow = {
+  id: string;
+  courseId: string;
+  stableCode: string;
+  currentVersionId: string | null;
+  archivedAt: Date | null;
+};
 
 type TermRow = {
   id: string;
@@ -71,6 +117,31 @@ type LearningModuleVersionRow = {
   topics?: LearningModuleVersionTopicRow[];
 };
 
+type TopicRow = {
+  id: string;
+  courseId: string;
+  learningModuleId: string | null;
+  stableCode: string;
+  currentVersionId: string | null;
+  archivedAt: Date | null;
+};
+
+type TopicVersionRow = {
+  id: string;
+  topicId: string;
+  revision: number;
+  title: string;
+  category: string | null;
+  description: string | null;
+  changeSummary: string | null;
+  publishedAt: Date | null;
+};
+
+type TopicPrerequisiteRow = {
+  topicId: string;
+  prerequisiteTopicId: string;
+};
+
 type SessionRow = {
   id: string;
   termId: string;
@@ -130,6 +201,53 @@ function toIsoDateNullable(value: Date | null): string | null {
 
 function toIsoDateTimeNullable(value: Date | null): string | null {
   return value ? value.toISOString() : null;
+}
+
+export function toInstitutionDto(institution: InstitutionRow): InstitutionDto {
+  return {
+    id: institution.id,
+    name: institution.name,
+    shortName: institution.shortName,
+    canonicalUri: institution.canonicalUri,
+    archivedAt: toIsoDateTimeNullable(institution.archivedAt),
+  };
+}
+
+export function toAcademicCalendarDto(calendar: AcademicCalendarRow): AcademicCalendarDto {
+  return {
+    id: calendar.id,
+    institutionId: calendar.institutionId,
+    name: calendar.name,
+    academicYear: calendar.academicYear,
+    version: calendar.version,
+    sourceUri: calendar.sourceUri,
+    publishedAt: toIsoDateTimeNullable(calendar.publishedAt),
+    archivedAt: toIsoDateTimeNullable(calendar.archivedAt),
+  };
+}
+
+export function toCourseDto(course: CourseRow): CourseDto {
+  return {
+    id: course.id,
+    instructorId: course.instructorId,
+    shortId: course.shortId,
+    title: course.title,
+    titleIsPlaceholder: course.titleIsPlaceholder,
+    number: course.number,
+    numberIsPlaceholder: course.numberIsPlaceholder,
+    description: course.description,
+    archivedAt: toIsoDateTimeNullable(course.archivedAt),
+  };
+}
+
+export function toLearningModuleDto(module: LearningModuleRow) {
+  return {
+    id: module.id,
+    courseId: module.courseId,
+    stableCode: module.stableCode,
+    currentVersionId: module.currentVersionId,
+    archivedAt: toIsoDateTimeNullable(module.archivedAt),
+  } satisfies LearningModuleDto;
 }
 
 export function toTermDto(term: TermRow): TermDto {
@@ -197,6 +315,37 @@ export function toLearningModuleVersionDto(
       topicVersionId: topic.topicVersionId,
       sequence: topic.sequence,
     })),
+  };
+}
+
+export function toTopicDto(topic: TopicRow): TopicDto {
+  return {
+    id: topic.id,
+    courseId: topic.courseId,
+    learningModuleId: topic.learningModuleId,
+    stableCode: topic.stableCode,
+    currentVersionId: topic.currentVersionId,
+    archivedAt: toIsoDateTimeNullable(topic.archivedAt),
+  };
+}
+
+export function toTopicVersionDto(version: TopicVersionRow): TopicVersionDto {
+  return {
+    id: version.id,
+    topicId: version.topicId,
+    revision: version.revision,
+    title: version.title,
+    category: version.category,
+    description: version.description,
+    changeSummary: version.changeSummary,
+    publishedAt: toIsoDateTimeNullable(version.publishedAt),
+  };
+}
+
+export function toTopicPrerequisiteDto(prerequisite: TopicPrerequisiteRow): TopicPrerequisiteDto {
+  return {
+    topicId: prerequisite.topicId,
+    prerequisiteTopicId: prerequisite.prerequisiteTopicId,
   };
 }
 

@@ -4,6 +4,121 @@
 import { z } from "zod";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected an ISO date (YYYY-MM-DD)");
+const isoDateTime = z.string().datetime();
+
+// ─── Institutions / calendars / courses ─────────────────
+
+export const createInstitutionSchema = z.object({
+  name: z.string().min(1),
+  shortName: z.string().min(1).nullable().optional(),
+  canonicalUri: z.string().url().nullable().optional(),
+});
+
+export const createAcademicCalendarSchema = z.object({
+  institutionId: z.string().uuid(),
+  name: z.string().min(1),
+  academicYear: z.string().min(1),
+  sourceUri: z.string().url().nullable().optional(),
+});
+
+export const createCourseSchema = z.object({
+  instructorId: z.string().uuid(),
+  title: z.string().min(1),
+  titleIsPlaceholder: z.boolean().optional(),
+  number: z.string().min(1),
+  numberIsPlaceholder: z.boolean().optional(),
+  description: z.string().nullable().optional(),
+  institutionIds: z.array(z.string().uuid()).optional(),
+});
+
+export const updateCourseSchema = z
+  .object({
+    title: z.string().min(1),
+    titleIsPlaceholder: z.boolean(),
+    number: z.string().min(1),
+    numberIsPlaceholder: z.boolean(),
+    description: z.string().nullable(),
+    archivedAt: isoDateTime.nullable(),
+  })
+  .partial();
+
+export const replaceCourseInstitutionsSchema = z.object({
+  institutionIds: z.array(z.string().uuid()),
+});
+
+// ─── Curriculum identities / versions ───────────────────
+
+export const createLearningModuleSchema = z.object({
+  stableCode: z.string().min(1),
+  createdByInstructorId: z.string().uuid(),
+  version: z.object({
+    expectedCurrentVersionId: z.string().uuid().optional(),
+    title: z.string().min(1),
+    description: z.string().nullable().optional(),
+    studentDescription: z.string().nullable().optional(),
+    learningObjectives: z.array(z.string()).optional(),
+    notes: z.string().nullable().optional(),
+    defaultSequence: z.number().int().nullable().optional(),
+    changeSummary: z.string().nullable().optional(),
+    topics: z.array(z.object({ topicVersionId: z.string().uuid(), sequence: z.number().int().min(0) })).optional(),
+    publish: z.boolean().optional(),
+  }),
+});
+
+export const updateLearningModuleSchema = z
+  .object({
+    stableCode: z.string().min(1),
+    archivedAt: isoDateTime.nullable(),
+  })
+  .partial();
+
+export const upsertLearningModuleVersionSchema = z.object({
+  expectedCurrentVersionId: z.string().uuid().optional(),
+  title: z.string().min(1),
+  description: z.string().nullable().optional(),
+  studentDescription: z.string().nullable().optional(),
+  learningObjectives: z.array(z.string()).optional(),
+  notes: z.string().nullable().optional(),
+  defaultSequence: z.number().int().nullable().optional(),
+  changeSummary: z.string().nullable().optional(),
+  topics: z.array(z.object({ topicVersionId: z.string().uuid(), sequence: z.number().int().min(0) })).optional(),
+  publish: z.boolean().optional(),
+});
+
+export const createTopicSchema = z.object({
+  stableCode: z.string().min(1),
+  learningModuleId: z.string().uuid().nullable().optional(),
+  createdByInstructorId: z.string().uuid(),
+  version: z.object({
+    expectedCurrentVersionId: z.string().uuid().optional(),
+    title: z.string().min(1),
+    category: z.string().nullable().optional(),
+    description: z.string().nullable().optional(),
+    changeSummary: z.string().nullable().optional(),
+    publish: z.boolean().optional(),
+  }),
+});
+
+export const updateTopicSchema = z
+  .object({
+    stableCode: z.string().min(1),
+    learningModuleId: z.string().uuid().nullable(),
+    archivedAt: isoDateTime.nullable(),
+  })
+  .partial();
+
+export const upsertTopicVersionSchema = z.object({
+  expectedCurrentVersionId: z.string().uuid().optional(),
+  title: z.string().min(1),
+  category: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  changeSummary: z.string().nullable().optional(),
+  publish: z.boolean().optional(),
+});
+
+export const replaceTopicPrerequisitesSchema = z.object({
+  prerequisiteTopicIds: z.array(z.string().uuid()),
+});
 
 // ─── Terms ──────────────────────────────────────────────
 

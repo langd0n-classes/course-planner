@@ -13,6 +13,8 @@ import {
   type TermDto,
   type TermLifecycleTransition,
   type TermStatus,
+  type UpdateLearningModuleRequest,
+  type UpdateTopicRequest,
   type UpdateTermLearningModuleRequest,
 } from "./redesign-contract";
 
@@ -97,6 +99,15 @@ const sampleUpdateTermLearningModule: UpdateTermLearningModuleRequest = {
   sequence: 2,
   notes: "reordering",
 };
+const sampleUpdateLearningModule: UpdateLearningModuleRequest = {
+  stableCode: "PROB",
+  archivedAt: null,
+};
+const sampleUpdateTopic: UpdateTopicRequest = {
+  stableCode: "PROB1",
+  learningModuleId: null,
+  archivedAt: null,
+};
 const _rejectsDirectDeliveredPointerMutation: UpdateTermLearningModuleRequest = {
   // @ts-expect-error deliveredLearningModuleVersionId is service-owned, not a plain field
   deliveredLearningModuleVersionId: "some-version-id",
@@ -131,6 +142,8 @@ describe("redesign-contract Phase A.1 additions", () => {
     expect(sampleAssessmentType).toBe("gaie");
     expect(sampleGenericAssessmentType).toBe("final-project-milestone-2");
     expect(sampleUpdateTermLearningModule).not.toHaveProperty("deliveredLearningModuleVersionId");
+    expect(sampleUpdateLearningModule.archivedAt).toBeNull();
+    expect(sampleUpdateTopic.learningModuleId).toBeNull();
   });
 });
 

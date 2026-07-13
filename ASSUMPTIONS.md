@@ -24,6 +24,8 @@ Decisions made where the requirements were underspecified. Each can be revisited
 
 - **JWT sessions only**: Auth.js uses its default stateless JWT session strategy. No Prisma adapter or auth-related schema changes are added.
 
+- **Identity routes are additive, not contract rewrites**: Learning Module and Topic detail routes use small additive update DTOs that only cover identity/archive state (`stableCode`, `learningModuleId` for Topic, and `archivedAt`). Version prose still changes only through `/versions`, which preserves the immutable published-revision rule.
+
 ## Calendar / Schedule
 
 - **Calendar is display-only**: The requirements mentioned iCal but the user clarified the calendar is for display (showing lecture/lab numbers and dates), not for integration with external calendar apps.
