@@ -1,10 +1,12 @@
 # Course/LM/Topic redesign — execution plan
 
-Companion to `course-lm-topic-redesign-v2.md` (design) and its §9 v2.1 amendment.
+Companion to `course-lm-topic-redesign-v2.md` (design) and its amendments.
 This document is the **execution/orchestration** plan: how the ten design chunks
 map to agents, branches, and phases, and where real parallelism exists.
 
-Design source of truth: `course-lm-topic-redesign-v2.md` §1–8 plus §9 (v2.1).
+Design source of truth: `course-lm-topic-redesign-v2.md`, with the newest
+applicable amendment governing conflicts. In particular, §11 v2.3 supersedes
+direct Topic-to-Learning-Module ownership.
 Where design and execution disagree, the design doc governs *what* is built and
 this doc governs *how* it is built.
 
@@ -109,6 +111,31 @@ Design Chunk 9. Blocked on operator providing a **Blackboard Ultra SaaS** sandbo
 (v2.1 §9.0 Q5). Compatibility pinned empirically via dated fixtures
 (`blackboard-ultra-<date>`). Not on the critical path; do not gate the cutover on
 it. Ships as a follow-on once sandbox access exists.
+
+### Phase B.2R — activity and interaction refreeze (SERIAL CHECKPOINT)
+
+The accepted B.1 integration and B.2 ledger spike exposed a domain mismatch that
+invalidates part of the Phase A.1 frozen contract. Before additional application
+implementation, run the bounded B.2R work defined in
+`course-planner-b2-operator-feedback-2026-07-13.md`:
+
+- map the allowed DS100 evidence into the proposed activity graph;
+- propose the smallest versioned schema/REST correction;
+- specify Institution-calendar inheritance, Term-only exceptions, and special
+  periods;
+- build a dense task prototype against a realistic fixture; and
+- report which B.1/B.2 code survives, adapts, or retires.
+
+This phase may delegate file inventories and prototype construction, but the
+contract synthesis is serial and frontier-reviewed. It ends with operator
+acceptance. Do not launch the B.3 implementation lanes before that gate.
+
+After acceptance:
+
+- **B.3** implements schema/domain/REST plus the one-way DS100 importer.
+- **B.4** builds the Course design studio and active-Term daily driver on real
+  handlers.
+- **Phase D** performs integration, verification, and the reviewed `main` cutover.
 
 ### Phase D — Integration + verification (SERIAL, closing pass)
 

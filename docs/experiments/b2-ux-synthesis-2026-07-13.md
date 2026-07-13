@@ -139,3 +139,24 @@ available:
 These questions concern consequential vocabulary and priority. Color-by-color or
 component-by-component design input is intentionally not required from the
 operator unless the autonomous direction fails the checkpoint.
+
+## Operator checkpoint result
+
+The operator accepted the restrained ledger direction as useful prior art but did
+not accept the information architecture as the production workspace. Hands-on use
+revealed that the interface was too sparse and list-heavy for a course with roughly
+150 Topics, overemphasized summary/calendar panels, and underemphasized the next
+meeting, preparation work, current LM, Topic actions, and assignment milestones.
+
+More importantly, the spike exposed a domain-model correction: Learning Modules
+should organize meetings and coursework, while Topics attach to those activities
+through I/P/A actions. Projects and exams may remain cross-cutting and participate
+in several meetings through explicit milestones. Instructor terminology must be
+customizable over stable behavior families.
+
+This is a successful experimental result even though it stops direct UI polishing:
+the autonomous spike made the wrong mental model concrete early enough to replace
+it. The accepted feedback, calendar corrections, DS100 evidence sources, and next
+checkpoint are recorded in
+`docs/plans/course-planner-b2-operator-feedback-2026-07-13.md`; the architectural
+decision is ADR-0002.
