@@ -36,12 +36,18 @@ export async function transitionTermLifecycle(
       );
     }
 
-    return tx.term.update({
-      where: { id: term.id },
+    const closedAt = edge.to === "closed" ? new Date() : null;
+    const result = await tx.term.updateMany({
+      where: { id: term.id, status: input.expectedStatus },
       data: {
         status: edge.to,
-        closedAt: edge.to === "closed" ? new Date() : null,
+        closedAt,
       },
     });
+    if (result.count !== 1) {
+      throw new ConcurrencyConflictError("Term status changed while this transition was in progress");
+    }
+
+    return { ...term, status: edge.to, closedAt };
   });
 }
