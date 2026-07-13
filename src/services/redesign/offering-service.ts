@@ -1,4 +1,8 @@
 import { ConcurrencyConflictError, DomainInvariantError } from "./errors";
+import {
+  getOwnedTermForInstructor,
+  getOwnedTermLearningModuleForInstructor,
+} from "./ownership-service";
 import { assertSameCourse } from "./invariants";
 import { createLearningModuleVersion } from "./revision-service";
 import type { LearningModuleVersionDraft, RedesignDb, RedesignTx, TopicSnapshotInput } from "./types";
@@ -12,6 +16,7 @@ function assertWritableTerm(status: "planned" | "active" | "closed") {
 export async function adoptLearningModuleForTerm(
   db: RedesignDb,
   input: {
+    instructorId: string;
     termId: string;
     learningModuleId: string;
     learningModuleVersionId: string;
@@ -21,7 +26,7 @@ export async function adoptLearningModuleForTerm(
 ) {
   return db.$transaction(async (tx) => {
     const [term, learningModule, version] = await Promise.all([
-      tx.term.findUnique({ where: { id: input.termId } }),
+      getOwnedTermForInstructor(tx, input.instructorId, input.termId),
       tx.learningModule.findUnique({ where: { id: input.learningModuleId } }),
       tx.learningModuleVersion.findUnique({
         where: { id_learningModuleId: {
@@ -82,10 +87,13 @@ export async function reviseDeliveredLearningModuleForTerm(
   });
 }
 
-export async function listTermLearningModulesForTerm(db: RedesignDb, termId: string) {
+export async function listTermLearningModulesForTerm(
+  db: RedesignDb,
+  instructorId: string,
+  termId: string,
+) {
   return db.$transaction(async (tx) => {
-    const term = await tx.term.findUnique({ where: { id: termId }, select: { id: true } });
-    if (!term) throw new DomainInvariantError("Term not found");
+    await getOwnedTermForInstructor(tx, instructorId, termId);
     return tx.termLearningModule.findMany({ where: { termId }, orderBy: { sequence: "asc" } });
   });
 }
@@ -97,15 +105,12 @@ export type UpdateTermLearningModuleInput = {
 
 export async function updateTermLearningModule(
   db: RedesignDb,
+  instructorId: string,
   termLearningModuleId: string,
   input: UpdateTermLearningModuleInput,
 ) {
   return db.$transaction(async (tx) => {
-    const offering = await tx.termLearningModule.findUnique({
-      where: { id: termLearningModuleId },
-      include: { term: { select: { status: true } } },
-    });
-    if (!offering) throw new DomainInvariantError("Term Learning Module not found");
+    const offering = await getOwnedTermLearningModuleForInstructor(tx, instructorId, termLearningModuleId);
     assertWritableTerm(offering.term.status);
 
     return tx.termLearningModule.update({
@@ -119,15 +124,20 @@ export async function updateTermLearningModule(
 // silently orphan those Sessions' delivery record; the design's guarded
 // "detach Sessions, then remove adoption" two-step flow is Lane B/Chunk 5
 // scope, so for now removal simply fails while Sessions remain attached.
-export async function removeTermLearningModule(db: RedesignDb, termLearningModuleId: string) {
+export async function removeTermLearningModule(
+  db: RedesignDb,
+  instructorId: string,
+  termLearningModuleId: string,
+) {
   return db.$transaction(async (tx) => {
-    const offering = await tx.termLearningModule.findUnique({
-      where: { id: termLearningModuleId },
-      include: { sessions: { select: { id: true }, take: 1 }, term: { select: { status: true } } },
-    });
-    if (!offering) throw new DomainInvariantError("Term Learning Module not found");
+    const offering = await getOwnedTermLearningModuleForInstructor(tx, instructorId, termLearningModuleId);
     assertWritableTerm(offering.term.status);
-    if (offering.sessions.length > 0) {
+    const attachedSessions = await tx.session.findMany({
+      where: { termLearningModuleId },
+      select: { id: true },
+      take: 1,
+    });
+    if (attachedSessions.length > 0) {
       throw new DomainInvariantError(
         "Cannot remove a Term Learning Module while Sessions are attached to it",
       );
@@ -145,17 +155,18 @@ export async function removeTermLearningModule(db: RedesignDb, termLearningModul
 export async function createDeliveredRevision(
   db: RedesignDb,
   input: {
+    instructorId: string;
     termLearningModuleId: string;
     expectedDeliveredLearningModuleVersionId: string | null;
     draft: LearningModuleVersionDraft;
   },
 ) {
   return db.$transaction(async (tx) => {
-    const offering = await tx.termLearningModule.findUnique({
-      where: { id: input.termLearningModuleId },
-      include: { term: { select: { status: true } } },
-    });
-    if (!offering) throw new DomainInvariantError("Term Learning Module not found");
+    const offering = await getOwnedTermLearningModuleForInstructor(
+      tx,
+      input.instructorId,
+      input.termLearningModuleId,
+    );
     if (offering.term.status !== "active") {
       throw new DomainInvariantError("Delivered revisions may only be created for active Terms");
     }
@@ -223,10 +234,13 @@ export type PlannedDeliveredTopicChange = {
 
 // Derives the planned-vs-delivered Topic diff directly from the two
 // LearningModuleVersionTopic snapshots (v2.1 §9.2: "needs no new table").
-export async function computePlannedDeliveredDiff(db: RedesignDb, termLearningModuleId: string) {
+export async function computePlannedDeliveredDiff(
+  db: RedesignDb,
+  instructorId: string,
+  termLearningModuleId: string,
+) {
   return db.$transaction(async (tx) => {
-    const offering = await tx.termLearningModule.findUnique({ where: { id: termLearningModuleId } });
-    if (!offering) throw new DomainInvariantError("Term Learning Module not found");
+    const offering = await getOwnedTermLearningModuleForInstructor(tx, instructorId, termLearningModuleId);
 
     const [planned, delivered] = await Promise.all([
       loadSnapshot(tx, offering.learningModuleVersionId),

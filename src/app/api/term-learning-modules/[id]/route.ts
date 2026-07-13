@@ -1,13 +1,16 @@
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
-import { badRequest, notFound, ok } from "@/lib/api-helpers";
+import { badRequest, notFound, ok, unauthorized } from "@/lib/api-helpers";
+import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 import { updateTermLearningModuleSchema } from "@/lib/redesign-schemas";
 import { toTermLearningModuleDto } from "@/lib/redesign-serializers";
 import {
   DomainInvariantError,
+  getOwnedTermLearningModuleForInstructor,
   removeTermLearningModule,
   updateTermLearningModule,
 } from "@/services/redesign";
+import type { RedesignTx } from "@/services/redesign/types";
 import type {
   GetTermLearningModuleResponse,
   UpdateTermLearningModuleRequest,
@@ -22,8 +25,18 @@ export type {
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const termLearningModule = await prisma.termLearningModule.findUnique({ where: { id } });
-  if (!termLearningModule) return notFound("Term Learning Module not found");
+  const instructor = await getAuthenticatedInstructor(prisma);
+  if (!instructor) return unauthorized();
+
+  let termLearningModule;
+  try {
+    termLearningModule = await prisma.$transaction((tx: RedesignTx) =>
+      getOwnedTermLearningModuleForInstructor(tx, instructor.id, id),
+    );
+  } catch (error) {
+    if (error instanceof DomainInvariantError) return notFound(error.message);
+    throw error;
+  }
   return ok({
     termLearningModule: toTermLearningModuleDto(termLearningModule),
   } satisfies GetTermLearningModuleResponse);
@@ -31,6 +44,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const instructor = await getAuthenticatedInstructor(prisma);
+  if (!instructor) return unauthorized();
+
   const body = await request.json();
   const parsed = updateTermLearningModuleSchema.safeParse(body);
   if (!parsed.success) {
@@ -38,7 +54,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   try {
-    const termLearningModule = await updateTermLearningModule(prisma, id, parsed.data);
+    const termLearningModule = await updateTermLearningModule(prisma, instructor.id, id, parsed.data);
     return ok({
       termLearningModule: toTermLearningModuleDto(termLearningModule),
     } satisfies UpdateTermLearningModuleResponse);
@@ -54,8 +70,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const instructor = await getAuthenticatedInstructor(prisma);
+  if (!instructor) return unauthorized();
+
   try {
-    const termLearningModule = await removeTermLearningModule(prisma, id);
+    const termLearningModule = await removeTermLearningModule(prisma, instructor.id, id);
     return ok({
       termLearningModule: toTermLearningModuleDto(termLearningModule),
     } satisfies UpdateTermLearningModuleResponse);

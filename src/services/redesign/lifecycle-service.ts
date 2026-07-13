@@ -1,4 +1,5 @@
 import { ConcurrencyConflictError, DomainInvariantError } from "./errors";
+import { getOwnedTermForInstructor } from "./ownership-service";
 import type { RedesignDb } from "./types";
 
 export type TermStatus = "planned" | "active" | "closed";
@@ -17,14 +18,14 @@ const ALLOWED_TRANSITIONS: Record<TermLifecycleTransition, { from: TermStatus; t
 export async function transitionTermLifecycle(
   db: RedesignDb,
   input: {
+    instructorId: string;
     termId: string;
     transition: TermLifecycleTransition;
     expectedStatus: TermStatus;
   },
 ) {
   return db.$transaction(async (tx) => {
-    const term = await tx.term.findUnique({ where: { id: input.termId } });
-    if (!term) throw new DomainInvariantError("Term not found");
+    const term = await getOwnedTermForInstructor(tx, input.instructorId, input.termId);
 
     const edge = ALLOWED_TRANSITIONS[input.transition];
     if (term.status !== input.expectedStatus) {

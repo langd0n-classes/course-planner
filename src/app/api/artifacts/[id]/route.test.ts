@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 
 const prismaMock = {
   artifact: {
@@ -13,10 +14,22 @@ vi.mock("@/lib/prisma", () => ({
   prisma: prismaMock,
 }));
 
+vi.mock("@/lib/redesign-auth", () => ({
+  getAuthenticatedInstructor: vi.fn(),
+}));
+
+const authMock = vi.mocked(getAuthenticatedInstructor);
+
 describe("artifact detail route", () => {
   beforeEach(() => {
     prismaMock.artifact.findUnique.mockReset();
     prismaMock.$transaction.mockReset();
+    authMock.mockReset();
+    authMock.mockResolvedValue({
+      id: "instructor-1",
+      email: "alice@example.edu",
+      name: "Alice",
+    });
   });
 
   it("archives an artifact through PATCH", async () => {
@@ -40,6 +53,12 @@ describe("artifact detail route", () => {
             generatedAt: null,
             metadata: null,
             archivedAt: null,
+            session: {
+              term: { course: { instructorId: "instructor-1" } },
+            },
+            assessment: null,
+            learningModuleVersion: null,
+            topicVersion: null,
           })),
           update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => ({
             id: "artifact-1",
@@ -61,7 +80,11 @@ describe("artifact detail route", () => {
           })),
         },
         session: {
-          findUnique: vi.fn(async () => ({ id: "session-1", term: { status: "active" } })),
+          findUnique: vi.fn(async () => ({
+            id: "session-1",
+            term: { status: "active", course: { instructorId: "instructor-1" } },
+            termLearningModule: null,
+          })),
         },
       }),
     );
@@ -121,6 +144,12 @@ describe("artifact detail route", () => {
             generatedAt: null,
             metadata: null,
             archivedAt: null,
+            session: {
+              term: { course: { instructorId: "instructor-1" } },
+            },
+            assessment: null,
+            learningModuleVersion: null,
+            topicVersion: null,
           })),
           update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => ({
             id: "artifact-1",
@@ -142,7 +171,11 @@ describe("artifact detail route", () => {
           })),
         },
         session: {
-          findUnique: vi.fn(async () => ({ id: "session-1", term: { status: "active" } })),
+          findUnique: vi.fn(async () => ({
+            id: "session-1",
+            term: { status: "active", course: { instructorId: "instructor-1" } },
+            termLearningModule: null,
+          })),
         },
       }),
     );
@@ -183,9 +216,13 @@ describe("artifact detail route", () => {
         artifact: {
           findUnique: vi.fn(async () => ({
             id: "artifact-1",
+            title: "Week 1 slides",
             session: null,
             assessment: null,
-            learningModuleVersion: { publishedAt: new Date("2026-01-01T00:00:00.000Z") },
+            learningModuleVersion: {
+              publishedAt: new Date("2026-01-01T00:00:00.000Z"),
+              learningModule: { course: { instructorId: "instructor-1" } },
+            },
             topicVersion: null,
           })),
         },
@@ -214,7 +251,13 @@ describe("artifact detail route", () => {
   });
 
   it("returns 404 for missing artifacts", async () => {
-    prismaMock.artifact.findUnique.mockResolvedValue(null);
+    prismaMock.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) =>
+      fn({
+        artifact: {
+          findUnique: vi.fn(async () => null),
+        },
+      }),
+    );
 
     const { GET } = await import("./route");
     const response = await GET(

@@ -5,9 +5,16 @@ import {
   type ArtifactSourceType,
 } from "./invariants";
 import { DomainInvariantError } from "./errors";
+import {
+  assertOwnedByInstructor,
+  getOwnedArtifactForInstructor,
+  getOwnedAssessmentForInstructor,
+  getOwnedSessionForInstructor,
+} from "./ownership-service";
 import type { RedesignDb, RedesignTx } from "./types";
 
 export type CreateArtifactInput = ArtifactParentFields & {
+  instructorId: string;
   artifactType:
     | "notebook"
     | "handout"
@@ -53,7 +60,7 @@ export async function createArtifact(db: RedesignDb, input: CreateArtifactInput)
   assertArtifactUri(input.sourceType, input.uri);
 
   return db.$transaction(async (tx) => {
-    await assertArtifactParentWritable(tx, input);
+    await assertArtifactParentWritable(tx, input.instructorId, input);
 
     return tx.artifact.create({
       data: {
@@ -78,6 +85,7 @@ export async function createArtifact(db: RedesignDb, input: CreateArtifactInput)
 
 export async function listArtifacts(
   db: RedesignDb,
+  instructorId: string,
   filters: {
     parentType?: CreateArtifactInput["parentType"];
     learningModuleVersionId?: string;
@@ -87,8 +95,59 @@ export async function listArtifacts(
     includeArchived?: boolean;
   } = {},
 ) {
-  return db.$transaction((tx) =>
-    tx.artifact.findMany({
+  return db.$transaction(async (tx) => {
+    if (filters.sessionId) {
+      await getOwnedSessionForInstructor(tx, instructorId, filters.sessionId);
+    }
+    if (filters.assessmentId) {
+      await getOwnedAssessmentForInstructor(tx, instructorId, filters.assessmentId);
+    }
+    if (filters.learningModuleVersionId) {
+      const version = await tx.learningModuleVersion.findUnique({
+        where: { id: filters.learningModuleVersionId },
+        include: {
+          learningModule: {
+            include: {
+              course: {
+                select: { instructorId: true },
+              },
+            },
+          },
+        },
+      });
+      if (!version) {
+        throw new DomainInvariantError("Learning Module version not found");
+      }
+      assertOwnedByInstructor(
+        instructorId,
+        version.learningModule?.course?.instructorId,
+        "Learning Module version not found",
+      );
+    }
+    if (filters.topicVersionId) {
+      const version = await tx.topicVersion.findUnique({
+        where: { id: filters.topicVersionId },
+        include: {
+          topic: {
+            include: {
+              course: {
+                select: { instructorId: true },
+              },
+            },
+          },
+        },
+      });
+      if (!version) {
+        throw new DomainInvariantError("Topic version not found");
+      }
+      assertOwnedByInstructor(
+        instructorId,
+        version.topic?.course?.instructorId,
+        "Topic version not found",
+      );
+    }
+
+    return tx.artifact.findMany({
       where: {
         parentType: filters.parentType,
         learningModuleVersionId: filters.learningModuleVersionId,
@@ -96,26 +155,30 @@ export async function listArtifacts(
         sessionId: filters.sessionId,
         assessmentId: filters.assessmentId,
         ...(filters.includeArchived ? {} : { archivedAt: null }),
+        OR: [
+          { session: { term: { course: { instructorId } } } },
+          { assessment: { term: { course: { instructorId } } } },
+          { learningModuleVersion: { learningModule: { course: { instructorId } } } },
+          { topicVersion: { topic: { course: { instructorId } } } },
+        ],
       },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-    }),
-  ) as Promise<ArtifactRecord[]>;
+    });
+  }) as Promise<ArtifactRecord[]>;
 }
 
-export async function getArtifact(tx: RedesignTx, artifactId: string) {
-  return tx.artifact.findUnique({ where: { id: artifactId } }) as Promise<ArtifactRecord | null>;
+export async function getArtifact(tx: RedesignTx, instructorId: string, artifactId: string) {
+  return getOwnedArtifactForInstructor(tx, instructorId, artifactId) as Promise<ArtifactRecord | null>;
 }
 
 export async function updateArtifact(
   db: RedesignDb,
+  instructorId: string,
   artifactId: string,
   patch: Partial<CreateArtifactInput> & { archivedAt?: Date | null },
 ) {
   return db.$transaction(async (tx) => {
-    const existing = await tx.artifact.findUnique({ where: { id: artifactId } });
-    if (!existing) {
-      throw new DomainInvariantError("Artifact not found");
-    }
+    const existing = await getOwnedArtifactForInstructor(tx, instructorId, artifactId);
 
     const merged = {
       parentType: patch.parentType ?? existing.parentType,
@@ -134,7 +197,7 @@ export async function updateArtifact(
 
     assertArtifactParent(merged);
     assertArtifactUri(merged.sourceType, merged.uri);
-    await assertArtifactParentWritable(tx, merged);
+    await assertArtifactParentWritable(tx, instructorId, merged);
 
     return tx.artifact.update({
       where: { id: artifactId },
@@ -159,14 +222,11 @@ export async function updateArtifact(
   }) as Promise<ArtifactRecord>;
 }
 
-export async function archiveArtifact(db: RedesignDb, artifactId: string) {
+export async function archiveArtifact(db: RedesignDb, instructorId: string, artifactId: string) {
   return db.$transaction(async (tx) => {
-    const existing = await tx.artifact.findUnique({ where: { id: artifactId } });
-    if (!existing) {
-      throw new DomainInvariantError("Artifact not found");
-    }
+    const existing = await getOwnedArtifactForInstructor(tx, instructorId, artifactId);
 
-    await assertArtifactParentWritable(tx, existing);
+    await assertArtifactParentWritable(tx, instructorId, existing);
 
     if (existing.archivedAt) return existing as ArtifactRecord;
     return tx.artifact.update({
@@ -178,6 +238,7 @@ export async function archiveArtifact(db: RedesignDb, artifactId: string) {
 
 async function assertArtifactParentWritable(
   tx: RedesignTx,
+  instructorId: string,
   input: Pick<
     CreateArtifactInput,
     "parentType" | "learningModuleVersionId" | "topicVersionId" | "sessionId" | "assessmentId"
@@ -185,41 +246,71 @@ async function assertArtifactParentWritable(
 ) {
   switch (input.parentType) {
     case "session": {
-      const session = await tx.session.findUnique({
-        where: { id: input.sessionId },
-        include: { term: { select: { status: true } } },
-      });
-      if (!session) throw new DomainInvariantError("Artifact Session parent not found");
+      if (!input.sessionId) {
+        throw new DomainInvariantError("Artifact Session parent not found");
+      }
+      const session = await getOwnedSessionForInstructor(tx, instructorId, input.sessionId);
       if (session.term.status === "closed") {
         throw new DomainInvariantError("Closed Terms are read-only");
       }
       return;
     }
     case "assessment": {
-      const assessment = await tx.assessment.findUnique({
-        where: { id: input.assessmentId },
-        include: { term: { select: { status: true } } },
-      });
-      if (!assessment) throw new DomainInvariantError("Artifact Assessment parent not found");
+      if (!input.assessmentId) {
+        throw new DomainInvariantError("Artifact Assessment parent not found");
+      }
+      const assessment = await getOwnedAssessmentForInstructor(tx, instructorId, input.assessmentId);
       if (assessment.term.status === "closed") {
         throw new DomainInvariantError("Closed Terms are read-only");
       }
       return;
     }
     case "learning_module_version": {
+      if (!input.learningModuleVersionId) {
+        throw new DomainInvariantError("Artifact Learning Module Version parent not found");
+      }
       const version = await tx.learningModuleVersion.findUnique({
         where: { id: input.learningModuleVersionId },
-        select: { id: true },
+        include: {
+          learningModule: {
+            include: {
+              course: {
+                select: { instructorId: true },
+              },
+            },
+          },
+        },
       });
       if (!version) throw new DomainInvariantError("Artifact Learning Module Version parent not found");
+      assertOwnedByInstructor(
+        instructorId,
+        version.learningModule?.course?.instructorId,
+        "Artifact Learning Module Version parent not found",
+      );
       return;
     }
     case "topic_version": {
+      if (!input.topicVersionId) {
+        throw new DomainInvariantError("Artifact Topic Version parent not found");
+      }
       const version = await tx.topicVersion.findUnique({
         where: { id: input.topicVersionId },
-        select: { id: true },
+        include: {
+          topic: {
+            include: {
+              course: {
+                select: { instructorId: true },
+              },
+            },
+          },
+        },
       });
       if (!version) throw new DomainInvariantError("Artifact Topic Version parent not found");
+      assertOwnedByInstructor(
+        instructorId,
+        version.topic?.course?.instructorId,
+        "Artifact Topic Version parent not found",
+      );
     }
   }
 }

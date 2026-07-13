@@ -1,4 +1,5 @@
 import { DomainInvariantError } from "./errors";
+import { getOwnedArtifactForInstructor } from "./ownership-service";
 import type { RedesignDb, RedesignTx } from "./types";
 
 export type ArchiveableEntityType = "course" | "learning_module" | "topic" | "artifact";
@@ -48,17 +49,19 @@ export async function previewHardRemoval(
   db: RedesignDb,
   entityType: ArchiveableEntityType,
   entityId: string,
+  instructorId?: string,
 ) {
-  return db.$transaction((tx) => previewHardRemovalTx(tx, entityType, entityId));
+  return db.$transaction((tx) => previewHardRemovalTx(tx, entityType, entityId, instructorId));
 }
 
 export async function hardRemoveArtifact(
   db: RedesignDb,
+  instructorId: string,
   artifactId: string,
   confirmTitle: string,
 ) {
   return db.$transaction(async (tx) => {
-    const preview = await previewArtifactHardRemoval(tx, artifactId);
+    const preview = await previewArtifactHardRemoval(tx, artifactId, instructorId);
     if (!preview.canRemove) {
       throw new DomainInvariantError(
         `Artifact cannot be hard-removed while references exist: ${preview.blockers
@@ -67,11 +70,7 @@ export async function hardRemoveArtifact(
       );
     }
 
-    const artifact = await tx.artifact.findUnique({
-      where: { id: artifactId },
-      select: { id: true, title: true },
-    });
-    if (!artifact) throw new DomainInvariantError("Artifact not found");
+    const artifact = await getOwnedArtifactForInstructor(tx, instructorId, artifactId);
     if (artifact.title !== confirmTitle) {
       throw new DomainInvariantError("Hard removal requires confirmation with the exact Artifact title");
     }
@@ -114,6 +113,7 @@ async function previewHardRemovalTx(
   tx: RedesignTx,
   entityType: ArchiveableEntityType,
   entityId: string,
+  instructorId?: string,
 ): Promise<HardRemovalPreview> {
   switch (entityType) {
     case "course":
@@ -123,7 +123,7 @@ async function previewHardRemovalTx(
     case "topic":
       return previewTopicHardRemoval(tx, entityId);
     case "artifact":
-      return previewArtifactHardRemoval(tx, entityId);
+      return previewArtifactHardRemoval(tx, entityId, instructorId);
   }
 }
 
@@ -243,16 +243,19 @@ async function previewTopicHardRemoval(
 async function previewArtifactHardRemoval(
   tx: RedesignTx,
   artifactId: string,
+  instructorId?: string,
 ): Promise<HardRemovalPreview> {
-  const artifact = await tx.artifact.findUnique({
-    where: { id: artifactId },
-    include: {
-      session: { include: { term: { select: { status: true } } } },
-      assessment: { include: { term: { select: { status: true } } } },
-      learningModuleVersion: { select: { publishedAt: true } },
-      topicVersion: { select: { publishedAt: true } },
-    },
-  });
+  const artifact = instructorId
+    ? await getOwnedArtifactForInstructor(tx, instructorId, artifactId)
+    : await tx.artifact.findUnique({
+        where: { id: artifactId },
+        include: {
+          session: { include: { term: { select: { status: true } } } },
+          assessment: { include: { term: { select: { status: true } } } },
+          learningModuleVersion: { select: { publishedAt: true } },
+          topicVersion: { select: { publishedAt: true } },
+        },
+      });
   if (!artifact) throw new DomainInvariantError("Artifact not found");
 
   const blockers: HardRemovalBlocker[] = [];

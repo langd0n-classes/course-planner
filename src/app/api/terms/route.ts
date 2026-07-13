@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
-import { ok, created, badRequest } from "@/lib/api-helpers";
+import { ok, created, badRequest, notFound, unauthorized } from "@/lib/api-helpers";
+import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 import { toTermDto } from "@/lib/redesign-serializers";
 import { createTermSchema } from "@/lib/redesign-schemas";
-import { DomainInvariantError } from "@/services/redesign";
+import { DomainInvariantError, getOwnedCourse } from "@/services/redesign";
 import {
   applyTermCreation,
   previewTermCreation,
@@ -18,15 +19,33 @@ import type {
 export type { CreateTermRequest, CreateTermResponse, ListTermsResponse };
 
 export async function GET(request: NextRequest) {
+  const instructor = await getAuthenticatedInstructor(prisma);
+  if (!instructor) return unauthorized();
+
   const courseId = request.nextUrl.searchParams.get("courseId");
+  if (courseId) {
+    try {
+      await getOwnedCourse(prisma, instructor.id, courseId);
+    } catch (error) {
+      if (error instanceof DomainInvariantError) return notFound(error.message);
+      throw error;
+    }
+  }
+
   const terms = await prisma.term.findMany({
-    where: courseId ? { courseId } : undefined,
+    where: {
+      course: { instructorId: instructor.id },
+      ...(courseId ? { courseId } : {}),
+    },
     orderBy: { startDate: "asc" },
   });
   return ok({ terms: terms.map(toTermDto) } satisfies ListTermsResponse);
 }
 
 export async function POST(request: NextRequest) {
+  const instructor = await getAuthenticatedInstructor(prisma);
+  if (!instructor) return unauthorized();
+
   const body = await request.json();
   const parsed = createTermSchema.safeParse(body);
   if (!parsed.success) {
@@ -35,6 +54,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const input = {
+      instructorId: instructor.id,
       courseId: parsed.data.courseId,
       institutionId: parsed.data.institutionId,
       academicCalendarId: parsed.data.academicCalendarId,
@@ -63,7 +83,11 @@ export async function POST(request: NextRequest) {
       warnings: applied.warnings,
     } satisfies CreateTermResponse);
   } catch (error) {
-    if (error instanceof DomainInvariantError) return badRequest(error.message);
+    if (error instanceof DomainInvariantError) {
+      return error.message === "Course not found" || error.message === "Source Term not found"
+        ? notFound(error.message)
+        : badRequest(error.message);
+    }
     throw error;
   }
 }

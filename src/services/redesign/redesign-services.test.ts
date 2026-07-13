@@ -30,7 +30,12 @@ describe("term lifecycle concurrency", () => {
     let updateWhere: Record<string, unknown> | null = null;
     const db = createTransactionalDb({
       term: {
-        findUnique: async () => ({ id: "term-1", status: "planned", closedAt: null }),
+        findUnique: async () => ({
+          id: "term-1",
+          status: "planned",
+          closedAt: null,
+          course: { instructorId: "instructor-1" },
+        }),
         updateMany: async ({ where }: any) => {
           updateWhere = where;
           return { count: 1 };
@@ -39,6 +44,7 @@ describe("term lifecycle concurrency", () => {
     });
 
     const term = await transitionTermLifecycle(db, {
+      instructorId: "instructor-1",
       termId: "term-1",
       transition: "activate",
       expectedStatus: "planned",
@@ -51,13 +57,19 @@ describe("term lifecycle concurrency", () => {
   it("rejects a race lost between the status read and update", async () => {
     const db = createTransactionalDb({
       term: {
-        findUnique: async () => ({ id: "term-1", status: "planned", closedAt: null }),
+        findUnique: async () => ({
+          id: "term-1",
+          status: "planned",
+          closedAt: null,
+          course: { instructorId: "instructor-1" },
+        }),
         updateMany: async () => ({ count: 0 }),
       },
     });
 
     await expect(
       transitionTermLifecycle(db, {
+        instructorId: "instructor-1",
         termId: "term-1",
         transition: "activate",
         expectedStatus: "planned",
@@ -76,6 +88,7 @@ describe("redesign service invariants", () => {
 
     await expect(
       createArtifact(db, {
+        instructorId: "instructor-1",
         parentType: "session",
         sessionId: "session-1",
         assessmentId: "assessment-1",
@@ -88,6 +101,7 @@ describe("redesign service invariants", () => {
 
     await expect(
       createArtifact(db, {
+        instructorId: "instructor-1",
         parentType: "session",
         assessmentId: "assessment-1",
         artifactType: "slides",
@@ -104,12 +118,16 @@ describe("redesign service invariants", () => {
         create: async ({ data }: any) => data,
       },
       topicVersion: {
-        findUnique: async () => ({ id: "topic-version-1" }),
+        findUnique: async () => ({
+          id: "topic-version-1",
+          topic: { course: { instructorId: "instructor-1" } },
+        }),
       },
     });
 
     await expect(
       createArtifact(db, {
+        instructorId: "instructor-1",
         parentType: "topic_version",
         topicVersionId: "topic-version-1",
         artifactType: "dataset",
@@ -126,12 +144,16 @@ describe("redesign service invariants", () => {
         create: async ({ data }: any) => data,
       },
       topicVersion: {
-        findUnique: async () => ({ id: "topic-version-1" }),
+        findUnique: async () => ({
+          id: "topic-version-1",
+          topic: { course: { instructorId: "instructor-1" } },
+        }),
       },
     });
 
     await expect(
       createArtifact(db, {
+        instructorId: "instructor-1",
         parentType: "topic_version",
         topicVersionId: "topic-version-1",
         artifactType: "reading",
@@ -324,6 +346,7 @@ describe("term ownership invariants", () => {
         findUnique: async () => ({ status: "active" }),
       },
       courseInstitution: {
+        findMany: async () => [],
         findUnique: async () => null,
       },
       academicCalendar: {
@@ -333,6 +356,7 @@ describe("term ownership invariants", () => {
 
     await expect(
       createTerm(db, {
+        instructorId: "instructor-1",
         courseId: "course-1",
         institutionId: "institution-1",
         academicCalendarId: "calendar-1",
@@ -360,6 +384,7 @@ describe("term ownership invariants", () => {
         findUnique: async () => ({ status: "active" }),
       },
       courseInstitution: {
+        findMany: async () => [{ institutionId: "institution-1" }],
         findUnique: async () => ({ courseId: "course-1", institutionId: "institution-1" }),
       },
       academicCalendar: {
@@ -369,6 +394,7 @@ describe("term ownership invariants", () => {
 
     await expect(
       createTerm(db, {
+        instructorId: "instructor-1",
         courseId: "course-1",
         institutionId: "institution-1",
         academicCalendarId: "calendar-other",
@@ -396,6 +422,7 @@ describe("term ownership invariants", () => {
         findUnique: async () => ({ status: "active" }),
       },
       courseInstitution: {
+        findMany: async () => [{ institutionId: "institution-1" }],
         findUnique: async () => ({ courseId: "course-1", institutionId: "institution-1" }),
       },
       academicCalendar: {
@@ -432,6 +459,7 @@ describe("term ownership invariants", () => {
 
     const preview = await import("./term-service").then(({ previewTermCreation }) =>
       previewTermCreation(db, {
+        instructorId: "instructor-1",
         courseId: "course-1",
         institutionId: "institution-1",
         academicCalendarId: "calendar-1",
@@ -557,7 +585,7 @@ describe("delivered revision workflow", () => {
           learningModuleId: "lm-1",
           courseId: "course-1",
           deliveredLearningModuleVersionId: "lmv-2",
-          term: { status: "active" },
+          term: { status: "active", course: { instructorId: "instructor-1" } },
         }),
         update: async ({ data }: any) => ({
           id: "tlm-1",
@@ -591,6 +619,7 @@ describe("delivered revision workflow", () => {
     });
 
     const result = await createDeliveredRevision(db, {
+      instructorId: "instructor-1",
       termLearningModuleId: "tlm-1",
       expectedDeliveredLearningModuleVersionId: "lmv-2",
       draft: {
@@ -613,13 +642,14 @@ describe("delivered revision workflow", () => {
           learningModuleId: "lm-1",
           courseId: "course-1",
           deliveredLearningModuleVersionId: "lmv-newer",
-          term: { status: "active" },
+          term: { status: "active", course: { instructorId: "instructor-1" } },
         }),
       },
     });
 
     await expect(
       createDeliveredRevision(db, {
+        instructorId: "instructor-1",
         termLearningModuleId: "tlm-1",
         expectedDeliveredLearningModuleVersionId: "lmv-older",
         draft: { title: "Delivered revision" },
@@ -636,6 +666,7 @@ describe("planned vs delivered diff", () => {
           id: "tlm-1",
           learningModuleVersionId: "planned-v1",
           deliveredLearningModuleVersionId: "delivered-v2",
+          term: { course: { instructorId: "instructor-1" } },
         }),
       },
       learningModuleVersionTopic: {
@@ -655,7 +686,7 @@ describe("planned vs delivered diff", () => {
       },
     });
 
-    const diff = await computePlannedDeliveredDiff(db, "tlm-1");
+    const diff = await computePlannedDeliveredDiff(db, "instructor-1", "tlm-1");
 
     expect(diff.topicChanges).toEqual([
       {
@@ -738,6 +769,7 @@ describe("term clone preview", () => {
     });
 
     const preview = await previewTermClone(db, {
+      instructorId: "instructor-1",
       sourceTermId: "term-1",
       code: "F26",
       name: "Fall 2026",

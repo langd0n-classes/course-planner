@@ -13,6 +13,13 @@ import {
   validateRedistribution,
 } from "@/domain/whatif";
 import type { CoverageLevel, PlanningIssueDto, SessionWhatIfResponse } from "@/lib/redesign-contract";
+import {
+  getOwnedAssessmentForInstructor,
+  getOwnedCoverageForInstructor,
+  getOwnedSessionForInstructor,
+  getOwnedTermForInstructor,
+  getOwnedTermLearningModuleForInstructor,
+} from "./ownership-service";
 import type { RedesignDb, RedesignTx } from "./types";
 
 type SessionWithTerm = {
@@ -61,6 +68,7 @@ type PlanningSnapshot = Awaited<ReturnType<typeof loadPlanningSnapshot>>;
 const DETACHED_SEQUENCE = Number.MAX_SAFE_INTEGER;
 
 export type CreateSessionInput = {
+  instructorId: string;
   termId: string;
   termLearningModuleId?: string | null;
   sequence: number;
@@ -98,6 +106,7 @@ export type MoveSessionInput = {
 };
 
 export type CreateCoverageInput = {
+  instructorId: string;
   sessionId: string;
   topicVersionId: string;
   level: CoverageLevel;
@@ -110,6 +119,7 @@ export type UpdateCoverageInput = {
 };
 
 export type CreateAssessmentInput = {
+  instructorId: string;
   termId: string;
   code: string;
   title: string;
@@ -137,14 +147,24 @@ function assertWritableTerm(termStatus: "planned" | "active" | "closed") {
   }
 }
 
-async function loadSessionOrThrow(tx: RedesignTx, sessionId: string): Promise<SessionWithTerm> {
-  const session = await tx.session.findUnique({
-    where: { id: sessionId },
-    include: {
-      term: { select: { id: true, courseId: true, status: true } },
-      termLearningModule: { select: { id: true, sequence: true, learningModuleId: true } },
-    },
-  });
+async function loadSessionOrThrow(
+  tx: RedesignTx,
+  sessionId: string,
+  instructorId?: string,
+): Promise<SessionWithTerm> {
+  const session = instructorId
+    ? await getOwnedSessionForInstructor(tx, instructorId, sessionId)
+    : await tx.session.findUnique({
+        where: { id: sessionId },
+        include: {
+          term: {
+            include: {
+              course: { select: { instructorId: true } },
+            },
+          },
+          termLearningModule: { select: { id: true, sequence: true, learningModuleId: true } },
+        },
+      });
   if (!session) throw new DomainInvariantError("Session not found");
   return session as SessionWithTerm;
 }
@@ -152,11 +172,14 @@ async function loadSessionOrThrow(tx: RedesignTx, sessionId: string): Promise<Se
 async function loadTermOrThrow(
   tx: RedesignTx,
   termId: string,
+  instructorId?: string,
 ): Promise<{ id: string; courseId: string; status: "planned" | "active" | "closed" }> {
-  const term = await tx.term.findUnique({
-    where: { id: termId },
-    select: { id: true, courseId: true, status: true },
-  });
+  const term = instructorId
+    ? await getOwnedTermForInstructor(tx, instructorId, termId)
+    : await tx.term.findUnique({
+        where: { id: termId },
+        select: { id: true, courseId: true, status: true },
+      });
   if (!term) throw new DomainInvariantError("Term not found");
   return term;
 }
@@ -165,11 +188,17 @@ async function loadTermLearningModuleForTerm(
   tx: RedesignTx,
   termId: string,
   termLearningModuleId: string,
+  instructorId?: string,
 ) {
-  const offering = await tx.termLearningModule.findUnique({
-    where: { id_termId: { id: termLearningModuleId, termId } },
-    select: { id: true, sequence: true, learningModuleId: true },
-  });
+  const offering = instructorId
+      ? await getOwnedTermLearningModuleForInstructor(tx, instructorId, termLearningModuleId)
+      : await tx.termLearningModule.findUnique({
+          where: { id_termId: { id: termLearningModuleId, termId } },
+          select: { id: true, termId: true, sequence: true, learningModuleId: true },
+        });
+  if (offering && offering.termId !== termId) {
+    throw new DomainInvariantError("Term Learning Module not found");
+  }
   if (!offering) throw new DomainInvariantError("Term Learning Module not found");
   return offering;
 }
@@ -717,9 +746,9 @@ function validateCancelRequest(
   return issues;
 }
 
-export async function listSessionsForTerm(db: RedesignDb, termId: string) {
+export async function listSessionsForTerm(db: RedesignDb, instructorId: string, termId: string) {
   return db.$transaction(async (tx) => {
-    await loadTermOrThrow(tx, termId);
+    await loadTermOrThrow(tx, termId, instructorId);
     return tx.session.findMany({
       where: { termId },
       orderBy: [{ date: "asc" }, { sequence: "asc" }],
@@ -729,11 +758,16 @@ export async function listSessionsForTerm(db: RedesignDb, termId: string) {
 
 export async function createSession(db: RedesignDb, input: CreateSessionInput) {
   return db.$transaction(async (tx) => {
-    const term = await loadTermOrThrow(tx, input.termId);
+    const term = await loadTermOrThrow(tx, input.termId, input.instructorId);
     assertWritableTerm(term.status);
 
     if (input.termLearningModuleId) {
-      await loadTermLearningModuleForTerm(tx, term.id, input.termLearningModuleId);
+      await loadTermLearningModuleForTerm(
+        tx,
+        term.id,
+        input.termLearningModuleId,
+        input.instructorId,
+      );
     }
 
     const schedule = await resolveSessionSchedule(
@@ -763,8 +797,8 @@ export async function createSession(db: RedesignDb, input: CreateSessionInput) {
   });
 }
 
-export async function getSession(db: RedesignDb, sessionId: string) {
-  return db.$transaction(async (tx) => loadSessionOrThrow(tx, sessionId));
+export async function getSession(db: RedesignDb, instructorId: string, sessionId: string) {
+  return db.$transaction(async (tx) => loadSessionOrThrow(tx, sessionId, instructorId));
 }
 
 async function updateSessionInternal(
@@ -772,8 +806,9 @@ async function updateSessionInternal(
   sessionId: string,
   input: UpdateSessionInput | MoveSessionInput,
   markMoved: boolean,
+  instructorId?: string,
 ) {
-  const session = await loadSessionOrThrow(tx, sessionId);
+  const session = await loadSessionOrThrow(tx, sessionId, instructorId);
   assertWritableTerm(session.term.status);
   if (session.status === "canceled") {
     throw new DomainInvariantError("Canceled Sessions cannot be edited");
@@ -783,7 +818,12 @@ async function updateSessionInternal(
   if ("termLearningModuleId" in input && input.termLearningModuleId !== undefined) {
     nextTermLearningModuleId = input.termLearningModuleId;
     if (input.termLearningModuleId) {
-      await loadTermLearningModuleForTerm(tx, session.termId, input.termLearningModuleId);
+      await loadTermLearningModuleForTerm(
+        tx,
+        session.termId,
+        input.termLearningModuleId,
+        instructorId,
+      );
     }
   }
 
@@ -830,13 +870,18 @@ async function updateSessionInternal(
   });
 }
 
-export async function updateSession(db: RedesignDb, sessionId: string, input: UpdateSessionInput) {
-  return db.$transaction((tx) => updateSessionInternal(tx, sessionId, input, true));
+export async function updateSession(
+  db: RedesignDb,
+  instructorId: string,
+  sessionId: string,
+  input: UpdateSessionInput,
+) {
+  return db.$transaction((tx) => updateSessionInternal(tx, sessionId, input, true, instructorId));
 }
 
-export async function archiveSession(db: RedesignDb, sessionId: string) {
+export async function archiveSession(db: RedesignDb, instructorId: string, sessionId: string) {
   return db.$transaction(async (tx) => {
-    const session = await loadSessionOrThrow(tx, sessionId);
+    const session = await loadSessionOrThrow(tx, sessionId, instructorId);
     assertWritableTerm(session.term.status);
     if (session.archivedAt) return session;
     return tx.session.update({
@@ -846,13 +891,22 @@ export async function archiveSession(db: RedesignDb, sessionId: string) {
   });
 }
 
-export async function moveSession(db: RedesignDb, sessionId: string, input: MoveSessionInput) {
-  return db.$transaction((tx) => updateSessionInternal(tx, sessionId, input, true));
+export async function moveSession(
+  db: RedesignDb,
+  instructorId: string,
+  sessionId: string,
+  input: MoveSessionInput,
+) {
+  return db.$transaction((tx) => updateSessionInternal(tx, sessionId, input, true, instructorId));
 }
 
-export async function listSessionCoverages(db: RedesignDb, sessionId: string) {
+export async function listSessionCoverages(
+  db: RedesignDb,
+  instructorId: string,
+  sessionId: string,
+) {
   return db.$transaction(async (tx) => {
-    await loadSessionOrThrow(tx, sessionId);
+    await loadSessionOrThrow(tx, sessionId, instructorId);
     return tx.coverage.findMany({
       where: { sessionId },
       orderBy: [{ topicVersionId: "asc" }, { level: "asc" }],
@@ -862,7 +916,7 @@ export async function listSessionCoverages(db: RedesignDb, sessionId: string) {
 
 export async function createCoverage(db: RedesignDb, input: CreateCoverageInput) {
   return db.$transaction(async (tx) => {
-    const session = await loadSessionOrThrow(tx, input.sessionId);
+    const session = await loadSessionOrThrow(tx, input.sessionId, input.instructorId);
     assertWritableTerm(session.term.status);
     if (session.status === "canceled") {
       throw new DomainInvariantError("Canceled Sessions cannot receive new Coverage");
@@ -881,28 +935,21 @@ export async function createCoverage(db: RedesignDb, input: CreateCoverageInput)
   });
 }
 
-export async function getCoverage(db: RedesignDb, coverageId: string) {
+export async function getCoverage(db: RedesignDb, instructorId: string, coverageId: string) {
   return db.$transaction(async (tx) => {
-    const coverage = await tx.coverage.findUnique({
-      where: { id: coverageId },
-      include: {
-        session: {
-          include: { term: { select: { status: true } } },
-        },
-      },
-    });
-    if (!coverage) throw new DomainInvariantError("Coverage not found");
+    const coverage = await getOwnedCoverageForInstructor(tx, instructorId, coverageId);
     return coverage;
   });
 }
 
-export async function updateCoverage(db: RedesignDb, coverageId: string, input: UpdateCoverageInput) {
+export async function updateCoverage(
+  db: RedesignDb,
+  instructorId: string,
+  coverageId: string,
+  input: UpdateCoverageInput,
+) {
   return db.$transaction(async (tx) => {
-    const coverage = await tx.coverage.findUnique({
-      where: { id: coverageId },
-      include: { session: { include: { term: { select: { status: true } } } } },
-    });
-    if (!coverage) throw new DomainInvariantError("Coverage not found");
+    const coverage = await getOwnedCoverageForInstructor(tx, instructorId, coverageId);
     assertWritableTerm(coverage.session.term.status);
     if (coverage.session.status === "canceled") {
       throw new DomainInvariantError("Canceled Session Coverage cannot be edited");
@@ -918,22 +965,18 @@ export async function updateCoverage(db: RedesignDb, coverageId: string, input: 
   });
 }
 
-export async function deleteCoverage(db: RedesignDb, coverageId: string) {
+export async function deleteCoverage(db: RedesignDb, instructorId: string, coverageId: string) {
   return db.$transaction(async (tx) => {
-    const coverage = await tx.coverage.findUnique({
-      where: { id: coverageId },
-      include: { session: { include: { term: { select: { status: true } } } } },
-    });
-    if (!coverage) throw new DomainInvariantError("Coverage not found");
+    const coverage = await getOwnedCoverageForInstructor(tx, instructorId, coverageId);
     assertWritableTerm(coverage.session.term.status);
     await tx.coverage.delete({ where: { id: coverageId } });
     return coverage;
   });
 }
 
-export async function listAssessmentsForTerm(db: RedesignDb, termId: string) {
+export async function listAssessmentsForTerm(db: RedesignDb, instructorId: string, termId: string) {
   return db.$transaction(async (tx) => {
-    await loadTermOrThrow(tx, termId);
+    await loadTermOrThrow(tx, termId, instructorId);
     return tx.assessment.findMany({
       where: { termId },
       include: { topics: true },
@@ -954,7 +997,7 @@ async function validateAssessmentTopics(
 
 export async function createAssessment(db: RedesignDb, input: CreateAssessmentInput) {
   return db.$transaction(async (tx) => {
-    const term = await loadTermOrThrow(tx, input.termId);
+    const term = await loadTermOrThrow(tx, input.termId, input.instructorId);
     assertWritableTerm(term.status);
     if (input.sessionId) await assertAssessmentSessionBelongsToTerm(tx, input.sessionId, term.id);
     await validateAssessmentTopics(tx, term, input.topicVersionIds ?? []);
@@ -980,24 +1023,21 @@ export async function createAssessment(db: RedesignDb, input: CreateAssessmentIn
   });
 }
 
-export async function getAssessment(db: RedesignDb, assessmentId: string) {
+export async function getAssessment(db: RedesignDb, instructorId: string, assessmentId: string) {
   return db.$transaction(async (tx) => {
-    const assessment = await tx.assessment.findUnique({
-      where: { id: assessmentId },
-      include: { topics: true, term: { select: { status: true, courseId: true, id: true } } },
-    });
-    if (!assessment) throw new DomainInvariantError("Assessment not found");
+    const assessment = await getOwnedAssessmentForInstructor(tx, instructorId, assessmentId);
     return assessment;
   });
 }
 
-export async function updateAssessment(db: RedesignDb, assessmentId: string, input: UpdateAssessmentInput) {
+export async function updateAssessment(
+  db: RedesignDb,
+  instructorId: string,
+  assessmentId: string,
+  input: UpdateAssessmentInput,
+) {
   return db.$transaction(async (tx) => {
-    const assessment = await tx.assessment.findUnique({
-      where: { id: assessmentId },
-      include: { term: { select: { status: true, courseId: true, id: true } } },
-    });
-    if (!assessment) throw new DomainInvariantError("Assessment not found");
+    const assessment = await getOwnedAssessmentForInstructor(tx, instructorId, assessmentId);
     assertWritableTerm(assessment.term.status);
     if (input.sessionId) {
       await assertAssessmentSessionBelongsToTerm(tx, input.sessionId, assessment.term.id);
@@ -1032,13 +1072,9 @@ export async function updateAssessment(db: RedesignDb, assessmentId: string, inp
   });
 }
 
-export async function archiveAssessment(db: RedesignDb, assessmentId: string) {
+export async function archiveAssessment(db: RedesignDb, instructorId: string, assessmentId: string) {
   return db.$transaction(async (tx) => {
-    const assessment = await tx.assessment.findUnique({
-      where: { id: assessmentId },
-      include: { term: { select: { status: true } }, topics: true },
-    });
-    if (!assessment) throw new DomainInvariantError("Assessment not found");
+    const assessment = await getOwnedAssessmentForInstructor(tx, instructorId, assessmentId);
     assertWritableTerm(assessment.term.status);
     if (assessment.archivedAt) return assessment;
     return tx.assessment.update({
@@ -1049,8 +1085,9 @@ export async function archiveAssessment(db: RedesignDb, assessmentId: string) {
   });
 }
 
-export async function computeTermImpact(db: RedesignDb, termId: string) {
+export async function computeTermImpact(db: RedesignDb, instructorId: string, termId: string) {
   return db.$transaction(async (tx) => {
+    await loadTermOrThrow(tx, termId, instructorId);
     const snapshot = await loadPlanningSnapshot(tx, termId);
     const activeCoverages = snapshot.termData.coverages.filter((coverage: any) => {
       const session = snapshot.termData.sessions.find((candidate: any) => candidate.id === coverage.sessionId);
@@ -1107,9 +1144,9 @@ export async function computeTermImpact(db: RedesignDb, termId: string) {
   });
 }
 
-export async function getSessionWhatIf(db: RedesignDb, sessionId: string) {
+export async function getSessionWhatIf(db: RedesignDb, instructorId: string, sessionId: string) {
   return db.$transaction(async (tx) => {
-    const session = await loadSessionOrThrow(tx, sessionId);
+    const session = await loadSessionOrThrow(tx, sessionId, instructorId);
     const snapshot = await loadPlanningSnapshot(tx, session.termId);
     return simulateWhatIfResponse(snapshot, sessionId);
   });
@@ -1117,11 +1154,13 @@ export async function getSessionWhatIf(db: RedesignDb, sessionId: string) {
 
 export async function compareTermWhatIfScenarios(
   db: RedesignDb,
+  instructorId: string,
   termId: string,
   sessionIdA: string,
   sessionIdB: string,
 ) {
   return db.$transaction(async (tx) => {
+    await loadTermOrThrow(tx, termId, instructorId);
     const snapshot = await loadPlanningSnapshot(tx, termId);
     const sessionIds = new Set(snapshot.term.sessions.map((session: any) => session.id));
     if (!sessionIds.has(sessionIdA) || !sessionIds.has(sessionIdB)) {
@@ -1138,6 +1177,7 @@ export async function compareTermWhatIfScenarios(
 export async function cancelSession(
   db: RedesignDb,
   input: {
+    instructorId: string;
     sessionId: string;
     reason?: string | null;
     redistributions: CancelRedistributionInput[];
@@ -1146,7 +1186,7 @@ export async function cancelSession(
   },
 ) {
   return db.$transaction(async (tx) => {
-    const session = await loadSessionOrThrow(tx, input.sessionId);
+    const session = await loadSessionOrThrow(tx, input.sessionId, input.instructorId);
     assertWritableTerm(session.term.status);
     if (session.status === "canceled") {
       return session;
@@ -1161,7 +1201,11 @@ export async function cancelSession(
 
     const targetSessions = new Map<string, SessionWithTerm>();
     for (const redistribution of input.redistributions) {
-      const target = await loadSessionOrThrow(tx, redistribution.targetSessionId);
+      const target = await loadSessionOrThrow(
+        tx,
+        redistribution.targetSessionId,
+        input.instructorId,
+      );
       if (target.termId !== session.termId) {
         throw new DomainInvariantError("Redistribution target Session must belong to the same Term");
       }
@@ -1214,17 +1258,23 @@ export async function cancelSession(
 
 export async function computeSessionMoveImpact(
   db: RedesignDb,
+  instructorId: string,
   sessionId: string,
   input: MoveSessionInput,
 ) {
   return db.$transaction(async (tx) => {
-    const session = await loadSessionOrThrow(tx, sessionId);
+    const session = await loadSessionOrThrow(tx, sessionId, instructorId);
     const snapshot = await loadPlanningSnapshot(tx, session.termId);
     const targetOffering =
       input.termLearningModuleId === undefined
         ? session.termLearningModule
         : input.termLearningModuleId
-          ? await loadTermLearningModuleForTerm(tx, session.termId, input.termLearningModuleId)
+          ? await loadTermLearningModuleForTerm(
+              tx,
+              session.termId,
+              input.termLearningModuleId,
+              instructorId,
+            )
           : null;
 
     return computeMoveImpact(

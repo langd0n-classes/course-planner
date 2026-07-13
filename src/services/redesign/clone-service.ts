@@ -5,6 +5,7 @@ import {
   previewCalendarMaterialization,
   resolveSessionMeetingRole,
 } from "./calendar-materialization-service";
+import { assertOwnedByInstructor } from "./ownership-service";
 import type { RedesignDb, RedesignTx } from "./types";
 
 type CloneLearningModuleVersionSelection = {
@@ -13,6 +14,7 @@ type CloneLearningModuleVersionSelection = {
 };
 
 type CloneRequest = {
+  instructorId: string;
   sourceTermId: string;
   code: string;
   name: string;
@@ -64,7 +66,7 @@ async function assertCloneTarget(tx: RedesignTx, sourceTerm: { courseId: string 
   }
 }
 
-async function loadSourceTerm(tx: RedesignTx, termId: string) {
+async function loadSourceTerm(tx: RedesignTx, instructorId: string, termId: string) {
   const term = await tx.term.findUnique({
     where: { id: termId },
     include: {
@@ -95,6 +97,7 @@ async function loadSourceTerm(tx: RedesignTx, termId: string) {
     },
   });
   if (!term) throw new DomainInvariantError("Source Term not found");
+  assertOwnedByInstructor(instructorId, term.course?.instructorId, "Source Term not found");
   return term;
 }
 
@@ -256,7 +259,7 @@ function mapSessionAndAssessmentDates(
 }
 
 async function previewClone(tx: RedesignTx, input: CloneRequest) {
-  const sourceTerm = await loadSourceTerm(tx, input.sourceTermId);
+  const sourceTerm = await loadSourceTerm(tx, input.instructorId, input.sourceTermId);
   await assertCloneTarget(tx, sourceTerm, input);
   const targetCalendar = await previewCalendarMaterialization(tx, {
     instructorId: sourceTerm.course.instructorId,
@@ -309,7 +312,7 @@ export async function previewTermClone(db: RedesignDb, input: CloneRequest) {
 
 export async function applyTermClone(db: RedesignDb, input: CloneRequest) {
   return db.$transaction(async (tx) => {
-    const sourceTerm = await loadSourceTerm(tx, input.sourceTermId);
+    const sourceTerm = await loadSourceTerm(tx, input.instructorId, input.sourceTermId);
     await assertCloneTarget(tx, sourceTerm, input);
     const targetCalendar = await previewCalendarMaterialization(tx, {
       instructorId: sourceTerm.course.instructorId,
