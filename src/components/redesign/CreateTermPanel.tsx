@@ -34,7 +34,7 @@ export default function CreateTermPanel({ institutions, calendars, submitting = 
   const [name, setName] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [selectedDays, setSelectedDays] = useState<string[]>(["Tue", "Thu"]);
+  const [selectedDays, setSelectedDays] = useState<string[]>([]);
 
   const visibleCalendars = useMemo(
     () => calendars.filter((calendar) => calendar.institutionId === institutionId),
@@ -72,10 +72,14 @@ export default function CreateTermPanel({ institutions, calendars, submitting = 
     setName("");
     setStartDate("");
     setEndDate("");
-    setSelectedDays(["Tue", "Thu"]);
+    setSelectedDays([]);
   }
 
-  const disabled = institutions.length === 0 || visibleCalendars.length === 0 || submitting;
+  const disabled =
+    institutions.length === 0 ||
+    visibleCalendars.length === 0 ||
+    selectedDays.length === 0 ||
+    submitting;
 
   return (
     <form onSubmit={handleSubmit} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

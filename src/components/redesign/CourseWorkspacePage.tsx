@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useEffectEvent, useMemo, useState } from "react";
-import { DEMO_INSTRUCTOR_ID, redesignApi } from "@/lib/redesign-api-client";
+import { redesignApi } from "@/lib/redesign-api-client";
 import type {
   AcademicCalendarDto,
   Id,
@@ -173,7 +173,7 @@ export default function CourseWorkspacePage({ courseId }: Props) {
     await redesignApi.restoreLearningModuleVersion(
       learningModuleId,
       versionId,
-      "Restored during Lane C workspace review.",
+      "Restored from course workspace revision history.",
     );
     await loadWorkspace();
   }
@@ -235,7 +235,7 @@ export default function CourseWorkspacePage({ courseId }: Props) {
               </p>
             </div>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
-              Instructor {DEMO_INSTRUCTOR_ID}
+              {terms.length} term{terms.length === 1 ? "" : "s"}
             </span>
           </div>
 

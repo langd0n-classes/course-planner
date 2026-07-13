@@ -168,5 +168,3 @@ export const redesignApi = {
   listArtifactsForTopicVersion: (topicVersionId: Id): Promise<ArtifactDto[]> =>
     call(() => mock.listArtifactsForTopicVersion(topicVersionId)),
 };
-
-export const DEMO_INSTRUCTOR_ID = mock.INSTRUCTOR_ID;
