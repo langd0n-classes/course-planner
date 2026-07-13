@@ -7,6 +7,7 @@ import type {
   CourseDto,
   LearningModuleDto,
   LearningModuleVersionDto,
+  SessionDto,
   TermDto,
   TermLearningModuleDto,
 } from "@/lib/redesign-contract";
@@ -131,7 +132,7 @@ function buildTermWorkspaceBackend() {
       deliveredLearningModuleVersionId: null,
       topicChanges: [],
     })),
-    listTermSessions: vi.fn(async () => [
+    listTermSessions: vi.fn(async (): Promise<SessionDto[]> => [
       {
         id: "session-9",
         termId: term.id,
@@ -173,7 +174,7 @@ function buildTermWorkspaceBackend() {
 
 describe("TermWorkspacePage", () => {
   beforeEach(() => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date("2026-02-09T15:00:00.000Z"));
   });
 
@@ -218,7 +219,7 @@ describe("TermWorkspacePage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Adopt learning module" }));
     await screen.findByLabelText("Learning module");
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Adopt learning module" })[1]!);
+    fireEvent.click(screen.getByRole("button", { name: "Adopt learning module" }));
 
     await waitFor(() => {
       expect(adoptTermLearningModule).toHaveBeenCalledWith("term-1", {

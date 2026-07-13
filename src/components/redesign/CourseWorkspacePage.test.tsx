@@ -9,6 +9,7 @@ import type {
   LearningModuleVersionDto,
   TopicDto,
   TopicVersionDto,
+  UpsertLearningModuleVersionRequest,
 } from "@/lib/redesign-contract";
 import CourseWorkspacePage from "./CourseWorkspacePage";
 
@@ -87,7 +88,11 @@ function buildCourseWorkspaceBackend(options?: {
   );
 
   const createLearningModule = vi.fn(
-    async (_courseId: string, stableCode: string, versionInput: { title: string; description?: string | null; learningObjectives: string[] }) => {
+    async (
+      _courseId: string,
+      stableCode: string,
+      versionInput: UpsertLearningModuleVersionRequest,
+    ) => {
       const learningModule: LearningModuleDto = {
         id: `learning-module-${learningModules.length + 1}`,
         courseId: course.id,
@@ -102,7 +107,7 @@ function buildCourseWorkspaceBackend(options?: {
         title: versionInput.title,
         description: versionInput.description ?? null,
         studentDescription: null,
-        learningObjectives: versionInput.learningObjectives,
+        learningObjectives: versionInput.learningObjectives ?? [],
         notes: null,
         defaultSequence: learningModules.length + 1,
         changeSummary: null,
@@ -268,9 +273,9 @@ describe("CourseWorkspacePage", () => {
 
     render(<CourseWorkspacePage courseId="course-1" />);
 
-    await screen.findByText("Learning modules");
+    await screen.findByRole("heading", { name: "Learning modules" });
     fireEvent.click(screen.getByRole("button", { name: "New module" }));
-    fireEvent.change(screen.getByLabelText("Stable code"), {
+    fireEvent.change(await screen.findByLabelText(/^Stable code/), {
       target: { value: "lm-intro-ds" },
     });
     fireEvent.change(screen.getByLabelText("Title"), {
@@ -289,9 +294,9 @@ describe("CourseWorkspacePage", () => {
       });
     });
 
-    await screen.findByText("Introduction to Data Science");
+    await screen.findByRole("heading", { name: "Introduction to Data Science" });
     fireEvent.click(screen.getByRole("button", { name: "New topic" }));
-    fireEvent.change(screen.getByLabelText("Stable code"), {
+    fireEvent.change(await screen.findByLabelText(/^Stable code/), {
       target: { value: "topic-pandas-basics" },
     });
     fireEvent.change(screen.getByLabelText("Title"), {
@@ -300,7 +305,7 @@ describe("CourseWorkspacePage", () => {
     fireEvent.change(screen.getByLabelText("Category (optional)"), {
       target: { value: "tools" },
     });
-    fireEvent.change(screen.getByLabelText("Learning module (optional)"), {
+    fireEvent.change(screen.getByLabelText(/^Learning module \(optional\)/), {
       target: { value: "learning-module-1" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Create topic" }));

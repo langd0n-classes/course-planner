@@ -631,6 +631,7 @@ describe("term ownership invariants", () => {
         findUnique: async () => ({ status: "active" }),
       },
       courseInstitution: {
+        findMany: async () => [{ courseId: "course-1", institutionId: "institution-1" }],
         findUnique: async () => ({ courseId: "course-1", institutionId: "institution-1" }),
       },
       academicCalendar: {
@@ -670,6 +671,7 @@ describe("term ownership invariants", () => {
     });
 
     await applyTermCreation(db, {
+      instructorId: "instructor-1",
       courseId: "course-1",
       institutionId: "institution-1",
       academicCalendarId: "calendar-1",
@@ -1169,6 +1171,7 @@ describe("term clone preview", () => {
     });
 
     const applied = await applyTermClone(db, {
+      instructorId: "instructor-1",
       sourceTermId: "term-1",
       code: "SP27",
       name: "Spring 2027",
@@ -1295,6 +1298,7 @@ describe("term clone preview", () => {
 
     await expect(
       applyTermClone(db, {
+        instructorId: "instructor-1",
         sourceTermId: "term-1",
         code: "SP27",
         name: "Spring 2027",
