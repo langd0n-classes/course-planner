@@ -42,6 +42,9 @@ export type MaterializedSlotCandidate = {
   academicCalendarEventId: string | null;
   meetingRoleKeys: string[];
   meetingRoleLabels: string[];
+  instructionalCapacity: "normal" | "reduced_engagement" | "recovery" | "assessment_period";
+  capacitySource: "baseline" | "heuristic" | "instructor_override";
+  capacityReason: string | null;
   provenance: SlotProvenance[];
 };
 
@@ -88,6 +91,10 @@ type InstructorOverrideRow = {
 };
 
 type DayCandidate = MaterializedSlotCandidate;
+type CapacityHint = Pick<
+  MaterializedSlotCandidate,
+  "instructionalCapacity" | "capacitySource" | "capacityReason"
+>;
 
 function toDateKey(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -264,6 +271,9 @@ function buildOverrideCandidate(
     academicCalendarEventId: override.academicCalendarEventId ?? null,
     meetingRoleKeys: [],
     meetingRoleLabels: [],
+    instructionalCapacity: "normal",
+    capacitySource: "instructor_override",
+    capacityReason: override.reason ?? override.label ?? override.action,
     provenance: [
       {
         source: "instructor_override",
@@ -285,6 +295,9 @@ function buildEventCandidate(date: Date, event: AcademicCalendarEventRow): Mater
     academicCalendarEventId: event.id,
     meetingRoleKeys: [],
     meetingRoleLabels: [],
+    instructionalCapacity: "normal",
+    capacitySource: "baseline",
+    capacityReason: null,
     provenance: [
       {
         source: "academic_calendar_event",
@@ -309,6 +322,102 @@ function resolveOverrideRange(
     return { start: override.startsOn, end: override.endsOn };
   }
   return null;
+}
+
+function daysBetween(left: Date, right: Date) {
+  return Math.round((right.getTime() - left.getTime()) / (24 * 60 * 60 * 1000));
+}
+
+function baselineCapacityHint(): CapacityHint {
+  return {
+    instructionalCapacity: "normal",
+    capacitySource: "baseline",
+    capacityReason: "No explicit break-proximity signal in the calendar.",
+  };
+}
+
+function applyCapacityHint(candidate: MaterializedSlotCandidate, hint: CapacityHint): MaterializedSlotCandidate {
+  return {
+    ...candidate,
+    instructionalCapacity: hint.instructionalCapacity,
+    capacitySource: hint.capacitySource,
+    capacityReason: hint.capacityReason,
+  };
+}
+
+function annotateClassDayCapacityHints(candidates: MaterializedSlotCandidate[]) {
+  const sorted = [...candidates].sort((left, right) => left.date.getTime() - right.date.getTime());
+  const hintsByDateKey = new Map<string, CapacityHint>();
+
+  for (const candidate of sorted) {
+    if (candidate.slotType === "class_day") {
+      hintsByDateKey.set(toDateKey(candidate.date), baselineCapacityHint());
+    }
+  }
+
+  const breakCandidates = sorted.filter((candidate) => candidate.slotType === "break_day");
+  let index = 0;
+  while (index < breakCandidates.length) {
+    const start = breakCandidates[index]!;
+    let end = start;
+    let cursor = index + 1;
+    while (
+      cursor < breakCandidates.length &&
+      daysBetween(end.date, breakCandidates[cursor]!.date) === 1
+    ) {
+      end = breakCandidates[cursor]!;
+      cursor += 1;
+    }
+
+    const previousClassDay = [...sorted]
+      .reverse()
+      .find(
+        (candidate) =>
+          candidate.slotType === "class_day" &&
+          candidate.date.getTime() < start.date.getTime() &&
+          daysBetween(candidate.date, start.date) <= 4,
+      );
+    if (previousClassDay) {
+      hintsByDateKey.set(toDateKey(previousClassDay.date), {
+        instructionalCapacity: "reduced_engagement",
+        capacitySource: "heuristic",
+        capacityReason: `Last class day before explicit break starting ${toDateKey(start.date)}.`,
+      });
+    }
+
+    const nextClassDay = sorted.find(
+      (candidate) =>
+        candidate.slotType === "class_day" &&
+        candidate.date.getTime() > end.date.getTime() &&
+        daysBetween(end.date, candidate.date) <= 4,
+    );
+    if (nextClassDay && !hintsByDateKey.has(toDateKey(nextClassDay.date))) {
+      hintsByDateKey.set(toDateKey(nextClassDay.date), {
+        instructionalCapacity: "recovery",
+        capacitySource: "heuristic",
+        capacityReason: `First class day after explicit break ending ${toDateKey(end.date)}.`,
+      });
+    } else if (nextClassDay) {
+      const existingHint = hintsByDateKey.get(toDateKey(nextClassDay.date));
+      if (existingHint?.capacitySource === "baseline") {
+        hintsByDateKey.set(toDateKey(nextClassDay.date), {
+          instructionalCapacity: "recovery",
+          capacitySource: "heuristic",
+          capacityReason: `First class day after explicit break ending ${toDateKey(end.date)}.`,
+        });
+      }
+    }
+
+    index = cursor;
+  }
+
+  return sorted.map((candidate) => {
+    if (candidate.slotType !== "class_day") return candidate;
+    return applyCapacityHint(
+      candidate,
+      hintsByDateKey.get(toDateKey(candidate.date)) ?? baselineCapacityHint(),
+    );
+  });
 }
 
 export function resolveSessionMeetingRole(
@@ -474,6 +583,9 @@ export async function previewCalendarMaterialization(
       academicCalendarEventId: null,
       meetingRoleKeys: matchingRoles.map((role) => role.roleKey),
       meetingRoleLabels: matchingRoles.map((role) => role.label),
+      instructionalCapacity: "normal",
+      capacitySource: "baseline",
+      capacityReason: "No explicit break-proximity signal in the calendar.",
       provenance: matchingRoles.map((role) => ({
         source: "meeting_role_pattern",
         referenceId: role.roleKey,
@@ -483,7 +595,7 @@ export async function previewCalendarMaterialization(
     upsertCandidate(dayMap, candidate, conflicts);
   }
 
-  const candidates = [...dayMap.values()].sort((left, right) => left.date.getTime() - right.date.getTime());
+  const candidates = annotateClassDayCapacityHints([...dayMap.values()]);
   for (const candidate of candidates) {
     if (candidate.slotType !== "class_day") continue;
     for (const roleKey of candidate.meetingRoleKeys) {

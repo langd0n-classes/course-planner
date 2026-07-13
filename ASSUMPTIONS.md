@@ -78,6 +78,8 @@ Decisions made where the requirements were underspecified. Each can be revisited
 
 - **Calendar days only, no time of day**: The calendar models days (Tue/Thu/Fri) but not specific time slots. Time-of-day scheduling is deferred.
 
+- **Substitute schedules remain a follow-up**: Alternate "Monday-on-Tuesday" or other substitute-day schedules are not modeled as a new slot/event enum in this packet. Current heuristics use only explicit break-day proximity plus instructor overrides; substitute-schedule semantics need a separate, designed follow-up.
+
 ### Import
 
 - **Imports are additive only**: Import endpoints do not delete or overwrite existing data. If imported codes conflict with existing data, the import is rejected with a warning. This prevents accidental data loss from re-imports.

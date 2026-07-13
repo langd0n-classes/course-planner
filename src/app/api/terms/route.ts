@@ -100,6 +100,9 @@ function toCalendarSlotCandidateDto(candidate: {
   academicCalendarEventId: string | null;
   meetingRoleKeys: string[];
   meetingRoleLabels: string[];
+  instructionalCapacity: CalendarSlotCandidateDto["instructionalCapacity"];
+  capacitySource: CalendarSlotCandidateDto["capacitySource"];
+  capacityReason: string | null;
   provenance: CalendarSlotCandidateDto["provenance"];
 }): CalendarSlotCandidateDto {
   return {
@@ -110,6 +113,9 @@ function toCalendarSlotCandidateDto(candidate: {
     academicCalendarEventId: candidate.academicCalendarEventId,
     meetingRoleKeys: candidate.meetingRoleKeys,
     meetingRoleLabels: candidate.meetingRoleLabels,
+    instructionalCapacity: candidate.instructionalCapacity,
+    capacitySource: candidate.capacitySource,
+    capacityReason: candidate.capacityReason,
     provenance: candidate.provenance,
   };
 }

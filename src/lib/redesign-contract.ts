@@ -320,6 +320,9 @@ export type CalendarSlotCandidateDto = {
   academicCalendarEventId: Id | null;
   meetingRoleKeys: string[];
   meetingRoleLabels: string[];
+  instructionalCapacity: InstructionalCapacity;
+  capacitySource: CapacitySource;
+  capacityReason: string | null;
   provenance: TermCalendarSlotProvenanceDto[];
 };
 export type CalendarMaterializationConflictDto = {

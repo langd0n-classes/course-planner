@@ -89,6 +89,9 @@ export async function applyTermCreation(
       endDate: input.endDate,
       meetingPattern: input.meetingPattern ?? null,
     });
+    if (preview.conflicts.length > 0) {
+      throw new DomainInvariantError("Term creation preview contains materialization conflicts; resolve them before apply");
+    }
 
     const term = await tx.term.create({
       data: {
@@ -113,6 +116,9 @@ export async function applyTermCreation(
           slotType: candidate.slotType,
           label: candidate.label,
           source: candidate.source,
+          instructionalCapacity: candidate.instructionalCapacity,
+          capacitySource: candidate.capacitySource,
+          capacityReason: candidate.capacityReason,
         },
       });
     }

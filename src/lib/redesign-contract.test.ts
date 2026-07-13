@@ -4,6 +4,7 @@ import path from "node:path";
 import {
   CANONICAL_ROUTES,
   type AssessmentType,
+  type CalendarSlotCandidateDto,
   type CalendarSlotDto,
   type CreateTermRequest,
   type CanonicalRoute,
@@ -80,6 +81,20 @@ const sampleCalendarSlot: CalendarSlotDto = {
   instructionalCapacity: "reduced_engagement",
   capacitySource: "heuristic",
   capacityReason: "Long weekend reduces attendance.",
+};
+
+const sampleCalendarSlotCandidate: CalendarSlotCandidateDto = {
+  date: "2027-03-12",
+  slotType: "class_day",
+  label: "Lecture class day",
+  source: "meeting_roles:lecture",
+  academicCalendarEventId: null,
+  meetingRoleKeys: ["lecture"],
+  meetingRoleLabels: ["Lecture"],
+  instructionalCapacity: "reduced_engagement",
+  capacitySource: "heuristic",
+  capacityReason: "Last class day before explicit break starting 2027-03-15.",
+  provenance: [],
 };
 
 const sampleSession: SessionDto = {
@@ -164,6 +179,7 @@ describe("redesign-contract Phase A.1 additions", () => {
   it("round-trips sample DTOs with the new fields", () => {
     expect(sampleTerm.status).toBe("active");
     expect(sampleCalendarSlot.instructionalCapacity).toBe("reduced_engagement");
+    expect(sampleCalendarSlotCandidate.capacitySource).toBe("heuristic");
     expect(sampleSession.instructionalMode).toBe("recovery");
     expect(sampleSession.calendarSlotId).toBe("slot-1");
     expect(sampleAssessmentType).toBe("gaie");
