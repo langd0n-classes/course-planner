@@ -54,3 +54,42 @@ Replaced the mock-backend import in `redesign-api-client.ts` with a typed real H
 4. **Hide creator-ID plumbing in the shared client, but verify it at the route.** UI components should not manage instructor identifiers. The shared client resolves the authenticated instructor and fills the frozen request field; mutation routes still reject mismatches as defense in depth.
 
 5. **Status-aware copy in workspace headers eliminates the need for tooltips.** "Planned terms have no delivered divergence yet" and "Closed terms show the delivered snapshot read-only" tell users what they can and cannot do without a modal or tooltip. Write copy for each lifecycle state at the point where the state matters, not in a separate help section.
+
+---
+
+## Gate result and orchestration follow-through
+
+The first combined review did not accept the implementation merely because it
+compiled. Product/UX and academic-practice lenses drove three correction packets:
+authorization boundaries, clone/calendar-capacity semantics, and daily-driver
+workflows. A final focused academic review then found one remaining presentation
+problem: ordinary baseline calendar rows exposed too much capacity detail. Keeping
+baseline rows compact and expanding only genuine advisories closed that blocker.
+
+The operator accepted Gate B.1 on 2026-07-13. At acceptance, clean migrations and
+seed, 137 tests, typecheck, changed-surface lint, and the production build passed.
+
+### What the autonomous-build experiment taught us
+
+- Persistent tmux sessions were reliable in this environment; user-systemd launch
+  scopes exited immediately despite initially appearing successful.
+- Model names must be passed explicitly. The launcher implementation defaults to
+  `gpt-5.4`, so cost-sensitive routing cannot rely on an assumed mini default.
+- Cheap models need cheap-shaped tasks. A broad mini implementation pass consumed
+  about 212k tokens and still needed a coordinator correction. File-bounded final
+  reviews with explicit invariants and assertions used roughly 25k–41k tokens.
+- Independent reviews were valuable, but coordinator judgment remained necessary.
+  Green tests did not reveal that scheduling source had been mistaken for capacity
+  provenance or that non-null baseline reasons were normal production data.
+- The strongest reusable review packet is: exact decision context, a small file
+  manifest, named domain invariants, commands already run, and precise conditions
+  for closing the gate.
+
+### Next experiment
+
+The next autonomous-design checkpoint is a coded, high-fidelity UX synthesis on the
+now-executable Course bootstrap and active-Term cockpit. Agents should propose and
+implement bounded alternatives; the operator should be asked to choose only product
+vocabulary and consequential safety defaults after seeing working flows. Record the
+prompt, model routing, token/runtime cost, rejected alternatives, review findings,
+and operator corrections for future process improvement and publishable notes.

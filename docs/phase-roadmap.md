@@ -245,6 +245,20 @@ chunked implementation plan (§5) and amendments (§9, §10).
   explicit `410 legacy_route_retired` response. See v2.2 in the plan doc
   (§10) for details. Phase B (UI, handler logic, calendar heuristics,
   import codecs, AI) does not start until this gate passes review.
+- **Phase B fan-out:** domain/REST, import/export/material, and workspace UI
+  components integrated successfully at the code-quality level, but the first
+  combined product/academic gate rejected them as an end-to-end instructor
+  workflow.
+- **Phase B.1 recovery gate (accepted 2026-07-13):** the real HTTP vertical seam,
+  authenticated ownership, calendar preview/apply, historically correct cloning,
+  evidence-preserving artifact/package behavior, and daily-driver correction
+  workflows passed product/UX and academic-practice review. Clean migration and
+  seed, 137 tests, typecheck, changed-surface lint, and production build all pass.
+  The accepted lineage promotes to `redesign`, while `main` remains unchanged.
+- **Next checkpoint:** run the high-fidelity UX synthesis against this executable
+  seam, then complete Phase D/Chunk 10 integration, seeded end-to-end verification,
+  documentation/version indexing, and the separately reviewed `redesign` → `main`
+  cutover. Blackboard remains a non-blocking follow-on pending sandbox evidence.
 
 ---
 

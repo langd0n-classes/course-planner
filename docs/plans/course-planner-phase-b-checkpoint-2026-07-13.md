@@ -22,6 +22,31 @@ Both independent reviews rejected the merge gate. The findings below retain only
 issues supported by the implementation or accepted design; speculative features
 are separated into later opportunities.
 
+## Phase B.1 recovery-gate outcome
+
+**Accepted by the operator on 2026-07-13 with the recommended defaults.** The
+recovery slice now forms a real Course-to-Term planning seam: canonical handlers
+enforce ownership, Term creation previews before applying calendar materialization,
+clone choices preserve planned/delivered history, archive/package boundaries retain
+evidence, and the cockpit exposes actionable planning and live-course states.
+
+The acceptance followed two explicit independent lenses:
+
+- product/UX review accepted the corrected workflow with no blocking findings;
+- academic-practice review closed its final blocker after baseline calendar rows
+  were kept compact while genuine capacity advisories retained their supporting
+  evidence.
+
+Final verification on the combined integration branch:
+
+- clean migrations and exemplar seed passed in the stable Node/Postgres containers;
+- all 137 tests passed;
+- TypeScript typecheck and changed-surface lint passed; and
+- the containerized production build passed.
+
+The accepted integration lineage promotes to `redesign`. It does **not** cut over
+`main`; that remains the single reviewed action after Chunk 10 verification.
+
 ## Corrections already made
 
 - Term lifecycle transitions now use an atomic expected-status update predicate.
@@ -34,7 +59,7 @@ are separated into later opportunities.
 - Term creation no longer defaults every instructor to Tuesday/Thursday; meeting
   days require an explicit choice.
 
-## Phase B.1 recovery slice — required before merge
+## Phase B.1 recovery slice — completed
 
 ### 1. Complete the real vertical seam
 
@@ -122,14 +147,14 @@ recommendations or commissions with evidence and uncertainty.
 It must not silently replan, mutate curriculum, send communications, grade work,
 or decide accommodations. Instructor approval remains the mutation boundary.
 
-## Operator decisions for Gate B recovery
+## Operator decisions for Gate B recovery — accepted
 
-1. **Clone source:** accept per-Learning-Module planned/delivered choice, defaulting
-   to the prior delivered version as the new planned pin?
-2. **Calendar creation:** accept mandatory preview followed by materialization on
-   apply, rather than silently creating slots with the Term record?
-3. **First operations object:** accept a generic linked action/communication record
-   after B.1, before specialized grading, accommodation, staff, or messaging models?
+1. **Clone source:** per-Learning-Module planned/delivered choice, defaulting to the
+   prior delivered version as the new planned pin.
+2. **Calendar creation:** mandatory preview followed by materialization on apply;
+   no silent slot creation with the Term record.
+3. **First operations object:** a generic linked action/communication record after
+   B.1, before specialized grading, accommodation, staff, or messaging models.
 
 ## Model-routing experiment notes
 
@@ -147,3 +172,14 @@ or decide accommodations. Instructor approval remains the mutation boundary.
 - `gpt-5.4-mini` remains appropriate for mechanical, file-bounded checks; prior broad
   contract attempts showed that choosing the cheaper model for an unbounded task can
   cost more than choosing the right model once.
+- Explicit model selection is required when launching Codex workers: the launcher
+  currently defaults internally to `gpt-5.4`, even where older guidance suggests a
+  mini default.
+- A bounded mini implementation pass still consumed roughly 212k tokens and needed
+  coordinator correction for domain semantics. The narrow final review passes were
+  substantially cheaper (roughly 25k–41k) once given exact files, invariants, and
+  acceptance assertions.
+- The coordinator must continue to inspect domain meaning, not merely green tests.
+  In this gate that review caught the difference between scheduling-source evidence
+  and capacity provenance, plus the fact that baseline rows can have non-null
+  capacity reasons without being advisories.
