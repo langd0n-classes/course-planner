@@ -196,6 +196,14 @@ export type GetLearningModuleResponse = {
   learningModule: LearningModuleDto;
   currentVersion: LearningModuleVersionDto | null;
 };
+export type UpdateLearningModuleRequest = {
+  stableCode?: string;
+  archivedAt?: IsoDateTime | null;
+};
+export type UpdateLearningModuleResponse = {
+  learningModule: LearningModuleDto;
+  currentVersion: LearningModuleVersionDto | null;
+};
 export type ListLearningModuleVersionsResponse = { versions: LearningModuleVersionDto[] };
 export type CreateLearningModuleVersionResponse = { version: LearningModuleVersionDto };
 
@@ -234,6 +242,15 @@ export type CreateTopicRequest = {
 export type ListTopicsResponse = { topics: TopicDto[] };
 export type CreateTopicResponse = { topic: TopicDto; currentVersion: TopicVersionDto };
 export type GetTopicResponse = { topic: TopicDto; currentVersion: TopicVersionDto | null };
+export type UpdateTopicRequest = {
+  stableCode?: string;
+  learningModuleId?: Id | null;
+  archivedAt?: IsoDateTime | null;
+};
+export type UpdateTopicResponse = {
+  topic: TopicDto;
+  currentVersion: TopicVersionDto | null;
+};
 export type ListTopicVersionsResponse = { versions: TopicVersionDto[] };
 export type CreateTopicVersionResponse = { version: TopicVersionDto };
 

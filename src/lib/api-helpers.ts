@@ -21,6 +21,14 @@ export function conflict(message: string, details?: unknown) {
   return NextResponse.json({ error: message, details }, { status: 409 });
 }
 
+export function unauthorized(message = "Unauthorized", details?: unknown) {
+  return NextResponse.json({ error: message, details }, { status: 401 });
+}
+
+export function forbidden(message = "Forbidden", details?: unknown) {
+  return NextResponse.json({ error: message, details }, { status: 403 });
+}
+
 export function serverError(message = "Internal server error") {
   return NextResponse.json({ error: message }, { status: 500 });
 }

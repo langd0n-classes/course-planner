@@ -140,6 +140,229 @@ export async function createTopic(
   });
 }
 
+export async function listLearningModulesForCourse(
+  db: RedesignDb,
+  instructorId: string,
+  courseId: string,
+) {
+  return db.$transaction(async (tx) => {
+    await assertOwnedCourse(tx, instructorId, courseId);
+    return tx.learningModule.findMany({
+      where: { courseId, archivedAt: null },
+      orderBy: [{ createdAt: "asc" }, { stableCode: "asc" }],
+    });
+  });
+}
+
+export async function getLearningModuleForInstructor(
+  db: RedesignDb,
+  instructorId: string,
+  learningModuleId: string,
+) {
+  return db.$transaction(async (tx) => {
+    const learningModule = await tx.learningModule.findUnique({
+      where: { id: learningModuleId },
+      include: { currentVersion: { include: { topics: { orderBy: { sequence: "asc" } } } } },
+    });
+    if (!learningModule) {
+      throw new DomainInvariantError("Learning Module not found");
+    }
+    await assertOwnedCourse(tx, instructorId, learningModule.courseId);
+    return {
+      learningModule,
+      currentVersion: learningModule.currentVersion ?? null,
+    };
+  });
+}
+
+export async function listLearningModuleVersionsForInstructor(
+  db: RedesignDb,
+  instructorId: string,
+  learningModuleId: string,
+) {
+  return db.$transaction(async (tx) => {
+    const learningModule = await tx.learningModule.findUnique({
+      where: { id: learningModuleId },
+      select: { courseId: true },
+    });
+    if (!learningModule) {
+      throw new DomainInvariantError("Learning Module not found");
+    }
+    await assertOwnedCourse(tx, instructorId, learningModule.courseId);
+    return tx.learningModuleVersion.findMany({
+      where: { learningModuleId },
+      include: { topics: { orderBy: { sequence: "asc" } } },
+      orderBy: { revision: "asc" },
+    });
+  });
+}
+
+export async function updateLearningModule(
+  db: RedesignDb,
+  instructorId: string,
+  learningModuleId: string,
+  input: { stableCode?: string; archivedAt?: Date | null },
+) {
+  return db.$transaction(async (tx) => {
+    const learningModule = await tx.learningModule.findUnique({
+      where: { id: learningModuleId },
+      select: { id: true, courseId: true, stableCode: true },
+    });
+    if (!learningModule) {
+      throw new DomainInvariantError("Learning Module not found");
+    }
+    await assertOwnedCourse(tx, instructorId, learningModule.courseId);
+
+    if (input.stableCode && input.stableCode !== learningModule.stableCode) {
+      const duplicate = await tx.learningModule.findUnique({
+        where: {
+          courseId_stableCode: {
+            courseId: learningModule.courseId,
+            stableCode: input.stableCode,
+          },
+        },
+      });
+      if (duplicate && duplicate.id !== learningModuleId) {
+        throw new DomainInvariantError("Learning Module stableCode must be unique within the Course");
+      }
+    }
+
+    const data = withoutUndefined({
+      stableCode: input.stableCode,
+      archivedAt: input.archivedAt,
+    });
+    if (Object.keys(data).length === 0) {
+      return learningModule;
+    }
+
+    return tx.learningModule.update({
+      where: { id: learningModuleId },
+      data,
+    });
+  });
+}
+
+export async function archiveLearningModule(
+  db: RedesignDb,
+  instructorId: string,
+  learningModuleId: string,
+) {
+  return updateLearningModule(db, instructorId, learningModuleId, { archivedAt: new Date() });
+}
+
+export async function listTopicsForCourse(db: RedesignDb, instructorId: string, courseId: string) {
+  return db.$transaction(async (tx) => {
+    await assertOwnedCourse(tx, instructorId, courseId);
+    return tx.topic.findMany({
+      where: { courseId, archivedAt: null },
+      orderBy: [{ createdAt: "asc" }, { stableCode: "asc" }],
+    });
+  });
+}
+
+export async function getTopicForInstructor(
+  db: RedesignDb,
+  instructorId: string,
+  topicId: string,
+) {
+  return db.$transaction(async (tx) => {
+    const topic = await tx.topic.findUnique({
+      where: { id: topicId },
+      include: { currentVersion: true },
+    });
+    if (!topic) {
+      throw new DomainInvariantError("Topic not found");
+    }
+    await assertOwnedCourse(tx, instructorId, topic.courseId);
+    return {
+      topic,
+      currentVersion: topic.currentVersion ?? null,
+    };
+  });
+}
+
+export async function listTopicVersionsForInstructor(
+  db: RedesignDb,
+  instructorId: string,
+  topicId: string,
+) {
+  return db.$transaction(async (tx) => {
+    const topic = await tx.topic.findUnique({
+      where: { id: topicId },
+      select: { courseId: true },
+    });
+    if (!topic) {
+      throw new DomainInvariantError("Topic not found");
+    }
+    await assertOwnedCourse(tx, instructorId, topic.courseId);
+    return tx.topicVersion.findMany({
+      where: { topicId },
+      orderBy: { revision: "asc" },
+    });
+  });
+}
+
+export async function updateTopic(
+  db: RedesignDb,
+  instructorId: string,
+  topicId: string,
+  input: { stableCode?: string; learningModuleId?: string | null; archivedAt?: Date | null },
+) {
+  return db.$transaction(async (tx) => {
+    const topic = await tx.topic.findUnique({
+      where: { id: topicId },
+      select: { id: true, courseId: true, stableCode: true, learningModuleId: true },
+    });
+    if (!topic) {
+      throw new DomainInvariantError("Topic not found");
+    }
+    await assertOwnedCourse(tx, instructorId, topic.courseId);
+
+    if (input.learningModuleId !== undefined && input.learningModuleId !== null) {
+      const learningModule = await tx.learningModule.findUnique({
+        where: { id: input.learningModuleId },
+        select: { courseId: true },
+      });
+      if (!learningModule) {
+        throw new DomainInvariantError("Learning Module not found");
+      }
+      assertSameCourse(topic.courseId, learningModule.courseId, "Topic assignment");
+    }
+
+    if (input.stableCode && input.stableCode !== topic.stableCode) {
+      const duplicate = await tx.topic.findUnique({
+        where: {
+          courseId_stableCode: {
+            courseId: topic.courseId,
+            stableCode: input.stableCode,
+          },
+        },
+      });
+      if (duplicate && duplicate.id !== topicId) {
+        throw new DomainInvariantError("Topic stableCode must be unique within the Course");
+      }
+    }
+
+    const data = withoutUndefined({
+      stableCode: input.stableCode,
+      learningModuleId: input.learningModuleId,
+      archivedAt: input.archivedAt,
+    });
+    if (Object.keys(data).length === 0) {
+      return topic;
+    }
+
+    return tx.topic.update({
+      where: { id: topicId },
+      data,
+    });
+  });
+}
+
+export async function archiveTopic(db: RedesignDb, instructorId: string, topicId: string) {
+  return updateTopic(db, instructorId, topicId, { archivedAt: new Date() });
+}
+
 export async function reviseTopic(
   db: RedesignDb,
   input: {
@@ -275,4 +498,20 @@ async function assertTopicSnapshotsBelongToLearningModuleCourse(
       );
     }
   }
+}
+
+async function assertOwnedCourse(tx: RedesignTx, instructorId: string, courseId: string) {
+  const course = await tx.course.findUnique({
+    where: { id_instructorId: { id: courseId, instructorId } },
+  });
+  if (!course) {
+    throw new DomainInvariantError("Course not found");
+  }
+  return course;
+}
+
+function withoutUndefined<T extends Record<string, unknown>>(value: T) {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entry]) => entry !== undefined),
+  ) as Partial<T>;
 }

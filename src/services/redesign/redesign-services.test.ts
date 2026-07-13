@@ -12,7 +12,11 @@ import { ConcurrencyConflictError, DomainInvariantError, ImmutablePublishedVersi
 import { assertAcyclicTopicPrerequisite, assertSameCourse } from "./invariants";
 import { transitionTermLifecycle } from "./lifecycle-service";
 import { computePlannedDeliveredDiff, createDeliveredRevision } from "./offering-service";
-import { assertPublishedLearningModuleVersionImmutable, reviseLearningModule } from "./revision-service";
+import {
+  assertPublishedLearningModuleVersionImmutable,
+  reviseLearningModule,
+  updateTopic,
+} from "./revision-service";
 import { createTerm } from "./term-service";
 
 function createTransactionalDb(tx: Record<string, any>) {
@@ -355,6 +359,37 @@ describe("term ownership invariants", () => {
         endDate: new Date("2026-05-08"),
       }),
     ).rejects.toThrow("Academic Calendar must belong");
+  });
+});
+
+describe("topic ownership invariants", () => {
+  it("rejects moving a Topic across Course boundaries", async () => {
+    const db = createTransactionalDb({
+      course: {
+        findUnique: async ({ where }: any) => {
+          if (where.id_instructorId?.id === "course-1" && where.id_instructorId?.instructorId === "instructor-1") {
+            return { id: "course-1", instructorId: "instructor-1" };
+          }
+          return null;
+        },
+      },
+      topic: {
+        findUnique: async () => ({
+          id: "topic-1",
+          courseId: "course-1",
+          stableCode: "TOPIC-1",
+          learningModuleId: "lm-1",
+        }),
+        update: async ({ data }: any) => ({ id: "topic-1", courseId: "course-1", ...data }),
+      },
+      learningModule: {
+        findUnique: async () => ({ id: "lm-2", courseId: "course-2" }),
+      },
+    });
+
+    await expect(
+      updateTopic(db, "instructor-1", "topic-1", { learningModuleId: "lm-2" }),
+    ).rejects.toThrow("cannot cross Course boundaries");
   });
 });
 
