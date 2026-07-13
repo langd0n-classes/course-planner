@@ -65,18 +65,17 @@ export default function CourseIndexPage() {
   return (
     <div className="space-y-8">
       <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <p className="text-sm font-medium uppercase tracking-[0.24em] text-sky-700">Phase B Lane C workspace</p>
+        <p className="text-sm font-medium uppercase tracking-[0.24em] text-sky-700">Course workspace</p>
         <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
           Course-first planning with revision history and delivered-term context.
         </h1>
         <p className="mt-3 max-w-3xl text-base text-slate-600">
           Start from a course, then move into term setup, topic placement, revision history, and delivered-term review.
-          This slice stays on the frozen contract and uses typed mocks until Lane A lands real handlers.
         </p>
       </section>
 
       {courses.length === 0 ? (
-        <GapNotice title="No courses yet.">Create a course once Lane A exposes the canonical handlers.</GapNotice>
+        <GapNotice title="No courses yet.">Create your first course to begin planning.</GapNotice>
       ) : (
         <div className="grid gap-5 xl:grid-cols-2">
           {courses.map(({ course, institutions, terms, learningModuleCount, topicCount }) => {

@@ -59,7 +59,7 @@ describe("CreateTermPanel", () => {
         name: "Spring 2027",
         startDate: "2027-01-19",
         endDate: "2027-05-07",
-        meetingPattern: { days: ["Tue", "Thu", "Fri"] },
+        meetingPattern: { days: ["Fri"] },
       });
     });
   });
