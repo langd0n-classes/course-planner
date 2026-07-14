@@ -284,7 +284,7 @@ export type GetActivityTypeResponse = {
 };
 // behaviorFamily is intentionally absent: an Activity Type's behavior family
 // never changes after identity creation (a new behavior needs a new identity).
-export type UpdateActivityTypeRequest = { archivedAt?: IsoDateTime | null };
+export type UpdateActivityTypeRequest = { archivedAt: IsoDateTime | null };
 export type UpdateActivityTypeResponse = {
   activityType: ActivityTypeDto;
   currentVersion: ActivityTypeVersionDto | null;

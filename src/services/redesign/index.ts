@@ -1,3 +1,4 @@
+export * from "./activity-type-service";
 export * from "./archive-removal-service";
 export * from "./artifact-service";
 export * from "./calendar-materialization-service";

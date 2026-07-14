@@ -454,8 +454,10 @@ export const createActivityTypeSchema = z.object({
   version: upsertActivityTypeVersionSchema,
 });
 
+// archivedAt is required (not optional): PATCH may only change archivedAt,
+// so an empty patch body must fail validation rather than silently no-op.
 export const updateActivityTypeSchema = z.object({
-  archivedAt: isoDateTime.nullable().optional(),
+  archivedAt: isoDateTime.nullable(),
 });
 
 // ─── B.3 Activities ─────────────────────────────────────

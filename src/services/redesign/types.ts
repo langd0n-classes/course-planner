@@ -36,3 +36,9 @@ export type TopicVersionDraft = {
   description?: string | null;
   changeSummary?: string | null;
 };
+
+export type ActivityTypeVersionDraft = {
+  label: string;
+  description?: string | null;
+  changeSummary?: string | null;
+};

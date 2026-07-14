@@ -3,8 +3,12 @@
 // byte-identical shapes for the same underlying row.
 import type {
   AcademicCalendarDto,
+  ActivityBehaviorFamily,
+  ActivityTypeDto,
+  ActivityTypeVersionDto,
   AssessmentDto,
   CalendarSlotDto,
+  CourseActivityTypeVersionDto,
   CoverageDto,
   CourseDto,
   InstitutionDto,
@@ -171,6 +175,30 @@ type CoverageRow = {
   notes: string | null;
   redistributedFrom: string | null;
   redistributedAt: Date | null;
+};
+
+type ActivityTypeRow = {
+  id: string;
+  instructorId: string;
+  behaviorFamily: ActivityBehaviorFamily;
+  currentVersionId: string | null;
+  archivedAt: Date | null;
+};
+
+type ActivityTypeVersionRow = {
+  id: string;
+  activityTypeId: string;
+  revision: number;
+  label: string;
+  description: string | null;
+  changeSummary: string | null;
+  publishedAt: Date | null;
+};
+
+type CourseActivityTypeVersionRow = {
+  courseId: string;
+  activityTypeVersionId: string;
+  enabledAt: Date;
 };
 
 type AssessmentTopicRow = {
@@ -383,6 +411,38 @@ export function toCoverageDto(coverage: CoverageRow): CoverageDto {
     notes: coverage.notes,
     redistributedFrom: coverage.redistributedFrom,
     redistributedAt: toIsoDateTimeNullable(coverage.redistributedAt),
+  };
+}
+
+export function toActivityTypeDto(activityType: ActivityTypeRow): ActivityTypeDto {
+  return {
+    id: activityType.id,
+    instructorId: activityType.instructorId,
+    behaviorFamily: activityType.behaviorFamily,
+    currentVersionId: activityType.currentVersionId,
+    archivedAt: toIsoDateTimeNullable(activityType.archivedAt),
+  };
+}
+
+export function toActivityTypeVersionDto(version: ActivityTypeVersionRow): ActivityTypeVersionDto {
+  return {
+    id: version.id,
+    activityTypeId: version.activityTypeId,
+    revision: version.revision,
+    label: version.label,
+    description: version.description,
+    changeSummary: version.changeSummary,
+    publishedAt: toIsoDateTimeNullable(version.publishedAt),
+  };
+}
+
+export function toCourseActivityTypeVersionDto(
+  row: CourseActivityTypeVersionRow,
+): CourseActivityTypeVersionDto {
+  return {
+    courseId: row.courseId,
+    activityTypeVersionId: row.activityTypeVersionId,
+    enabledAt: row.enabledAt.toISOString(),
   };
 }
 
