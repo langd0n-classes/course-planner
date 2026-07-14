@@ -160,3 +160,76 @@ it. The accepted feedback, calendar corrections, DS100 evidence sources, and nex
 checkpoint are recorded in
 `docs/plans/course-planner-b2-operator-feedback-2026-07-13.md`; the architectural
 decision is ADR-0002.
+
+## Continuity observation — 2026-07-14
+
+After the B.2R recovery was decomposed into smaller worker prompts, coordinator
+behavior regressed from continuous execution to treating each worker launch or
+status report as a reason to yield to the operator. No product checkpoint or real
+blocker existed. This unintentionally shifted routine orchestration back onto the
+operator and weakened the experiment's central claim that the operator can remain
+in a product-judgment role.
+
+The correction is about **continuity and decomposition**, not artificially low
+turn limits:
+
+- between scheduled gates, the coordinator continues autonomously through worker
+  monitoring, output review, bounded follow-up jobs, integration, and validation;
+- status updates are informational and do not end execution;
+- work should be split into more small, well-contextualized prompts, using more
+  agents in parallel when their file ownership and outcomes are genuinely
+  independent;
+- turn budgets remain proportional and large enough for each bounded worker to
+  finish; cost control comes primarily from reducing rediscovery and scope; and
+- the coordinator yields only at an agreed checkpoint, a material requirement
+  choice, or a genuine blocker requiring operator authority.
+
+The immediate evidence reinforced this distinction. Two file-owned Haiku jobs
+were correctly decomposed, but 6- and 8-turn caps caused both launchers to report
+failure. One had nevertheless completed its test repair; the other succeeded when
+relaunched with the same narrow scope and adequate runway. Smaller work units were
+useful. Arbitrarily small turn budgets were not.
+
+### Model-routing observation
+
+Claude later reached the account's monthly spend limit, interrupting both a
+mechanical lint job and a read-only checkpoint review. The coordinator preserved
+the completed local work and rerouted only the unfinished scopes to
+`gpt-5.4-mini`; no broad phase prompt was replayed.
+
+The GPT-mini runs show that small ownership boundaries improve concurrency,
+verification, and recovery, but do not automatically imply low token counts.
+Even one- or two-component prompts consumed tens of thousands of tokens, and the
+dense Topic editor exceeded 100k, because workers still performed instruction and
+context passes and sometimes inspected adjacent prior art despite narrow manifests.
+The next prompt-generation refinement is therefore:
+
+- keep the small, disjoint deliverables;
+- embed the exact type definitions, style tokens, and local test convention needed
+  by the worker instead of inviting repository discovery;
+- explicitly identify the one nearest prior-art file when one is useful;
+- require ordinary-suite compatibility (for example, a checked-in jsdom directive)
+  rather than allowing a special verification flag to hide test-environment drift;
+  and
+- evaluate cost per accepted, coordinator-verified slice, not launcher exit code or
+  nominal prompt size alone.
+
+The Codex launcher should also expose a per-job reasoning-effort option. Routing a
+mechanical slice to a mini model is only part of cost control if every launched
+job still inherits the operator's interactive `high` reasoning default.
+
+### Confirmed cost result
+
+The final milestone-integration job confirmed that this is not a theoretical
+concern. It owned three files, implemented one well-specified integration seam,
+and used `gpt-5.4-mini`, yet consumed approximately **182,000 tokens**. The worker
+did catch and repair its own type-only import error and finished with tests, lint,
+typecheck, and diff validation passing, so the output was accepted; the cost was
+nevertheless disproportionate to the mechanical scope.
+
+For future fan-out, model tier, prompt size, and file count are insufficient cost
+controls. The launcher should expose reasoning effort per job, with low or medium
+effort for mechanical file-owned work and high effort reserved for ambiguous or
+consequential judgment. Until that exists, treat local Codex job cost as uncertain,
+keep measuring tokens per coordinator-accepted slice, and consider a cheaper
+provider/model route before multiplying jobs.
