@@ -281,3 +281,32 @@ false positive. In this host environment, invoke the launcher from a persistent 
 shell with the user-systemd bus deliberately unavailable so its ordinary fallback
 process remains in the tmux cgroup. Confirm both worker and watcher PIDs plus the
 trace before treating a start banner as a real launch.
+
+### B.3.1b model-routing result
+
+The first B.3.1b prompt assigned DTOs, runtime schemas, fixtures, and their tests to
+one mini worker. The coordinator stopped it before edits because the unit recreated
+the broad-prompt/cost pattern the experiment was trying to correct. The replacement
+used Sonnet for the frozen TypeScript contract and two parallel Haiku packets for
+runtime validation and deterministic fixtures.
+
+That routing reduced the judgment burden on the inexpensive workers, but did not
+remove the coordinator-review requirement. Review and the cross-packet gate found:
+
+- additive contract fields that initially broke existing M1 consumers;
+- missing calendar-version and milestone request seams in the Sonnet contract;
+- nondeterministic and unsound fixture helpers in the first Haiku draft;
+- a Zod 4 runtime failure caused by calling `partial()` on a refined object;
+- calendar-version and Artifact schemas that did not match the frozen TypeScript
+  request shapes;
+- a time regex that accepted impossible times; and
+- UUID-looking fixture constants that passed TypeScript but failed runtime UUID
+  validation.
+
+After narrow corrections, the combined Node 22 gate passed 201 focused tests across
+six files plus full typecheck. The useful lesson is not that one provider was
+reliably better: Sonnet handled the cross-file contract efficiently, Haiku produced
+substantial mechanical coverage, and provider/model diversity exposed different
+failure modes. Small prompts, exact ownership, an independent cross-packet test, and
+coordinator comparison to the frozen contract were all necessary parts of the cost
+strategy.
