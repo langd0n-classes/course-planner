@@ -23,6 +23,20 @@ test.describe("B.2R activity workspace", () => {
     await expect(page.getByLabel("Topic bank")).toBeVisible();
     expect(await page.getByRole("article").count()).toBeGreaterThan(40);
 
+    const lm01Column = page.getByRole("region", { name: "Activity column LM01: Data Wrangling" });
+    const unassignedColumn = page.getByRole("region", { name: "Activity column Unassigned / Cross-cutting" });
+    const projectCard = unassignedColumn.getByRole("article", { name: /predictive model/i });
+    const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+    await projectCard.dispatchEvent("dragstart", { dataTransfer });
+    await lm01Column.dispatchEvent("dragover", { dataTransfer });
+    await lm01Column.dispatchEvent("drop", { dataTransfer });
+    await expect(lm01Column.getByRole("article", { name: /predictive model/i })).toBeVisible();
+    await lm01Column.getByRole("button", { name: /move project 1: predictive model/i }).click();
+    await page.getByRole("dialog", { name: "Move activity to module" })
+      .getByRole("button", { name: "Unassigned / Cross-cutting" })
+      .click();
+    await expect(unassignedColumn.getByRole("article", { name: /predictive model/i })).toBeVisible();
+
     await page.getByRole("button", { name: /^Topics$/ }).click();
     const topicsDialog = page.getByRole("dialog", { name: "Topics" });
     await expect(topicsDialog.getByText(/150 topics/i)).toBeVisible();

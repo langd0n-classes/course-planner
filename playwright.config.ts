@@ -9,7 +9,7 @@ export default defineConfig({
     headless: true,
   },
   webServer: {
-    command: "npm run dev",
+    command: "npm run dev -- --webpack",
     port: 3000,
     reuseExistingServer: !process.env.CI,
   },

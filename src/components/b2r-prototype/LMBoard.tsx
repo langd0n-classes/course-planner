@@ -156,6 +156,8 @@ export default function LMBoard({
           return (
             <div
               key={col.id ?? "__unassigned__"}
+              role="region"
+              aria-label={`Activity column ${col.label}`}
               onDragOver={(e) => handleDragOver(e, col.id)}
               onDrop={(e) => handleDrop(e, col.id)}
               onDragLeave={() => setDragOverLm("UNSET")}
