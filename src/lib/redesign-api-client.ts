@@ -9,27 +9,39 @@
 
 import type {
   AcademicCalendarDto,
+  ActivityTypeDto,
+  ActivityTypeVersionDto,
   ArtifactDto,
   AssessmentDto,
   CalendarSlotDto,
   CloneTermApplyResponse,
   CloneTermPreviewResponse,
+  CourseActivityTypeVersionDto,
   CourseDto,
   CoverageHealthDto,
   CreateAcademicCalendarRequest,
+  CreateActivityTypeRequest,
+  CreateActivityTypeResponse,
+  CreateActivityTypeVersionResponse,
   CreateDeliveredRevisionRequest,
   CreateDeliveredRevisionResponse,
   CreateInstitutionRequest,
   CreateTermApplyResponse,
   CreateTermPreviewResponse,
+  GetActivityTypeResponse,
   Id,
   InstructorDto,
   InstitutionDto,
   LearningModuleDto,
   LearningModuleVersionDto,
+  ListActivityTypeVersionsResponse,
+  ListActivityTypesResponse,
   ListArtifactsResponse,
+  ListCourseActivityTypeVersionsResponse,
   ListTermsResponse,
   PlannedDeliveredDiffResponse,
+  ReplaceCourseActivityTypeVersionsRequest,
+  ReplaceCourseActivityTypeVersionsResponse,
   ReplaceCourseInstitutionsResponse,
   SessionDto,
   TermDto,
@@ -39,8 +51,11 @@ import type {
   TopicDto,
   TopicPrerequisiteDto,
   TopicVersionDto,
+  UpsertActivityTypeVersionRequest,
   UpsertLearningModuleVersionRequest,
   UpsertTopicVersionRequest,
+  UpdateActivityTypeRequest,
+  UpdateActivityTypeResponse,
   MeetingPatternDto,
 } from "./redesign-contract";
 
@@ -129,6 +144,47 @@ const _api = {
   // Authenticated instructor --------------------------------------------------
   getCurrentInstructor: (): Promise<InstructorDto> =>
     get<{ instructor: InstructorDto }>("/api/instructors/me").then((d) => d.instructor),
+
+  // Activity Types ----------------------------------------------------------
+  listActivityTypes: (): Promise<ActivityTypeDto[]> =>
+    get<ListActivityTypesResponse>("/api/instructors/me/activity-types").then(
+      (d) => d.activityTypes,
+    ),
+
+  createActivityType: (input: CreateActivityTypeRequest): Promise<CreateActivityTypeResponse> =>
+    post<CreateActivityTypeResponse>("/api/instructors/me/activity-types", input),
+
+  getActivityType: (id: Id): Promise<GetActivityTypeResponse> =>
+    get<GetActivityTypeResponse>(`/api/activity-types/${id}`),
+
+  updateActivityType: (id: Id, input: UpdateActivityTypeRequest): Promise<UpdateActivityTypeResponse> =>
+    patch<UpdateActivityTypeResponse>(`/api/activity-types/${id}`, input),
+
+  listActivityTypeVersions: (activityTypeId: Id): Promise<ActivityTypeVersionDto[]> =>
+    get<ListActivityTypeVersionsResponse>(`/api/activity-types/${activityTypeId}/versions`).then(
+      (d) => d.versions,
+    ),
+
+  createActivityTypeVersion: (
+    activityTypeId: Id,
+    input: UpsertActivityTypeVersionRequest,
+  ): Promise<ActivityTypeVersionDto> =>
+    post<CreateActivityTypeVersionResponse>(`/api/activity-types/${activityTypeId}/versions`, input).then(
+      (d) => d.version,
+    ),
+
+  listCourseActivityTypeVersions: (courseId: Id): Promise<CourseActivityTypeVersionDto[]> =>
+    get<ListCourseActivityTypeVersionsResponse>(`/api/courses/${courseId}/activity-types`).then(
+      (d) => d.activityTypeVersions,
+    ),
+
+  replaceCourseActivityTypeVersions: (
+    courseId: Id,
+    input: ReplaceCourseActivityTypeVersionsRequest,
+  ): Promise<CourseActivityTypeVersionDto[]> =>
+    put<ReplaceCourseActivityTypeVersionsResponse>(`/api/courses/${courseId}/activity-types`, input).then(
+      (d) => d.activityTypeVersions,
+    ),
 
   // Institutions / academic calendars -----------------------------------------
   listInstitutions: (): Promise<InstitutionDto[]> =>
