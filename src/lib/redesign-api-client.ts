@@ -9,8 +9,10 @@
 
 import type {
   AcademicCalendarDto,
+  ActivityDto,
   ActivityTypeDto,
   ActivityTypeVersionDto,
+  ActivityVersionDto,
   ArtifactDto,
   AssessmentDto,
   CalendarSlotDto,
@@ -20,26 +22,34 @@ import type {
   CourseDto,
   CoverageHealthDto,
   CreateAcademicCalendarRequest,
+  CreateActivityRequest,
+  CreateActivityResponse,
   CreateActivityTypeRequest,
   CreateActivityTypeResponse,
   CreateActivityTypeVersionResponse,
+  CreateActivityVersionResponse,
   CreateDeliveredRevisionRequest,
   CreateDeliveredRevisionResponse,
   CreateInstitutionRequest,
   CreateTermApplyResponse,
   CreateTermPreviewResponse,
+  GetActivityResponse,
   GetActivityTypeResponse,
+  GetActivityVersionResponse,
   Id,
   InstructorDto,
   InstitutionDto,
   LearningModuleDto,
   LearningModuleVersionDto,
+  ListActivitiesResponse,
   ListActivityTypeVersionsResponse,
   ListActivityTypesResponse,
+  ListActivityVersionsResponse,
   ListArtifactsResponse,
   ListCourseActivityTypeVersionsResponse,
   ListTermsResponse,
   PlannedDeliveredDiffResponse,
+  PublishActivityVersionResponse,
   ReplaceCourseActivityTypeVersionsRequest,
   ReplaceCourseActivityTypeVersionsResponse,
   ReplaceCourseInstitutionsResponse,
@@ -51,7 +61,10 @@ import type {
   TopicDto,
   TopicPrerequisiteDto,
   TopicVersionDto,
+  UpdateActivityRequest,
+  UpdateActivityResponse,
   UpsertActivityTypeVersionRequest,
+  UpsertActivityVersionRequest,
   UpsertLearningModuleVersionRequest,
   UpsertTopicVersionRequest,
   UpdateActivityTypeRequest,
@@ -184,6 +197,50 @@ const _api = {
   ): Promise<CourseActivityTypeVersionDto[]> =>
     put<ReplaceCourseActivityTypeVersionsResponse>(`/api/courses/${courseId}/activity-types`, input).then(
       (d) => d.activityTypeVersions,
+    ),
+
+  // Course Activities -------------------------------------------------------
+  listCourseActivities: (courseId: Id): Promise<ActivityDto[]> =>
+    get<ListActivitiesResponse>(`/api/courses/${courseId}/activities`).then(
+      (d) => d.activities,
+    ),
+
+  createCourseActivity: async (
+    courseId: Id,
+    input: Omit<CreateActivityRequest, "createdByInstructorId">,
+  ): Promise<CreateActivityResponse> => {
+    const instructor = await _api.getCurrentInstructor();
+    return post<CreateActivityResponse>(`/api/courses/${courseId}/activities`, {
+      ...input,
+      createdByInstructorId: instructor.id,
+    });
+  },
+
+  getActivity: (id: Id): Promise<GetActivityResponse> =>
+    get<GetActivityResponse>(`/api/activities/${id}`),
+
+  updateActivity: (id: Id, input: UpdateActivityRequest): Promise<UpdateActivityResponse> =>
+    patch<UpdateActivityResponse>(`/api/activities/${id}`, input),
+
+  listActivityVersions: (activityId: Id): Promise<ActivityVersionDto[]> =>
+    get<ListActivityVersionsResponse>(`/api/activities/${activityId}/versions`).then(
+      (d) => d.versions,
+    ),
+
+  createActivityVersion: (
+    activityId: Id,
+    input: UpsertActivityVersionRequest,
+  ): Promise<ActivityVersionDto> =>
+    post<CreateActivityVersionResponse>(`/api/activities/${activityId}/versions`, input).then(
+      (d) => d.version,
+    ),
+
+  getActivityVersion: (id: Id): Promise<ActivityVersionDto> =>
+    get<GetActivityVersionResponse>(`/api/activity-versions/${id}`).then((d) => d.version),
+
+  publishActivityVersion: (id: Id): Promise<ActivityVersionDto> =>
+    post<PublishActivityVersionResponse>(`/api/activity-versions/${id}/publish`).then(
+      (d) => d.version,
     ),
 
   // Institutions / academic calendars -----------------------------------------
