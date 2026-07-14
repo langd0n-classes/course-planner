@@ -2,7 +2,7 @@
 
 Date: 2026-07-14
 
-Status: proposed contract for B.2R operator acceptance
+Status: accepted at the B.2R operator checkpoint on 2026-07-14
 
 Supersedes the activity/Topic ownership and instructor-calendar-override portions
 of the Phase A.1 contract. It preserves the accepted authentication, ownership,
