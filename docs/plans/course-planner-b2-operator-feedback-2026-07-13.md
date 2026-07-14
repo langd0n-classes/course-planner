@@ -2,7 +2,8 @@
 
 Date: 2026-07-13
 
-Status: requirements accepted; B.2R in progress (prototype checkpoint pushed)
+Status: requirements accepted; B.2R in progress (evidence, contract, migration,
+and prototype checkpoints pushed)
 
 ## Gate outcome
 

@@ -137,16 +137,14 @@ it. Ships as a follow-on once sandbox access exists.
 
 ### Phase B.2R — activity and interaction refreeze (SERIAL CHECKPOINT)
 
-**Current status (2026-07-14): in progress.** The semantic correction is accepted
-and the reviewed activity-workspace prototype is backed up on
-`redesign-b2r-ux-prototype`. The current branch passes 201 tests, TypeScript,
-changed-surface lint, and diff validation. Remaining gate work is:
+**Current status (2026-07-14): in progress.** The semantic correction, reviewed
+activity-workspace prototype, grading-excluded DS100 evidence map, proposed
+activity/versioning/REST/calendar contract, and migration cuts are backed up on
+their working branches. The prototype exact-time display omission is corrected.
+Remaining gate work is:
 
-- finish the grading-excluded DS100 evidence map;
-- synthesize the activity/versioning/REST and calendar contracts;
-- commit the migration-impact report and B.3/B.4 build prompts;
-- correct the known exact-time display omission and run current browser/visual
-  interaction checks;
+- publish the blocked-by-gate B.3/B.4 issue prompts;
+- run current browser/visual interaction checks;
 - run the Node 22 Podman production build; and
 - present the working tasks for operator acceptance.
 
