@@ -110,6 +110,41 @@ enum ArtifactParentType {
   topic_version
   session
   assessment
+  activity_version
+  term_activity_revision
+}
+
+enum ActivityBehaviorFamily {
+  meeting
+  coursework
+  assessment
+}
+
+enum MilestoneRole {
+  release
+  work
+  phase_release
+  review
+  due
+}
+
+enum AcademicCalendarPeriodKind {
+  instructional
+  no_instruction
+  special_schedule
+}
+
+enum TermMilestoneAnchorPolicy {
+  follow_activity
+  fixed_instant
+  standalone
+}
+
+enum TermCalendarExceptionAction {
+  cancel
+  add
+  replace
+  modify
 }
 
 model Instructor {
@@ -123,8 +158,12 @@ model Instructor {
   courses               Course[]
   institutions          InstructorInstitution[]
   calendarOverrides     InstructorCalendarOverride[]
+  activityTypes         ActivityType[]
+  activityTypeChanges   ActivityTypeVersion[]
+  activityChanges       ActivityVersion[]
   learningModuleChanges LearningModuleVersion[]
   topicChanges          TopicVersion[]
+  termActivityChanges   TermActivityRevision[]
 
   @@map("instructors")
 }
@@ -163,21 +202,24 @@ model InstructorInstitution {
 }
 
 model AcademicCalendar {
-  id            String    @id @default(uuid()) @db.Uuid
-  institutionId String    @map("institution_id") @db.Uuid
-  name          String
-  academicYear  String    @map("academic_year")
-  version       Int       @default(1)
-  sourceUri     String?   @map("source_uri")
-  publishedAt   DateTime? @map("published_at")
-  archivedAt    DateTime? @map("archived_at")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  id               String    @id @default(uuid()) @db.Uuid
+  institutionId    String    @map("institution_id") @db.Uuid
+  currentVersionId String?   @unique @map("current_version_id") @db.Uuid
+  name             String
+  academicYear     String    @map("academic_year")
+  version          Int       @default(1)
+  sourceUri        String?   @map("source_uri")
+  publishedAt      DateTime? @map("published_at")
+  archivedAt       DateTime? @map("archived_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
-  institution Institution                 @relation(fields: [institutionId], references: [id], onDelete: Restrict)
-  events      AcademicCalendarEvent[]
-  overrides   InstructorCalendarOverride[]
-  terms       Term[]
+  institution    Institution               @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  currentVersion AcademicCalendarVersion?  @relation("CurrentAcademicCalendarVersion", fields: [currentVersionId], references: [id], onDelete: Restrict)
+  versions       AcademicCalendarVersion[] @relation("AcademicCalendarVersions")
+  events         AcademicCalendarEvent[]
+  overrides      InstructorCalendarOverride[]
+  terms          Term[]
 
   @@unique([institutionId, academicYear, version])
   @@unique([id, institutionId])
@@ -185,21 +227,24 @@ model AcademicCalendar {
 }
 
 model AcademicCalendarEvent {
-  id                 String            @id @default(uuid()) @db.Uuid
-  academicCalendarId String            @map("academic_calendar_id") @db.Uuid
-  eventType          CalendarEventType @map("event_type")
-  startsOn           DateTime          @map("starts_on") @db.Date
-  endsOn             DateTime          @map("ends_on") @db.Date
-  label              String
-  sourceUri          String?           @map("source_uri")
-  createdAt          DateTime          @default(now()) @map("created_at")
-  updatedAt          DateTime          @updatedAt @map("updated_at")
+  id                      String    @id @default(uuid()) @db.Uuid
+  academicCalendarId      String    @map("academic_calendar_id") @db.Uuid
+  academicCalendarVersionId String? @map("academic_calendar_version_id") @db.Uuid
+  eventType               CalendarEventType @map("event_type")
+  startsOn                DateTime          @map("starts_on") @db.Date
+  endsOn                  DateTime          @map("ends_on") @db.Date
+  label                   String
+  sourceUri               String?           @map("source_uri")
+  createdAt               DateTime          @default(now()) @map("created_at")
+  updatedAt               DateTime          @updatedAt @map("updated_at")
 
-  academicCalendar AcademicCalendar            @relation(fields: [academicCalendarId], references: [id], onDelete: Cascade)
-  overrides        InstructorCalendarOverride[]
-  calendarSlots    CalendarSlot[]
+  academicCalendar        AcademicCalendar         @relation(fields: [academicCalendarId], references: [id], onDelete: Cascade)
+  academicCalendarVersion AcademicCalendarVersion? @relation("VersionedAcademicCalendarEvents", fields: [academicCalendarVersionId, academicCalendarId], references: [id, academicCalendarId], onDelete: Restrict, map: "calendar_event_version_fkey")
+  overrides               InstructorCalendarOverride[]
+  calendarSlots           CalendarSlot[]
 
   @@index([academicCalendarId, startsOn])
+  @@index([academicCalendarVersionId, startsOn], map: "calendar_events_version_start_idx")
   @@map("academic_calendar_events")
 }
 
@@ -242,6 +287,8 @@ model Course {
   instructor      Instructor          @relation(fields: [instructorId], references: [id], onDelete: Restrict)
   institutions    CourseInstitution[]
   terms           Term[]
+  activityTypeVersions CourseActivityTypeVersion[]
+  activities      Activity[]
   learningModules LearningModule[]
   topics          Topic[]
 
@@ -262,6 +309,272 @@ model CourseInstitution {
   @@map("course_institutions")
 }
 
+model AcademicCalendarVersion {
+  id               String    @id @default(uuid()) @db.Uuid
+  academicCalendarId String  @map("academic_calendar_id") @db.Uuid
+  version          Int
+  name             String
+  academicYear     String    @map("academic_year")
+  sourceUri        String?   @map("source_uri")
+  publishedAt      DateTime? @map("published_at")
+  archivedAt       DateTime? @map("archived_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  academicCalendar AcademicCalendar        @relation("AcademicCalendarVersions", fields: [academicCalendarId], references: [id], onDelete: Restrict)
+  currentFor       AcademicCalendar?       @relation("CurrentAcademicCalendarVersion")
+  events           AcademicCalendarEvent[] @relation("VersionedAcademicCalendarEvents")
+  periods          AcademicCalendarPeriod[]
+  terms            Term[]
+
+  @@unique([academicCalendarId, version])
+  @@unique([id, academicCalendarId])
+  @@map("academic_calendar_versions")
+}
+
+model AcademicCalendarPeriod {
+  id                      String   @id @default(uuid()) @db.Uuid
+  academicCalendarVersionId String @map("academic_calendar_version_id") @db.Uuid
+  kind                    AcademicCalendarPeriodKind
+  label                   String
+  startsOn                DateTime @map("starts_on") @db.Date
+  endsOn                  DateTime @map("ends_on") @db.Date
+  createdAt               DateTime @default(now()) @map("created_at")
+
+  academicCalendarVersion AcademicCalendarVersion @relation(fields: [academicCalendarVersionId], references: [id], onDelete: Cascade)
+
+  @@index([academicCalendarVersionId, startsOn], map: "calendar_periods_version_start_idx")
+  @@map("academic_calendar_periods")
+}
+
+model ActivityType {
+  id               String                 @id @default(uuid()) @db.Uuid
+  instructorId     String                 @map("instructor_id") @db.Uuid
+  currentVersionId String?                @unique @map("current_version_id") @db.Uuid
+  behaviorFamily   ActivityBehaviorFamily @map("behavior_family")
+  archivedAt       DateTime?              @map("archived_at")
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
+
+  instructor     Instructor                 @relation(fields: [instructorId], references: [id], onDelete: Restrict)
+  currentVersion ActivityTypeVersion?       @relation("CurrentActivityTypeVersion", fields: [currentVersionId], references: [id], onDelete: Restrict)
+  versions       ActivityTypeVersion[]      @relation("ActivityTypeVersions")
+
+  @@unique([id, instructorId])
+  @@index([instructorId, behaviorFamily])
+  @@map("activity_types")
+}
+
+model ActivityTypeVersion {
+  id                    String    @id @default(uuid()) @db.Uuid
+  activityTypeId        String    @map("activity_type_id") @db.Uuid
+  revision              Int
+  label                 String
+  description           String?   @db.Text
+  changeSummary         String?   @map("change_summary") @db.Text
+  createdByInstructorId String    @map("created_by_instructor_id") @db.Uuid
+  publishedAt           DateTime? @map("published_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+
+  activityType     ActivityType                 @relation("ActivityTypeVersions", fields: [activityTypeId], references: [id], onDelete: Restrict)
+  currentFor       ActivityType?                @relation("CurrentActivityTypeVersion")
+  createdBy        Instructor                   @relation(fields: [createdByInstructorId], references: [id], onDelete: Restrict)
+  courses          CourseActivityTypeVersion[]
+  activityVersions ActivityVersion[]
+  termActivities   TermActivity[]
+  meetingPatterns  TermMeetingPattern[]
+  calendarExceptions TermCalendarException[]
+
+  @@unique([activityTypeId, revision])
+  @@unique([id, activityTypeId])
+  @@map("activity_type_versions")
+}
+
+model CourseActivityTypeVersion {
+  courseId             String   @map("course_id") @db.Uuid
+  activityTypeVersionId String  @map("activity_type_version_id") @db.Uuid
+  enabledAt            DateTime @default(now()) @map("enabled_at")
+
+  course              Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  activityTypeVersion ActivityTypeVersion @relation(fields: [activityTypeVersionId], references: [id], onDelete: Cascade)
+
+  @@id([courseId, activityTypeVersionId])
+  @@map("course_activity_type_versions")
+}
+
+model Activity {
+  id               String    @id @default(uuid()) @db.Uuid
+  courseId         String    @map("course_id") @db.Uuid
+  currentVersionId String?   @unique @map("current_version_id") @db.Uuid
+  stableCode       String    @map("stable_code")
+  archivedAt       DateTime? @map("archived_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  course             Course                      @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  currentVersion     ActivityVersion?            @relation("CurrentActivityVersion", fields: [currentVersionId], references: [id], onDelete: Restrict)
+  versions           ActivityVersion[]           @relation("ActivityVersions")
+  topicScopes        ActivityTopicScope[]
+  milestoneAnchors   ActivityVersionMilestoneTemplate[] @relation("LinkedActivityMilestoneTemplates")
+  termActivities     TermActivity[]
+
+  @@unique([courseId, stableCode])
+  @@unique([id, courseId])
+  @@map("activities")
+}
+
+model ActivityVersion {
+  id                    String    @id @default(uuid()) @db.Uuid
+  activityId            String    @map("activity_id") @db.Uuid
+  revision              Int
+  title                 String
+  summary               String?   @db.Text
+  activityTypeVersionId String    @map("activity_type_version_id") @db.Uuid
+  changeSummary         String?   @map("change_summary") @db.Text
+  createdByInstructorId String    @map("created_by_instructor_id") @db.Uuid
+  publishedAt           DateTime? @map("published_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+
+  activity             Activity                           @relation("ActivityVersions", fields: [activityId], references: [id], onDelete: Restrict)
+  currentFor           Activity?                          @relation("CurrentActivityVersion")
+  activityTypeVersion  ActivityTypeVersion                @relation(fields: [activityTypeVersionId], references: [id], onDelete: Restrict)
+  createdBy            Instructor                         @relation(fields: [createdByInstructorId], references: [id], onDelete: Restrict)
+  meetingDetail        MeetingActivityVersion?
+  courseworkDetail     CourseworkActivityVersion?
+  assessmentDetail     AssessmentActivityVersion?
+  learningModuleMemberships LearningModuleVersionActivity[]
+  learningModuleScopes ActivityVersionLearningModuleScope[]
+  topicActions         ActivityVersionTopicAction[]
+  milestoneTemplates   ActivityVersionMilestoneTemplate[]
+  plannedInTerms       TermActivity[]
+  basedRevisions       TermActivityRevision[]
+  artifacts            Artifact[]
+
+  @@unique([activityId, revision])
+  @@unique([id, activityId])
+  @@index([activityTypeVersionId])
+  @@map("activity_versions")
+}
+
+model MeetingActivityVersion {
+  activityVersionId      String  @id @map("activity_version_id") @db.Uuid
+  defaultDurationMinutes Int?    @map("default_duration_minutes")
+  modality               String?
+  preparationNotes       String? @map("preparation_notes") @db.Text
+  authoringNotes         String? @map("authoring_notes") @db.Text
+
+  activityVersion ActivityVersion @relation(fields: [activityVersionId], references: [id], onDelete: Cascade)
+
+  @@map("meeting_activity_versions")
+}
+
+model CourseworkActivityVersion {
+  activityVersionId String  @id @map("activity_version_id") @db.Uuid
+  submissionPolicy  String? @map("submission_policy") @db.Text
+  releasePolicy     String? @map("release_policy") @db.Text
+  authoringNotes    String? @map("authoring_notes") @db.Text
+
+  activityVersion ActivityVersion @relation(fields: [activityVersionId], references: [id], onDelete: Cascade)
+
+  @@map("coursework_activity_versions")
+}
+
+model AssessmentActivityVersion {
+  activityVersionId String  @id @map("activity_version_id") @db.Uuid
+  modality          String?
+  authoringNotes    String? @map("authoring_notes") @db.Text
+
+  activityVersion ActivityVersion @relation(fields: [activityVersionId], references: [id], onDelete: Cascade)
+
+  @@map("assessment_activity_versions")
+}
+
+model LearningModuleVersionActivity {
+  id                     String   @id @default(uuid()) @db.Uuid
+  learningModuleVersionId String  @map("learning_module_version_id") @db.Uuid
+  activityVersionId      String   @map("activity_version_id") @db.Uuid
+  sequence               Int
+  notes                  String?  @db.Text
+  createdAt              DateTime @default(now()) @map("created_at")
+
+  learningModuleVersion LearningModuleVersion @relation(fields: [learningModuleVersionId], references: [id], onDelete: Cascade, map: "lm_version_activities_version_fkey")
+  activityVersion      ActivityVersion        @relation(fields: [activityVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([learningModuleVersionId, activityVersionId], map: "lm_version_activities_version_activity_key")
+  @@unique([learningModuleVersionId, sequence], map: "lm_version_activities_version_sequence_key")
+  @@index([activityVersionId])
+  @@map("learning_module_version_activities")
+}
+
+model ActivityVersionLearningModuleScope {
+  id              String   @id @default(uuid()) @db.Uuid
+  activityVersionId String  @map("activity_version_id") @db.Uuid
+  learningModuleId String   @map("learning_module_id") @db.Uuid
+  emphasis        String?
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  activityVersion ActivityVersion @relation(fields: [activityVersionId], references: [id], onDelete: Cascade, map: "activity_lm_scopes_version_fkey")
+  learningModule  LearningModule  @relation(fields: [learningModuleId], references: [id], onDelete: Cascade)
+
+  @@unique([activityVersionId, learningModuleId], map: "activity_lm_scopes_version_module_key")
+  @@map("activity_version_learning_module_scopes")
+}
+
+model ActivityVersionTopicAction {
+  id              String        @id @default(uuid()) @db.Uuid
+  activityVersionId String      @map("activity_version_id") @db.Uuid
+  topicVersionId  String        @map("topic_version_id") @db.Uuid
+  action          CoverageLevel
+  notes           String?       @db.Text
+  provenance      Json?         @db.JsonB
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  activityVersion ActivityVersion @relation(fields: [activityVersionId], references: [id], onDelete: Cascade)
+  topicVersion    TopicVersion    @relation(fields: [topicVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([activityVersionId, topicVersionId, action], map: "activity_topic_actions_version_topic_action_key")
+  @@index([topicVersionId])
+  @@map("activity_version_topic_actions")
+}
+
+model ActivityTopicScope {
+  id         String   @id @default(uuid()) @db.Uuid
+  activityId String   @map("activity_id") @db.Uuid
+  topicId    String   @map("topic_id") @db.Uuid
+  notes      String?  @db.Text
+  provenance Json?    @db.JsonB
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  topic    Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, topicId])
+  @@map("activity_topic_scopes")
+}
+
+model ActivityVersionMilestoneTemplate {
+  id              String   @id @default(uuid()) @db.Uuid
+  activityVersionId String  @map("activity_version_id") @db.Uuid
+  sequence        Int
+  role            MilestoneRole
+  label           String
+  linkedActivityId String?  @map("linked_activity_id") @db.Uuid
+  relativeDays    Int?      @map("relative_days")
+  defaultTime     String?   @map("default_time")
+  timeZone        String?   @map("time_zone")
+  notes           String?   @db.Text
+  provenance      Json?     @db.JsonB
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  activityVersion ActivityVersion @relation(fields: [activityVersionId], references: [id], onDelete: Cascade)
+  linkedActivity  Activity?       @relation("LinkedActivityMilestoneTemplates", fields: [linkedActivityId], references: [id], onDelete: SetNull)
+  termMilestones  TermActivityMilestone[]
+
+  @@unique([activityVersionId, sequence], map: "activity_milestones_version_sequence_key")
+  @@index([linkedActivityId])
+  @@map("activity_version_milestone_templates")
+}
+
 model LearningModule {
   id               String    @id @default(uuid()) @db.Uuid
   courseId         String    @map("course_id") @db.Uuid
@@ -274,6 +587,7 @@ model LearningModule {
   course              Course                  @relation(fields: [courseId], references: [id], onDelete: Restrict)
   currentVersion      LearningModuleVersion?  @relation("CurrentLearningModuleVersion", fields: [currentVersionId], references: [id], onDelete: Restrict)
   versions            LearningModuleVersion[] @relation("LearningModuleVersions")
+  activityScopes      ActivityVersionLearningModuleScope[]
   topics              Topic[]
   termLearningModules TermLearningModule[]
 
@@ -300,6 +614,7 @@ model LearningModuleVersion {
   learningModule LearningModule                @relation("LearningModuleVersions", fields: [learningModuleId], references: [id], onDelete: Restrict)
   currentFor     LearningModule?               @relation("CurrentLearningModuleVersion")
   createdBy      Instructor                    @relation(fields: [createdByInstructorId], references: [id], onDelete: Restrict)
+  activities     LearningModuleVersionActivity[]
   topics         LearningModuleVersionTopic[]
   termOfferings  TermLearningModule[]          @relation("PlannedLearningModuleVersion")
   deliveredIn    TermLearningModule[]          @relation("DeliveredLearningModuleVersion")
@@ -323,6 +638,7 @@ model Topic {
   course          Course              @relation(fields: [courseId], references: [id], onDelete: Restrict)
   learningModule  LearningModule?     @relation(fields: [learningModuleId, courseId], references: [id, courseId], onDelete: Restrict)
   currentVersion  TopicVersion?       @relation("CurrentTopicVersion", fields: [currentVersionId], references: [id], onDelete: Restrict)
+  activityScopes  ActivityTopicScope[]
   versions        TopicVersion[]      @relation("TopicVersions")
   prerequisiteFor TopicPrerequisite[] @relation("PrerequisiteTopic")
   prerequisites   TopicPrerequisite[] @relation("DependentTopic")
@@ -347,6 +663,8 @@ model TopicVersion {
   topic            Topic                        @relation("TopicVersions", fields: [topicId], references: [id], onDelete: Restrict)
   currentFor       Topic?                       @relation("CurrentTopicVersion")
   createdBy        Instructor                   @relation(fields: [createdByInstructorId], references: [id], onDelete: Restrict)
+  activityActions  ActivityVersionTopicAction[]
+  termActivityActions TermActivityRevisionTopicAction[]
   learningModules  LearningModuleVersionTopic[]
   coverages        Coverage[]
   assessmentTopics AssessmentTopic[]
@@ -383,31 +701,36 @@ model TopicPrerequisite {
 }
 
 model Term {
-  id                 String    @id @default(uuid()) @db.Uuid
-  courseId           String    @map("course_id") @db.Uuid
-  institutionId      String    @map("institution_id") @db.Uuid
-  academicCalendarId String    @map("academic_calendar_id") @db.Uuid
-  code               String
-  name               String
-  startDate          DateTime  @map("start_date") @db.Date
-  endDate            DateTime  @map("end_date") @db.Date
-  meetingPattern     Json?     @map("meeting_pattern") @db.JsonB
-  clonedFromId       String?   @map("cloned_from_id") @db.Uuid
-  status             TermStatus @default(planned)
-  closedAt           DateTime? @map("closed_at")
-  archivedAt         DateTime? @map("archived_at")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
+  id                      String    @id @default(uuid()) @db.Uuid
+  courseId                String    @map("course_id") @db.Uuid
+  institutionId           String    @map("institution_id") @db.Uuid
+  academicCalendarId      String    @map("academic_calendar_id") @db.Uuid
+  academicCalendarVersionId String? @map("academic_calendar_version_id") @db.Uuid
+  code                    String
+  name                    String
+  startDate               DateTime  @map("start_date") @db.Date
+  endDate                 DateTime  @map("end_date") @db.Date
+  meetingPattern          Json?     @map("meeting_pattern") @db.JsonB
+  clonedFromId            String?   @map("cloned_from_id") @db.Uuid
+  status                  TermStatus @default(planned)
+  closedAt                DateTime? @map("closed_at")
+  archivedAt              DateTime? @map("archived_at")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
 
-  course           Course               @relation(fields: [courseId], references: [id], onDelete: Restrict)
-  institution      Institution          @relation(fields: [institutionId], references: [id], onDelete: Restrict)
-  academicCalendar AcademicCalendar     @relation(fields: [academicCalendarId, institutionId], references: [id, institutionId], onDelete: Restrict)
-  clonedFrom       Term?                @relation("TermClone", fields: [clonedFromId, courseId], references: [id, courseId], onDelete: Restrict)
-  clones           Term[]               @relation("TermClone")
-  learningModules  TermLearningModule[]
-  sessions         Session[]
-  assessments      Assessment[]
-  calendarSlots    CalendarSlot[]
+  course                 Course                   @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  institution            Institution              @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  academicCalendar       AcademicCalendar         @relation(fields: [academicCalendarId, institutionId], references: [id, institutionId], onDelete: Restrict)
+  academicCalendarVersion AcademicCalendarVersion? @relation(fields: [academicCalendarVersionId, academicCalendarId], references: [id, academicCalendarId], onDelete: Restrict)
+  clonedFrom             Term?                    @relation("TermClone", fields: [clonedFromId, courseId], references: [id, courseId], onDelete: Restrict)
+  clones                 Term[]                   @relation("TermClone")
+  learningModules        TermLearningModule[]
+  activities             TermActivity[]
+  meetingPatterns        TermMeetingPattern[]
+  calendarExceptions     TermCalendarException[]
+  sessions               Session[]
+  assessments            Assessment[]
+  calendarSlots          CalendarSlot[]
 
   @@unique([courseId, code])
   @@unique([id, courseId])
@@ -430,12 +753,196 @@ model TermLearningModule {
   learningModule                 LearningModule         @relation(fields: [learningModuleId, courseId], references: [id, courseId], onDelete: Restrict)
   learningModuleVersion          LearningModuleVersion  @relation("PlannedLearningModuleVersion", fields: [learningModuleVersionId, learningModuleId], references: [id, learningModuleId], onDelete: Restrict)
   deliveredLearningModuleVersion LearningModuleVersion? @relation("DeliveredLearningModuleVersion", fields: [deliveredLearningModuleVersionId, learningModuleId], references: [id, learningModuleId], onDelete: Restrict)
+  activities                     TermActivity[]
   sessions                       Session[]
 
   @@unique([termId, learningModuleId])
   @@unique([termId, sequence])
   @@unique([id, termId])
   @@map("term_learning_modules")
+}
+
+model TermActivity {
+  id                      String    @id @default(uuid()) @db.Uuid
+  termId                  String    @map("term_id") @db.Uuid
+  courseId                String    @map("course_id") @db.Uuid
+  activityId              String    @map("activity_id") @db.Uuid
+  plannedActivityVersionId String   @map("planned_activity_version_id") @db.Uuid
+  activityTypeVersionId   String    @map("activity_type_version_id") @db.Uuid
+  adoptedLabel            String    @map("adopted_label")
+  termLearningModuleId    String?   @map("term_learning_module_id") @db.Uuid
+  ordinal                 Int?
+  lifecycleState          String?   @map("lifecycle_state")
+  plannedRevisionId       String?   @unique @map("planned_revision_id") @db.Uuid
+  deliveredRevisionId     String?   @unique @map("delivered_revision_id") @db.Uuid
+  archivedAt              DateTime? @map("archived_at")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  term                   Term                 @relation(fields: [termId, courseId], references: [id, courseId], onDelete: Cascade)
+  activity               Activity             @relation(fields: [activityId, courseId], references: [id, courseId], onDelete: Restrict)
+  plannedActivityVersion ActivityVersion      @relation(fields: [plannedActivityVersionId, activityId], references: [id, activityId], onDelete: Restrict)
+  activityTypeVersion    ActivityTypeVersion  @relation(fields: [activityTypeVersionId], references: [id], onDelete: Restrict)
+  termLearningModule     TermLearningModule?  @relation(fields: [termLearningModuleId, termId], references: [id, termId], onDelete: Restrict)
+  plannedRevision        TermActivityRevision?  @relation("PlannedTermActivityRevisionPointer", fields: [plannedRevisionId], references: [id], onDelete: SetNull)
+  deliveredRevision      TermActivityRevision?  @relation("DeliveredTermActivityRevisionPointer", fields: [deliveredRevisionId], references: [id], onDelete: SetNull)
+  revisions              TermActivityRevision[] @relation("TermActivityRevisions")
+  linkedMilestones       TermActivityMilestone[] @relation("LinkedTermActivityMilestones")
+
+  @@unique([termId, activityId])
+  @@index([termId, activityTypeVersionId, ordinal])
+  @@index([termLearningModuleId, ordinal])
+  @@map("term_activities")
+}
+
+model TermActivityRevision {
+  id                   String    @id @default(uuid()) @db.Uuid
+  termActivityId       String    @map("term_activity_id") @db.Uuid
+  revision             Int
+  baseActivityVersionId String   @map("base_activity_version_id") @db.Uuid
+  title                String
+  summary              String?   @db.Text
+  changeReason         String?   @map("change_reason") @db.Text
+  createdByInstructorId String?  @map("created_by_instructor_id") @db.Uuid
+  createdAt            DateTime  @default(now()) @map("created_at")
+
+  termActivity        TermActivity                    @relation("TermActivityRevisions", fields: [termActivityId], references: [id], onDelete: Cascade)
+  baseActivityVersion ActivityVersion                 @relation(fields: [baseActivityVersionId], references: [id], onDelete: Restrict)
+  createdBy           Instructor?                     @relation(fields: [createdByInstructorId], references: [id], onDelete: Restrict)
+  plannedFor          TermActivity?                   @relation("PlannedTermActivityRevisionPointer")
+  deliveredFor        TermActivity?                   @relation("DeliveredTermActivityRevisionPointer")
+  meetingDetail       TermMeetingActivityRevision?
+  courseworkDetail    TermCourseworkActivityRevision?
+  assessmentDetail    TermAssessmentActivityRevision?
+  topicActions        TermActivityRevisionTopicAction[]
+  milestones          TermActivityMilestone[]
+  artifacts           Artifact[]
+
+  @@unique([termActivityId, revision])
+  @@map("term_activity_revisions")
+}
+
+model TermMeetingActivityRevision {
+  termActivityRevisionId String   @id @map("term_activity_revision_id") @db.Uuid
+  calendarSlotId         String?  @map("calendar_slot_id") @db.Uuid
+  startsAt               DateTime? @map("starts_at")
+  endsAt                 DateTime? @map("ends_at")
+  status                 String?
+  modality               String?
+  overrideReason         String?  @map("override_reason") @db.Text
+  overrideEvidence       Json?    @map("override_evidence") @db.JsonB
+
+  termActivityRevision TermActivityRevision @relation(fields: [termActivityRevisionId], references: [id], onDelete: Cascade)
+  calendarSlot         CalendarSlot?        @relation(fields: [calendarSlotId], references: [id], onDelete: SetNull)
+
+  @@index([calendarSlotId])
+  @@map("term_meeting_activity_revisions")
+}
+
+model TermCourseworkActivityRevision {
+  termActivityRevisionId String  @id @map("term_activity_revision_id") @db.Uuid
+  lifecycleState         String? @map("lifecycle_state")
+  deliveryNotes          String? @map("delivery_notes") @db.Text
+
+  termActivityRevision TermActivityRevision @relation(fields: [termActivityRevisionId], references: [id], onDelete: Cascade, map: "term_coursework_revisions_revision_fkey")
+
+  @@map("term_coursework_activity_revisions")
+}
+
+model TermAssessmentActivityRevision {
+  termActivityRevisionId String  @id @map("term_activity_revision_id") @db.Uuid
+  lifecycleState         String? @map("lifecycle_state")
+  modality               String?
+  deliveryNotes          String? @map("delivery_notes") @db.Text
+
+  termActivityRevision TermActivityRevision @relation(fields: [termActivityRevisionId], references: [id], onDelete: Cascade, map: "term_assessment_revisions_revision_fkey")
+
+  @@map("term_assessment_activity_revisions")
+}
+
+model TermActivityRevisionTopicAction {
+  id                   String        @id @default(uuid()) @db.Uuid
+  termActivityRevisionId String      @map("term_activity_revision_id") @db.Uuid
+  topicVersionId       String        @map("topic_version_id") @db.Uuid
+  action               CoverageLevel
+  notes                String?       @db.Text
+  provenance           Json?         @db.JsonB
+  createdAt            DateTime      @default(now()) @map("created_at")
+
+  termActivityRevision TermActivityRevision @relation(fields: [termActivityRevisionId], references: [id], onDelete: Cascade, map: "term_revision_topic_actions_revision_fkey")
+  topicVersion         TopicVersion         @relation(fields: [topicVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([termActivityRevisionId, topicVersionId, action], map: "term_revision_topic_action_key")
+  @@index([topicVersionId])
+  @@map("term_activity_revision_topic_actions")
+}
+
+model TermActivityMilestone {
+  id                   String                    @id @default(uuid()) @db.Uuid
+  termActivityRevisionId String                  @map("term_activity_revision_id") @db.Uuid
+  sourceTemplateId     String?                   @map("source_template_id") @db.Uuid
+  role                 MilestoneRole
+  label                String
+  linkedTermActivityId String?                   @map("linked_term_activity_id") @db.Uuid
+  occursAt             DateTime?                 @map("occurs_at")
+  timeZone             String?                   @map("time_zone")
+  anchorPolicy         TermMilestoneAnchorPolicy @map("anchor_policy")
+  notes                String?                   @db.Text
+  provenance           Json?                     @db.JsonB
+  createdAt            DateTime                  @default(now()) @map("created_at")
+
+  termActivityRevision TermActivityRevision            @relation(fields: [termActivityRevisionId], references: [id], onDelete: Cascade)
+  sourceTemplate       ActivityVersionMilestoneTemplate? @relation(fields: [sourceTemplateId], references: [id], onDelete: SetNull)
+  linkedTermActivity   TermActivity?                   @relation("LinkedTermActivityMilestones", fields: [linkedTermActivityId], references: [id], onDelete: SetNull)
+
+  @@index([linkedTermActivityId])
+  @@index([occursAt])
+  @@map("term_activity_milestones")
+}
+
+model TermMeetingPattern {
+  id                   String   @id @default(uuid()) @db.Uuid
+  termId               String   @map("term_id") @db.Uuid
+  activityTypeVersionId String  @map("activity_type_version_id") @db.Uuid
+  label                String?
+  daysOfWeek           String[] @map("days_of_week")
+  startTimeLocal       String   @map("start_time_local")
+  endTimeLocal         String?  @map("end_time_local")
+  timeZone             String   @map("time_zone")
+  startsOn             DateTime @map("starts_on") @db.Date
+  endsOn               DateTime @map("ends_on") @db.Date
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  term                Term               @relation(fields: [termId], references: [id], onDelete: Cascade)
+  activityTypeVersion ActivityTypeVersion @relation(fields: [activityTypeVersionId], references: [id], onDelete: Restrict)
+
+  @@index([termId, activityTypeVersionId, startsOn], map: "term_meeting_patterns_type_start_idx")
+  @@map("term_meeting_patterns")
+}
+
+model TermCalendarException {
+  id                   String                     @id @default(uuid()) @db.Uuid
+  termId               String                     @map("term_id") @db.Uuid
+  action               TermCalendarExceptionAction
+  activityTypeVersionId String?                   @map("activity_type_version_id") @db.Uuid
+  calendarSlotId       String?                    @map("calendar_slot_id") @db.Uuid
+  targetDate           DateTime?                  @map("target_date") @db.Date
+  startsAt             DateTime?                  @map("starts_at")
+  endsAt               DateTime?                  @map("ends_at")
+  label                String?
+  reason               String?                    @db.Text
+  provenance           Json?                      @db.JsonB
+  createdAt            DateTime                   @default(now()) @map("created_at")
+  updatedAt            DateTime                   @updatedAt @map("updated_at")
+
+  term                Term                @relation(fields: [termId], references: [id], onDelete: Cascade)
+  activityTypeVersion ActivityTypeVersion? @relation(fields: [activityTypeVersionId], references: [id], onDelete: SetNull)
+  calendarSlot        CalendarSlot?       @relation(fields: [calendarSlotId], references: [id], onDelete: SetNull)
+
+  @@index([termId, targetDate])
+  @@index([calendarSlotId])
+  @@map("term_calendar_exceptions")
 }
 
 model Session {
@@ -557,6 +1064,8 @@ model CalendarSlot {
 
   term                  Term                   @relation(fields: [termId], references: [id], onDelete: Cascade)
   academicCalendarEvent AcademicCalendarEvent? @relation(fields: [academicCalendarEventId], references: [id], onDelete: SetNull)
+  meetingRevisions      TermMeetingActivityRevision[]
+  calendarExceptions    TermCalendarException[]
   sessions              Session[]
 
   @@unique([termId, date])
@@ -570,6 +1079,8 @@ model Artifact {
   topicVersionId          String?            @map("topic_version_id") @db.Uuid
   sessionId               String?            @map("session_id") @db.Uuid
   assessmentId            String?            @map("assessment_id") @db.Uuid
+  activityVersionId       String?            @map("activity_version_id") @db.Uuid
+  termActivityRevisionId  String?            @map("term_activity_revision_id") @db.Uuid
   artifactType            ArtifactType       @map("artifact_type")
   sourceType              ArtifactSourceType @map("source_type")
   title                   String
@@ -587,10 +1098,14 @@ model Artifact {
   topicVersion          TopicVersion?          @relation(fields: [topicVersionId], references: [id], onDelete: Restrict)
   session               Session?               @relation(fields: [sessionId], references: [id], onDelete: Restrict)
   assessment            Assessment?            @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+  activityVersion       ActivityVersion?       @relation(fields: [activityVersionId], references: [id], onDelete: Restrict, map: "artifacts_activity_version_fkey")
+  termActivityRevision  TermActivityRevision?  @relation(fields: [termActivityRevisionId], references: [id], onDelete: Restrict, map: "artifacts_term_revision_fkey")
 
   @@index([learningModuleVersionId])
   @@index([topicVersionId])
   @@index([sessionId])
   @@index([assessmentId])
+  @@index([activityVersionId], map: "artifacts_activity_version_idx")
+  @@index([termActivityRevisionId], map: "artifacts_term_revision_idx")
   @@map("artifacts")
 }
