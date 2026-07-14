@@ -1,6 +1,6 @@
 # Course/LM/Topic redesign — execution plan
 
-**Status:** canonical redesign roadmap; B.2R in progress
+**Status:** canonical redesign roadmap; B.2R ready for operator checkpoint
 **Last updated:** 2026-07-14
 
 Companion to `course-lm-topic-redesign-v2.md` (design) and its amendments.
@@ -19,7 +19,7 @@ this doc governs *how* it is built.
 |---|---|---|
 | A / A.1 | Complete | Foundation and transitional contract validated |
 | B / B.1 | Complete and accepted | Executable vertical seam passed product and academic review |
-| B.2R | **In progress** | Accept activity graph, calendar semantics, vocabulary, and task hierarchy |
+| B.2R | **Ready for operator checkpoint** | Accept activity graph, calendar semantics, vocabulary, and task hierarchy |
 | B.3 | Not started | Validate schema/REST/domain correction and one-way DS100 import fidelity |
 | B.4 | Not started | Run representative Course Design and active-Term tasks on real handlers |
 | D | Not started | Integrated validation and reviewed `redesign` → `main` cutover |
@@ -137,16 +137,16 @@ it. Ships as a follow-on once sandbox access exists.
 
 ### Phase B.2R — activity and interaction refreeze (SERIAL CHECKPOINT)
 
-**Current status (2026-07-14): in progress.** The semantic correction, reviewed
+**Current status (2026-07-14): ready for operator checkpoint.** The semantic correction, reviewed
 activity-workspace prototype, grading-excluded DS100 evidence map, proposed
 activity/versioning/REST/calendar contract, and migration cuts are backed up on
 their working branches. The prototype exact-time display omission is corrected.
 The blocked-by-gate build prompts are published on issues #33 (B.3) and #34
-(B.4). Remaining gate work is:
-
-- run current browser/visual interaction checks;
-- run the Node 22 Podman production build; and
-- present the working tasks for operator acceptance.
+(B.4). Browser task checks, visual/responsive review, the Vitest suite,
+typecheck, lint, and an isolated Node 22 Podman production build are green. The
+checkpoint evidence and review questions are recorded in
+`course-planner-b2r-checkpoint-2026-07-14.md`. B.3 and B.4 remain blocked until
+the operator accepts this checkpoint.
 
 The accepted B.1 integration and B.2 ledger spike exposed a domain mismatch that
 invalidates part of the Phase A.1 frozen contract. Before additional application
