@@ -1,6 +1,6 @@
 # ADR-0003: Pin Course design and revise Term delivery separately
 
-- **Status:** proposed for B.2R operator acceptance
+- **Status:** accepted 2026-07-14
 - **Date:** 2026-07-14
 - **Deciders:** Langdon White, course-planner coordinator (Mimir review)
 

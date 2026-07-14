@@ -2,7 +2,7 @@
 
 Date: 2026-07-14
 
-Status: proposed migration plan for B.2R operator acceptance
+Status: accepted at the B.2R operator checkpoint on 2026-07-14
 
 Inputs:
 
