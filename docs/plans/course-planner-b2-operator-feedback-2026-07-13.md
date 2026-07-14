@@ -2,7 +2,7 @@
 
 Date: 2026-07-13
 
-Status: requirements accepted; implementation not launched
+Status: requirements accepted; B.2R in progress (prototype checkpoint pushed)
 
 ## Gate outcome
 
