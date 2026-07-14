@@ -141,9 +141,9 @@ it. Ships as a follow-on once sandbox access exists.
 activity-workspace prototype, grading-excluded DS100 evidence map, proposed
 activity/versioning/REST/calendar contract, and migration cuts are backed up on
 their working branches. The prototype exact-time display omission is corrected.
-Remaining gate work is:
+The blocked-by-gate build prompts are published on issues #33 (B.3) and #34
+(B.4). Remaining gate work is:
 
-- publish the blocked-by-gate B.3/B.4 issue prompts;
 - run current browser/visual interaction checks;
 - run the Node 22 Podman production build; and
 - present the working tasks for operator acceptance.
@@ -168,9 +168,10 @@ acceptance. Do not launch the B.3 implementation lanes before that gate.
 
 After acceptance:
 
-- **B.3** implements schema/domain/REST plus the one-way DS100 importer.
-- **B.4** builds the Course design studio and active-Term daily driver on real
-  handlers.
+- **B.3** (issue #33) implements schema/domain/REST plus the one-way DS100
+  importer.
+- **B.4** (issue #34) builds the Course design studio and active-Term daily driver
+  on real handlers.
 - **Phase D** performs integration, verification, and the reviewed `main` cutover.
 
 ### Phase D — Integration + verification (SERIAL, closing pass)

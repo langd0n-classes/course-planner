@@ -150,6 +150,9 @@ Only after acceptance should implementation branches be launched.
 Every stage ends in a human checkpoint and may be revised, branched, superseded, or
 stopped.
 
+Implementation prompts are published but gate-blocked on GitHub: B.3 is issue #33;
+B.4 is issue #34.
+
 | Stage | Outcome | Checkpoint |
 |---|---|---|
 | B.2R | Activity/calendar contract, DS100 evidence map, dense coded task prototype | Accept the graph, vocabulary, and task hierarchy |
