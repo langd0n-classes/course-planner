@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useEffectEvent, useState } from "react";
 import type { CourseDto, InstitutionDto, TermDto } from "@/lib/redesign-contract";
 import { redesignApi } from "@/lib/redesign-api-client";
@@ -20,13 +21,13 @@ type CreateCourseState =
   | { open: true; title: string; number: string; description: string; submitting: boolean; error: string | null };
 
 export default function CourseIndexPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [courses, setCourses] = useState<CourseSummary[]>([]);
   const [createState, setCreateState] = useState<CreateCourseState>({ open: false });
-  const [refreshKey, setRefreshKey] = useState(0);
 
-  const load = useEffectEvent(async () => {
+  const loadWorkspace = async () => {
     setLoading(true);
     setError(null);
     try {
@@ -54,18 +55,20 @@ export default function CourseIndexPage() {
     } finally {
       setLoading(false);
     }
-  });
+  };
+
+  const loadFromEffect = useEffectEvent(loadWorkspace);
 
   useEffect(() => {
-    void load();
-  }, [refreshKey]);
+    void loadFromEffect();
+  }, []);
 
   async function handleCreateCourse(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!createState.open) return;
     setCreateState({ ...createState, submitting: true, error: null });
     try {
-      await redesignApi.createCourse({
+      const course = await redesignApi.createCourse({
         title: createState.title || "New Course",
         titleIsPlaceholder: !createState.title,
         number: createState.number || "1XX",
@@ -73,7 +76,7 @@ export default function CourseIndexPage() {
         description: createState.description || null,
       });
       setCreateState({ open: false });
-      setRefreshKey((current) => current + 1);
+      router.push(`/courses/${course.id}`);
     } catch (err) {
       setCreateState({
         ...createState,
