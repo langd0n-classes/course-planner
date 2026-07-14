@@ -265,7 +265,7 @@ export default function ActivityWorkspacePage() {
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden text-[--color-ink]">
+    <div className="flex h-screen w-full min-w-0 max-w-full flex-col overflow-hidden text-[--color-ink]">
       <PrototypeBanner />
 
       <CourseHeader
