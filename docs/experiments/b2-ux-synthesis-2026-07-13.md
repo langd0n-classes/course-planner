@@ -233,3 +233,33 @@ effort for mechanical file-owned work and high effort reserved for ambiguous or
 consequential judgment. Until that exists, treat local Codex job cost as uncertain,
 keep measuring tokens per coordinator-accepted slice, and consider a cheaper
 provider/model route before multiplying jobs.
+
+## Gate B.2R acceptance and B.3 launch — 2026-07-14
+
+The operator accepted Gate B.2R with the recommended defaults. The coordinator
+promoted only the accepted decisions, evidence, roadmap, migration plan, checkpoint,
+and experiment record into a new `redesign-b3-integration` lineage. The rejected
+ledger information architecture and the local interaction prototype were not
+silently promoted into the production baseline.
+
+Parent issue #33 was decomposed before implementation into #35 (schema root), #36
+(DTO/Zod/factories), #37 (Course Activity design), #38 (Term adoption/delivery),
+#39 (calendar correction), and #40 (importer/demo). Only #35 was authorized to run;
+later prompt comments remain unpublished until their exact schema/DTO inputs freeze.
+This makes the gate mechanically visible instead of relying on coordinator memory.
+
+The first local Codex launch exposed the already-observed host detachment problem:
+the automatic systemd scope did not reach a trace or working diff, and a plain
+`nohup` retry was reaped with the tool session. Both worktrees remained clean, so
+no overlapping writer was started. The same `launch`-selected command was then run
+inside a persistent tmux session, where its normal heartbeat, trace, and Telegram
+watcher became visible. Future launches from this environment should go directly
+through the persistent tmux wrapper and ordinary run log; do not spend cycles
+retrying or monitoring the nonworking systemd path.
+
+The schema root uses `gpt-5.4` because additive relational constraints and migration
+compatibility require judgment. Lower-cost models remain the default for later
+mechanical fixtures and scaffolds, while service packets receive one capable
+mid-tier worker apiece. The unresolved launcher limitation is that local Codex still
+inherits high reasoning effort; packet size and accepted-output cost continue to be
+recorded rather than assumed.
