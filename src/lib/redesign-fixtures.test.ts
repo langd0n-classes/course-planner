@@ -48,7 +48,7 @@ describe("redesign-fixtures", () => {
       expect(type1.id).toBe(type2.id);
       expect(type1.behaviorFamily).toBe("meeting");
       expect(type1.currentVersionId).toBe(
-        "00000000-0000-0000-0000-000000000011"
+        "00000000-0000-4000-8000-000000000011"
       );
       expect(type1.archivedAt).toBeNull();
     });
@@ -67,7 +67,7 @@ describe("redesign-fixtures", () => {
       const version = createCourseworkActivityTypeVersion();
       expect(version.label).toBe("Project");
       expect(version.activityTypeId).toBe(
-        "00000000-0000-0000-0000-000000000012"
+        "00000000-0000-4000-8000-000000000012"
       );
     });
 
@@ -97,9 +97,9 @@ describe("redesign-fixtures", () => {
 
     it("term activity has consistent IDs across defaults", () => {
       const activity = createTermActivity();
-      expect(activity.id).toBe("00000000-0000-0000-0000-000000000031");
-      expect(activity.termId).toBe("00000000-0000-0000-0000-000000000030");
-      expect(activity.courseId).toBe("00000000-0000-0000-0000-000000000002");
+      expect(activity.id).toBe("00000000-0000-4000-8000-000000000031");
+      expect(activity.termId).toBe("00000000-0000-4000-8000-000000000030");
+      expect(activity.courseId).toBe("00000000-0000-4000-8000-000000000002");
     });
 
     it("term activity revision has correct created timestamp", () => {
@@ -177,7 +177,7 @@ describe("redesign-fixtures", () => {
       expect(custom.adoptedLabel).toBe("Renamed Project");
       expect(custom.ordinal).toBe(5);
       expect(custom.lifecycleState).toBe("completed");
-      expect(custom.termId).toBe("00000000-0000-0000-0000-000000000030"); // preserved
+      expect(custom.termId).toBe("00000000-0000-4000-8000-000000000030"); // preserved
     });
 
     it("meeting revision detail accepts modality override", () => {
@@ -205,7 +205,7 @@ describe("redesign-fixtures", () => {
       });
       expect(exception.action).toBe("add");
       expect(exception.reason).toBe("Makeup lecture scheduled");
-      expect(exception.termId).toBe("00000000-0000-0000-0000-000000000030"); // preserved
+      expect(exception.termId).toBe("00000000-0000-4000-8000-000000000030"); // preserved
     });
 
     it("meeting pattern request accepts custom day and time overrides", () => {
@@ -359,11 +359,11 @@ describe("redesign-fixtures", () => {
     it("term activity milestone can override anchor policy", () => {
       const milestone = createTermActivityMilestone({
         anchorPolicy: "follow_activity",
-        linkedTermActivityId: "00000000-0000-0000-0000-000000000020",
+        linkedTermActivityId: "00000000-0000-4000-8000-000000000020",
       });
       expect(milestone.anchorPolicy).toBe("follow_activity");
       expect(milestone.linkedTermActivityId).toBe(
-        "00000000-0000-0000-0000-000000000020"
+        "00000000-0000-4000-8000-000000000020"
       );
     });
 
@@ -430,7 +430,7 @@ describe("redesign-fixtures", () => {
     it("term activity created date is plausible", () => {
       const termActivity = createTermActivity();
       expect(termActivity.plannedRevisionId).toBe(
-        "00000000-0000-0000-0000-000000000032"
+        "00000000-0000-4000-8000-000000000032"
       );
     });
 
