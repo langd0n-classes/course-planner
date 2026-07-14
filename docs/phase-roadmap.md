@@ -255,15 +255,15 @@ chunked implementation plan (§5) and amendments (§9, §10).
   workflows passed product/UX and academic-practice review. Clean migration and
   seed, 137 tests, typecheck, changed-surface lint, and production build all pass.
   The accepted lineage promotes to `redesign`, while `main` remains unchanged.
-- **Phase B.2R activity/interaction refreeze (in progress):** operator review of
+- **Phase B.2R activity/interaction refreeze (accepted 2026-07-14):** operator review of
   the high-fidelity UX synthesis corrected the domain graph: Learning Modules
   organize meetings and coursework, while Topics attach to activities through
-  I/P/A actions. B.2R is completing the DS100 evidence map, corrected activity and
-  calendar contract, migration-impact report, and dense working prototype. It ends
-  at an operator gate.
-- **After B.2R acceptance:** B.3 implements schema/REST/domain changes and the
+  I/P/A actions. The DS100 evidence map, corrected activity/calendar contract,
+  migration-impact report, dense working prototype, and validation passed the
+  operator gate.
+- **Phase B.3 (starting):** implement schema/REST/domain changes and the
   one-way DS100 importer; B.4 builds the Course design studio and active-Term daily
-  driver on real handlers; Phase D integrates, validates, and presents the separate
+  driver on real handlers after the B.3 gate; Phase D integrates, validates, and presents the separate
   `redesign` → `main` cutover decision. Blackboard remains a non-blocking follow-on
   pending sandbox evidence. The canonical live status is in
   `docs/plans/course-lm-topic-redesign-execution.md`.
