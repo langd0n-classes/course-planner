@@ -263,3 +263,21 @@ mechanical fixtures and scaffolds, while service packets receive one capable
 mid-tier worker apiece. The unresolved launcher limitation is that local Codex still
 inherits high reasoning effort; packet size and accepted-output cost continue to be
 recorded rather than assumed.
+
+### B.3.1a measured result
+
+The schema worker consumed **178,565 tokens**. Coordinator review found issues that
+were inexpensive to correct centrally but consequential enough to justify retaining
+the review boundary: PostgreSQL identifier truncation caused migration/schema drift,
+several new referential actions were invalid for their nullability, and the first
+schema draft omitted Artifact ownership by reusable Activity versions and immutable
+Term revisions. After correction, all four migrations applied from an empty
+PostgreSQL schema, Prisma reported no drift, 14 focused tests passed, and TypeScript
+passed. The reviewed checkpoint was pushed before B.3.1b began.
+
+The durable-launch rule needs one operational precision: putting the launcher command
+in tmux is not sufficient if its internal user-systemd reachability check returns a
+false positive. In this host environment, invoke the launcher from a persistent tmux
+shell with the user-systemd bus deliberately unavailable so its ordinary fallback
+process remains in the tmux cgroup. Confirm both worker and watcher PIDs plus the
+trace before treating a start banner as a real launch.
