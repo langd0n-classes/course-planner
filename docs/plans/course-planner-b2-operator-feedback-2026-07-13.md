@@ -2,8 +2,7 @@
 
 Date: 2026-07-13
 
-Status: requirements accepted; B.2R ready for operator checkpoint (evidence,
-contract, migration, prototype, and validation checkpoints pushed)
+Status: requirements and B.2R checkpoint accepted 2026-07-14; B.3 authorized
 
 ## Gate outcome
 

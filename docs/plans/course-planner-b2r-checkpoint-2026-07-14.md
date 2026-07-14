@@ -2,7 +2,7 @@
 
 Date: 2026-07-14
 
-Status: ready for operator review; B.3 and B.4 are not launched
+Status: accepted by the operator 2026-07-14; B.3 authorized, B.4 still gated
 
 ## Outcome
 
