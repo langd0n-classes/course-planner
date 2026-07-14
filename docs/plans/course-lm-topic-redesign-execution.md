@@ -1,12 +1,37 @@
 # Course/LM/Topic redesign — execution plan
 
-Companion to `course-lm-topic-redesign-v2.md` (design) and its §9 v2.1 amendment.
+**Status:** canonical redesign roadmap; B.2R accepted, B.3 starting
+**Last updated:** 2026-07-14
+
+Companion to `course-lm-topic-redesign-v2.md` (design) and its amendments.
 This document is the **execution/orchestration** plan: how the ten design chunks
 map to agents, branches, and phases, and where real parallelism exists.
 
-Design source of truth: `course-lm-topic-redesign-v2.md` §1–8 plus §9 (v2.1).
+Design source of truth: `course-lm-topic-redesign-v2.md`, with the newest
+applicable amendment governing conflicts. In particular, §11 v2.3 supersedes
+direct Topic-to-Learning-Module ownership.
 Where design and execution disagree, the design doc governs *what* is built and
 this doc governs *how* it is built.
+
+## Current roadmap
+
+| Stage | Status | Exit checkpoint |
+|---|---|---|
+| A / A.1 | Complete | Foundation and transitional contract validated |
+| B / B.1 | Complete and accepted | Executable vertical seam passed product and academic review |
+| B.2R | Complete and accepted | Activity graph, calendar semantics, vocabulary, and task hierarchy accepted 2026-07-14 |
+| B.3 | **Starting** | Validate schema/REST/domain correction and one-way DS100 import fidelity |
+| B.4 | Not started | Run representative Course Design and active-Term tasks on real handlers |
+| D | Not started | Integrated validation and reviewed `redesign` → `main` cutover |
+| Review | Future checkpoint | Confirm Term closeout/history improves later planning |
+| AI | Future, after manual workflow | Reconfirm evidence and approval boundaries |
+| Authoring | Future, evidence-scoped | Scope from demonstrated Course/Term use |
+| Platform | Future, adoption-scoped | Reassess collaboration, sections, teams, and institutions |
+| Blackboard | Parked | Start only with a real Ultra sandbox and compatibility fixtures |
+
+This table is the canonical sequence. `docs/phase-roadmap.md` is the concise
+repository-wide summary; `course-lm-topic-redesign-v2.md` is the architecture
+record and amendment history, not the live execution status.
 
 ## Core constraint: the schema is a serial chokepoint
 
@@ -110,6 +135,46 @@ Design Chunk 9. Blocked on operator providing a **Blackboard Ultra SaaS** sandbo
 (`blackboard-ultra-<date>`). Not on the critical path; do not gate the cutover on
 it. Ships as a follow-on once sandbox access exists.
 
+### Phase B.2R — activity and interaction refreeze (SERIAL CHECKPOINT)
+
+**Accepted by the operator on 2026-07-14.** The semantic correction, reviewed
+activity-workspace prototype, grading-excluded DS100 evidence map, proposed
+activity/versioning/REST/calendar contract, and migration cuts are backed up on
+their working branches. The prototype exact-time display omission is corrected.
+The blocked-by-gate build prompts are published on issues #33 (B.3) and #34
+(B.4). Browser task checks, visual/responsive review, the Vitest suite,
+typecheck, lint, and an isolated Node 22 Podman production build are green. The
+checkpoint evidence and review questions are recorded in
+`course-planner-b2r-checkpoint-2026-07-14.md`. B.3 is authorized to proceed using
+issue #33 and the accepted defaults. B.4 remains blocked until B.3 passes its own
+operator checkpoint.
+
+The accepted B.1 integration and B.2 ledger spike exposed a domain mismatch that
+invalidates part of the Phase A.1 frozen contract. Before additional application
+implementation, run the bounded B.2R work defined in
+`course-planner-b2-operator-feedback-2026-07-13.md`:
+
+- map the allowed DS100 evidence into the proposed activity graph;
+- propose the smallest versioned schema/REST correction;
+- specify Institution-calendar inheritance, Term-only exceptions, and special
+  periods;
+- build a dense task prototype against a realistic fixture; and
+- report which B.1/B.2 code survives, adapts, or retires.
+
+This phase may delegate small file-owned inventories and prototype construction,
+but the contract synthesis is serial and frontier-reviewed. Reviewed slices are
+committed and pushed to their working branches for recoverability; a pushed branch
+does not imply gate acceptance or merge readiness. B.2R ends with operator
+acceptance. Do not launch the B.3 implementation lanes before that gate.
+
+After acceptance:
+
+- **B.3** (issue #33) implements schema/domain/REST plus the one-way DS100
+  importer.
+- **B.4** (issue #34) builds the Course design studio and active-Term daily driver
+  on real handlers.
+- **Phase D** performs integration, verification, and the reviewed `main` cutover.
+
 ### Phase D — Integration + verification (SERIAL, closing pass)
 
 Design Chunk 10. Merge lanes into `redesign`, reconcile, run full suite (unit,
@@ -118,9 +183,12 @@ index. Then the single reviewed `redesign` → `main` cutover.
 
 ## Parallel width, honestly
 
-One unavoidable serial bottleneck (Phase A) → genuine 3-way fan-out (Phase B) →
-serial merge/verify (Phase D). Blackboard is parallel-or-deferred throughout.
-Realistic max concurrency: **3 agents**, and only after the contract freezes.
+The completed path was one unavoidable serial bottleneck (Phase A) followed by a
+genuine three-way Phase B fan-out. B.2R is now a serial semantic refreeze with only
+disjoint evidence/prototype slices delegated. After its gate, B.3 may fan out again
+behind the corrected contract; B.4 integrates the product workflow, and D remains
+serial. Blackboard is deferred throughout. Realistic maximum concurrency remains
+**3 agents**, and only after the relevant contract freezes.
 
 ## Execution vehicle
 
@@ -128,13 +196,13 @@ Background Codex agents via `launch_codex_bg.sh` (the vehicle that produced this
 redesign). Phase A is one agent; Phase B is a batch of 2–3, each on its own
 worktree off `redesign`. Capture each `RUN_LOG=` line for monitoring.
 
-## Open orchestration decisions
+## Orchestration decisions
 
-- Lane count for Phase B: 3 lanes as tabled, or fold Lane B into A if agent
-  bandwidth is tight (import/export is the most separable, so keep it split if
-  running 3).
-- Whether Lane C UI targets the frozen stub contract with a mock server, or waits
-  for Lane A's first handler slice. Recommend mock-against-contract to preserve
-  parallelism.
-- Review cadence: per-lane PR into `redesign`, or continuous integration on
-  `redesign` with review only at the `main` cutover.
+- Use small, disjoint, file-owned prompts with exact context; size turn budgets to
+  the task rather than imposing an arbitrary low cap.
+- Select reasoning effort per job once the launcher supports it. A mini model with
+  inherited high reasoning is not a reliable cost control.
+- After a coherent slice passes coordinator review and proportional validation,
+  commit and push its working branch even when the human gate is still pending.
+- Keep contract synthesis, cross-lifecycle judgment, integration, merges, and gate
+  transitions serial and explicitly reviewed.

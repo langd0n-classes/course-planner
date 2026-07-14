@@ -1455,3 +1455,67 @@ Not implemented in Phase A.1, recorded here as a future seam: separate
 co-instructor teaching the same Term will need a future Term-level join
 (e.g. a `TermInstructor` membership table analogous to
 `InstructorInstitution`); no such join is added now.
+
+## 11. Amendment v2.3 — activity-first curriculum graph (2026-07-13)
+
+Operator review of the B.2 working spike supersedes the direct Topic-to-Learning-
+Module model in §§1–4 and §9.1. Learning Modules organize learning activities;
+Topics attach to those activities through Introduced, Practiced, and Assessed
+actions. ADR-0002 and
+`docs/plans/course-planner-b2-operator-feedback-2026-07-13.md` record the accepted
+decision and checkpoint scope.
+
+This amendment deliberately freezes the **semantic boundary**, not a guessed final
+Prisma layout. A bounded B.2R contract spike must map the real DS100 exemplar before
+the schema freezes again.
+
+### 11.1 Superseded relationships
+
+- `Topic.learningModuleId` is not part of the target model, nullable or otherwise.
+- `LearningModuleVersionTopic` cannot remain the source of Learning Module
+  membership. The replacement snapshots ordered activity versions in an LM.
+- Direct Session-only `Coverage` and level-free `AssessmentTopic` cannot together
+  represent the target Topic flow. Planned and delivered activity-topic I/P/A use
+  must be explicit for both meetings and coursework.
+
+Existing tables may be adapted during B.2R, but no implementation should preserve
+these relationships merely because Phase A.1 already built them.
+
+### 11.2 Required semantic model
+
+- A Course owns versionable learning activities with explicit meeting,
+  assignment, project, and exam behavior where their lifecycles differ.
+- A shared planning identity supports common board placement, artifacts, Topic
+  actions, term adoption, and historical links without creating one nullable
+  universal record.
+- An activity has zero or one primary Learning Module for deterministic placement.
+  Independent scope links may reference multiple Learning Modules or Topics.
+- Activity-to-Topic use carries I/P/A. Repeated Topic/action use is valid across
+  activities; the product emits navigable warnings, not uniqueness errors.
+- Projects and exams may be cross-cutting. Milestone relationships connect their
+  release, work, review, phase, and due events to meetings or timestamps.
+- Instructor-owned activity types pair a custom label with a canonical behavior
+  family. Milestone roles are separate. Terms preserve adopted type labels or
+  versions for historical stability.
+
+### 11.3 Calendar scope correction
+
+Institution-owned, versioned Academic Calendars remain the shared source. Terms
+materialize from them and may add offering-specific exceptions. Instructor-wide
+calendar overrides are removed from initial-launch scope. Finals and similar
+periods remain explicit calendar facts with special meeting behavior rather than
+being forced into an ordinary-week or outside-Term binary.
+
+### 11.4 Refreeze condition
+
+Phase B implementation does not resume from the v2.2 contract. B.2R must first
+produce:
+
+1. a DS100 evidence-to-domain map excluding grading data;
+2. a proposed version/pinning and REST contract for activities, I/P/A Topic use,
+   custom types, milestones, and Term delivery;
+3. a migration-impact report for the current redesign; and
+4. a dense coded task prototype using realistic scale.
+
+The operator must accept that checkpoint before another schema or implementation
+fan-out.

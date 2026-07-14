@@ -9,7 +9,8 @@ these.
 This is not a data entry form that produces downloads.
 It is the instructor's primary planning environment.
 Everything an instructor needs to see — term summaries,
-skill coverage, session details, module overviews —
+Topic coverage, meeting and coursework details, module
+overviews —
 should be visible and interactive in the UI.
 
 The instructor should plan, analyze, and reason about
@@ -40,7 +41,8 @@ replaced yet, not a feature to optimize for.
 
 Schedule changes are the core use case. When an
 instructor considers canceling a lecture, moving a
-session, or redistributing skills, they need to
+meeting or deadline, or redistributing Topic coverage,
+they need to
 **simulate the impact before committing**.
 
 The app should always let you explore "what would happen
@@ -53,43 +55,46 @@ significant change.
 ## 4. Gaps are more important than coverage
 
 The coverage matrix exists to show what's MISSING, not
-to celebrate what's present. Uncovered skills, unassessed
+to celebrate what's present. Uncovered Topics, unassessed
 competencies, and planning gaps (class days with no
 session) are the primary signals the app should surface.
 
 Every view should make gaps visually obvious. An empty
 row in the coverage matrix, a dashed outline on an
-unplanned class day, a broken line in the skill flow —
+unplanned class day, a broken line in the Topic flow —
 these are the app's most important UI elements.
 
-## 5. Skills flow through the semester
+## 5. Topics flow through learning activities
 
-A course is not a flat list of sessions. It is a directed
-graph where skills are introduced, practiced, and assessed
-across sessions in a specific order. The app should make
-this flow visible.
+A course is not a flat list of meetings. It is a directed
+graph where Topics are introduced, practiced, and assessed
+across meetings and coursework in a specific order.
+Learning Modules organize those activities; they do not
+own Topics directly. The app should make this flow visible.
 
-The mental model: skills are horizontal lines flowing
-left to right through the semester. Sessions are the
-nodes they pass through. Coverage levels (I → P → A) are
-the progression. When a session is canceled, the lines
-break — and the app should show exactly which lines break
-and where.
+The mental model: Topics are horizontal lines flowing left to right through
+the semester. Meetings, assignments, projects, and exams are the nodes they
+pass through. Coverage actions (I → P → A) are the progression. Repeating an
+action may be intentional, so duplicates warn and cross-link rather than fail.
+When a meeting is canceled or coursework changes, the app should show exactly
+which lines break and where.
 
-This "skill flow" view is the app's signature
+This "Topic flow" view is the app's signature
 visualization and the thing that makes it a planning tool
 rather than a database.
 
-## 6. The calendar is container, sessions are content
+## 6. The calendar is container, activities are content
 
 The academic calendar defines WHEN class could meet
-(available time slots, holidays, breaks). Sessions define
+(available time slots, holidays, breaks, and special periods). Meetings and
+milestones define
 WHAT happens in those slots. These are separate concepts:
 
 - **Calendar slots**: "Tuesday Jan 20 is a class day."
   "Feb 16 is a holiday." Imported from the institution's
   academic calendar.
-- **Sessions**: "Lecture 05: Programming Basics." Placed
+- **Meetings and milestones**: "Lecture 05: Programming Basics" or
+  "Project 1 due." Placed
   into calendar slots by the instructor.
 - **Planning gaps**: A class day with no session assigned.
   These are visible warnings, not invisible.
