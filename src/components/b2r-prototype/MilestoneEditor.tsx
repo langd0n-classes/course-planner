@@ -190,7 +190,7 @@ export default function MilestoneEditor({ activity, meetingActivities, onAdd, on
                 const summary = linkedMeeting
                   ? `Pinned to ${linkedMeeting.title}${linkedMeeting.date ? ` · ${formatIsoDate(linkedMeeting.date)}` : ""}`
                   : milestone.date
-                    ? `Exact date ${formatDateTime(milestone.date)}`
+                    ? `Exact date ${formatDateTime(milestone.date, milestone.time)}`
                     : "Standalone milestone";
 
                 return (

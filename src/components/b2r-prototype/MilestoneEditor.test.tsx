@@ -91,6 +91,7 @@ describe("MilestoneEditor", () => {
         label: "Final report",
         linkedActivityId: null,
         date: "2026-05-12",
+        time: "09:00",
       },
     ];
     const project = makeProject({ milestones: existing });
@@ -105,7 +106,7 @@ describe("MilestoneEditor", () => {
 
     const dueRow = within(list).getByLabelText(/Milestone Due Final report/i);
     expect(within(dueRow).getByText("Final report")).toBeTruthy();
-    expect(within(dueRow).getByText(/Exact date May 12, 2026/i)).toBeTruthy();
+    expect(within(dueRow).getByText(/Exact date May 12, 2026 · 09:00/i)).toBeTruthy();
   });
 
   it("calls the removal callback for a milestone", () => {
