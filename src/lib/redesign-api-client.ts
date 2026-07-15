@@ -58,6 +58,15 @@ import type {
   ReplaceCourseInstitutionsResponse,
   SessionDto,
   TermDto,
+  TermActivityDto,
+  TermActivityRevisionApplyRequest,
+  TermActivityRevisionApplyResponse,
+  TermActivityRevisionPreviewRequest,
+  TermActivityRevisionPreviewResponse,
+  TermAdoptionApplyRequest,
+  TermAdoptionApplyResponse,
+  TermAdoptionPreviewRequest,
+  TermAdoptionPreviewResponse,
   TermLearningModuleDto,
   TermLifecycleTransition,
   TermStatus,
@@ -529,6 +538,46 @@ const _api = {
   listTermLearningModules: (termId: Id): Promise<TermLearningModuleDto[]> =>
     get<{ learningModules: TermLearningModuleDto[] }>(`/api/terms/${termId}/learning-modules`).then(
       (d) => d.learningModules,
+    ),
+
+  listTermActivities: (termId: Id): Promise<TermActivityDto[]> =>
+    get<{ termActivities: TermActivityDto[] }>(`/api/terms/${termId}/activities`).then(
+      (d) => d.termActivities,
+    ),
+
+  previewTermActivityAdoption: (
+    termId: Id,
+    request: TermAdoptionPreviewRequest,
+  ): Promise<TermAdoptionPreviewResponse> =>
+    post<TermAdoptionPreviewResponse>(`/api/terms/${termId}/adoption-preview`, request),
+
+  applyTermActivityAdoption: (
+    termId: Id,
+    request: TermAdoptionApplyRequest,
+  ): Promise<TermAdoptionApplyResponse> =>
+    post<TermAdoptionApplyResponse>(`/api/terms/${termId}/adoption-apply`, request),
+
+  getTermActivity: (id: Id): Promise<TermActivityDto> =>
+    get<{ termActivity: TermActivityDto }>(`/api/term-activities/${id}`).then(
+      (d) => d.termActivity,
+    ),
+
+  previewTermActivityRevision: (
+    termActivityId: Id,
+    request: TermActivityRevisionPreviewRequest,
+  ): Promise<TermActivityRevisionPreviewResponse> =>
+    post<TermActivityRevisionPreviewResponse>(
+      `/api/term-activities/${termActivityId}/revision-preview`,
+      request,
+    ),
+
+  applyTermActivityRevision: (
+    termActivityId: Id,
+    request: TermActivityRevisionApplyRequest,
+  ): Promise<TermActivityRevisionApplyResponse> =>
+    post<TermActivityRevisionApplyResponse>(
+      `/api/term-activities/${termActivityId}/revision-apply`,
+      request,
     ),
 
   getTermLearningModule: (id: Id): Promise<TermLearningModuleDto> =>
