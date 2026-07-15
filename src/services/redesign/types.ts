@@ -42,3 +42,54 @@ export type ActivityTypeVersionDraft = {
   description?: string | null;
   changeSummary?: string | null;
 };
+
+export type ActivityBehaviorFamily = "meeting" | "coursework" | "assessment";
+
+export type MeetingActivityDetailDraft = {
+  behaviorFamily: "meeting";
+  defaultDurationMinutes?: number | null;
+  modality?: string | null;
+  preparationNotes?: string | null;
+  authoringNotes?: string | null;
+};
+
+export type CourseworkActivityDetailDraft = {
+  behaviorFamily: "coursework";
+  submissionPolicy?: string | null;
+  releasePolicy?: string | null;
+  authoringNotes?: string | null;
+};
+
+export type AssessmentActivityDetailDraft = {
+  behaviorFamily: "assessment";
+  modality?: string | null;
+  authoringNotes?: string | null;
+};
+
+export type ActivityDetailDraft =
+  | MeetingActivityDetailDraft
+  | CourseworkActivityDetailDraft
+  | AssessmentActivityDetailDraft;
+
+export type MilestoneRole = "release" | "work" | "phase_release" | "review" | "due";
+
+export type MilestoneTemplateDraft = {
+  sequence: number;
+  role: MilestoneRole;
+  label: string;
+  linkedActivityId?: string | null;
+  relativeDays?: number | null;
+  defaultTime?: string | null;
+  timeZone?: string | null;
+  notes?: string | null;
+  provenance?: unknown;
+};
+
+export type ActivityVersionDraft = {
+  title: string;
+  summary?: string | null;
+  activityTypeVersionId: string;
+  changeSummary?: string | null;
+  detail: ActivityDetailDraft;
+  milestoneTemplates?: MilestoneTemplateDraft[];
+};

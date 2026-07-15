@@ -4,8 +4,12 @@
 import type {
   AcademicCalendarDto,
   ActivityBehaviorFamily,
+  ActivityDetailDto,
+  ActivityDto,
   ActivityTypeDto,
   ActivityTypeVersionDto,
+  ActivityVersionDto,
+  ActivityVersionMilestoneTemplateDto,
   AssessmentDto,
   CalendarSlotDto,
   CourseActivityTypeVersionDto,
@@ -14,6 +18,7 @@ import type {
   InstitutionDto,
   LearningModuleDto,
   LearningModuleVersionDto,
+  MilestoneRole,
   SessionDto,
   TermDto,
   TermLearningModuleDto,
@@ -199,6 +204,61 @@ type CourseActivityTypeVersionRow = {
   courseId: string;
   activityTypeVersionId: string;
   enabledAt: Date;
+};
+
+type ActivityRow = {
+  id: string;
+  courseId: string;
+  stableCode: string;
+  currentVersionId: string | null;
+  archivedAt: Date | null;
+};
+
+type MeetingActivityDetailRow = {
+  defaultDurationMinutes: number | null;
+  modality: string | null;
+  preparationNotes: string | null;
+  authoringNotes: string | null;
+};
+
+type CourseworkActivityDetailRow = {
+  submissionPolicy: string | null;
+  releasePolicy: string | null;
+  authoringNotes: string | null;
+};
+
+type AssessmentActivityDetailRow = {
+  modality: string | null;
+  authoringNotes: string | null;
+};
+
+type ActivityVersionMilestoneTemplateRow = {
+  id: string;
+  activityVersionId: string;
+  sequence: number;
+  role: MilestoneRole;
+  label: string;
+  linkedActivityId: string | null;
+  relativeDays: number | null;
+  defaultTime: string | null;
+  timeZone: string | null;
+  notes: string | null;
+  provenance: unknown | null;
+};
+
+type ActivityVersionRow = {
+  id: string;
+  activityId: string;
+  revision: number;
+  title: string;
+  summary: string | null;
+  activityTypeVersionId: string;
+  changeSummary: string | null;
+  publishedAt: Date | null;
+  meetingDetail?: MeetingActivityDetailRow | null;
+  courseworkDetail?: CourseworkActivityDetailRow | null;
+  assessmentDetail?: AssessmentActivityDetailRow | null;
+  milestoneTemplates?: ActivityVersionMilestoneTemplateRow[];
 };
 
 type AssessmentTopicRow = {
@@ -463,5 +523,79 @@ export function toAssessmentDto(
     progressionStage: assessment.progressionStage,
     topicVersionIds: (assessment.topics ?? []).map((t) => t.topicVersionId),
     archivedAt: toIsoDateTimeNullable(assessment.archivedAt),
+  };
+}
+
+export function toActivityDto(activity: ActivityRow): ActivityDto {
+  return {
+    id: activity.id,
+    courseId: activity.courseId,
+    stableCode: activity.stableCode,
+    currentVersionId: activity.currentVersionId,
+    archivedAt: toIsoDateTimeNullable(activity.archivedAt),
+  };
+}
+
+function toActivityDetailDto(version: ActivityVersionRow): ActivityDetailDto {
+  if (version.meetingDetail) {
+    return {
+      behaviorFamily: "meeting",
+      defaultDurationMinutes: version.meetingDetail.defaultDurationMinutes,
+      modality: version.meetingDetail.modality,
+      preparationNotes: version.meetingDetail.preparationNotes,
+      authoringNotes: version.meetingDetail.authoringNotes,
+    };
+  }
+  if (version.courseworkDetail) {
+    return {
+      behaviorFamily: "coursework",
+      submissionPolicy: version.courseworkDetail.submissionPolicy,
+      releasePolicy: version.courseworkDetail.releasePolicy,
+      authoringNotes: version.courseworkDetail.authoringNotes,
+    };
+  }
+  if (version.assessmentDetail) {
+    return {
+      behaviorFamily: "assessment",
+      modality: version.assessmentDetail.modality,
+      authoringNotes: version.assessmentDetail.authoringNotes,
+    };
+  }
+  throw new Error("Activity version is missing its behavior-family detail row");
+}
+
+function toMilestoneTemplateDto(
+  template: ActivityVersionMilestoneTemplateRow,
+): ActivityVersionMilestoneTemplateDto {
+  return {
+    id: template.id,
+    activityVersionId: template.activityVersionId,
+    sequence: template.sequence,
+    role: template.role,
+    label: template.label,
+    linkedActivityId: template.linkedActivityId,
+    relativeDays: template.relativeDays,
+    defaultTime: template.defaultTime,
+    timeZone: template.timeZone,
+    notes: template.notes,
+    provenance: template.provenance,
+  };
+}
+
+export function toActivityVersionDto(version: ActivityVersionRow): ActivityVersionDto {
+  return {
+    id: version.id,
+    activityId: version.activityId,
+    revision: version.revision,
+    title: version.title,
+    summary: version.summary,
+    activityTypeVersionId: version.activityTypeVersionId,
+    changeSummary: version.changeSummary,
+    publishedAt: toIsoDateTimeNullable(version.publishedAt),
+    detail: toActivityDetailDto(version),
+    milestoneTemplates: (version.milestoneTemplates ?? [])
+      .slice()
+      .sort((a, b) => a.sequence - b.sequence)
+      .map(toMilestoneTemplateDto),
   };
 }
