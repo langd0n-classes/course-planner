@@ -8,6 +8,7 @@ export * from "./clone-service";
 export * from "./course-service";
 export * from "./course-package-codec";
 export * from "./errors";
+export * from "./exemplar-import-service";
 export * from "./invariants";
 export * from "./lifecycle-service";
 export * from "./offering-service";

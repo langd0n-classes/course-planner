@@ -344,6 +344,12 @@ const _api = {
   replaceCourseInstitutions: (courseId: Id, institutionIds: Id[]): Promise<ReplaceCourseInstitutionsResponse> =>
     put<ReplaceCourseInstitutionsResponse>(`/api/courses/${courseId}/institutions`, { institutionIds }),
 
+  runExemplarImport: (
+    courseId: Id,
+    input: { mode: "stage" | "preview" | "apply"; snapshot?: unknown },
+  ): Promise<unknown> =>
+    post<unknown>(`/api/courses/${courseId}/exemplar-import`, input),
+
   // Learning modules ----------------------------------------------------------
   listLearningModules: (courseId: Id): Promise<LearningModuleDto[]> =>
     get<{ learningModules: LearningModuleDto[] }>(`/api/courses/${courseId}/learning-modules`).then(

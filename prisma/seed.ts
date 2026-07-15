@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { ExemplarImportService, genericDemoExemplarSnapshot } from "../src/services/redesign/exemplar-import-service";
 
 const prisma = new PrismaClient();
 const db = prisma;
@@ -16,6 +17,29 @@ async function main() {
     await tx.calendarSlot.deleteMany();
     await tx.termLearningModule.deleteMany();
     await tx.term.deleteMany();
+    await tx.termActivityMilestone.deleteMany();
+    await tx.termActivityRevisionTopicAction.deleteMany();
+    await tx.termMeetingActivityRevision.deleteMany();
+    await tx.termCourseworkActivityRevision.deleteMany();
+    await tx.termAssessmentActivityRevision.deleteMany();
+    await tx.termActivity.updateMany({ data: { plannedRevisionId: null, deliveredRevisionId: null } });
+    await tx.termActivityRevision.deleteMany();
+    await tx.termActivity.deleteMany();
+    await tx.activityVersionTopicAction.deleteMany();
+    await tx.activityTopicScope.deleteMany();
+    await tx.activityVersionLearningModuleScope.deleteMany();
+    await tx.learningModuleVersionActivity.deleteMany();
+    await tx.activityVersionMilestoneTemplate.deleteMany();
+    await tx.meetingActivityVersion.deleteMany();
+    await tx.courseworkActivityVersion.deleteMany();
+    await tx.assessmentActivityVersion.deleteMany();
+    await tx.activity.updateMany({ data: { currentVersionId: null } });
+    await tx.activityVersion.deleteMany();
+    await tx.activity.deleteMany();
+    await tx.courseActivityTypeVersion.deleteMany();
+    await tx.activityType.updateMany({ data: { currentVersionId: null } });
+    await tx.activityTypeVersion.deleteMany();
+    await tx.activityType.deleteMany();
     await tx.topicPrerequisite.deleteMany();
     await tx.learningModuleVersionTopic.deleteMany();
     await tx.topic.updateMany({ data: { currentVersionId: null } });
@@ -36,8 +60,8 @@ async function main() {
 
   const instructor = await db.instructor.create({
     data: {
-      name: "Alice Chen",
-      email: "alice.chen@example.edu",
+      name: "Instructor A",
+      email: "instructor-a",
     },
   });
 
@@ -396,6 +420,31 @@ async function main() {
   console.log(`- Planned LM version: ${plannedVersion.id}`);
   console.log(`- Delivered LM version: ${deliveredVersion.id}`);
   console.log(`- Unassigned topic: ${unassignedTopic.stableCode}`);
+
+  const exemplarSerial = await db.instructor.update({
+    where: { id: instructor.id },
+    data: { nextCourseSerial: { increment: 1 } },
+    select: { nextCourseSerial: true },
+  });
+  const exemplarCourse = await db.course.create({
+    data: {
+      instructorId: instructor.id,
+      shortId: (exemplarSerial.nextCourseSerial - 1).toString().padStart(3, "0"),
+      title: "Intro Data Science",
+      number: "IDS 101",
+      description: "Generic demo course built through the exemplar importer seed path.",
+      institutions: {
+        create: { institutionId: institution.id },
+      },
+    },
+  });
+  const importer = new ExemplarImportService();
+  await importer.apply(db, {
+    instructorId: instructor.id,
+    courseId: exemplarCourse.id,
+    snapshot: genericDemoExemplarSnapshot,
+  });
+  console.log(`- Exemplar importer course ${exemplarCourse.shortId}: ${exemplarCourse.title}`);
 }
 
 main()
