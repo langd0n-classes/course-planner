@@ -20,6 +20,14 @@ import {
   updateTopic,
 } from "./revision-service";
 import { applyTermCreation, createTerm } from "./term-service";
+import {
+  applyTermCalendar,
+  createAcademicCalendarVersion,
+  createTermCalendarException,
+  listAcademicCalendarVersionsForInstructor,
+  previewTermCalendar,
+  updateTermCalendarException,
+} from "./academic-calendar-service";
 
 function createTransactionalDb(tx: Record<string, any>) {
   return {
@@ -699,6 +707,292 @@ describe("term ownership invariants", () => {
       capacitySource: "heuristic",
       capacityReason: "First class day after explicit break ending 2027-11-26.",
     });
+  });
+});
+
+describe("versioned academic calendar services", () => {
+  it("creates additive immutable calendar versions with ordered events and periods", async () => {
+    const createdVersions: any[] = [];
+    const createdEvents: any[] = [];
+    const createdPeriods: any[] = [];
+    const updatedCalendars: any[] = [];
+
+    const db = createTransactionalDb({
+      instructorInstitution: {
+        findUnique: async () => ({ instructorId: "instructor-1", institutionId: "institution-1", status: "active" }),
+      },
+      academicCalendar: {
+        findUnique: async ({ where }: any) =>
+          where.id === "calendar-1" ? { id: "calendar-1", institutionId: "institution-1", version: 1 } : null,
+        update: async ({ data }: any) => {
+          updatedCalendars.push(data);
+          return { id: "calendar-1", institutionId: "institution-1", ...data };
+        },
+      },
+      academicCalendarVersion: {
+        findMany: async () => [{ id: "version-1", academicCalendarId: "calendar-1", version: 1, name: "2026-2027", academicYear: "2026-2027", sourceUri: null, publishedAt: new Date("2026-01-01T00:00:00.000Z"), archivedAt: null }],
+        create: async ({ data }: any) => {
+          createdVersions.push(data);
+          return { id: "version-2", archivedAt: null, publishedAt: new Date("2026-07-15T00:00:00.000Z"), ...data };
+        },
+      },
+      academicCalendarEvent: {
+        createMany: async ({ data }: any) => {
+          createdEvents.push(...data);
+          return { count: data.length };
+        },
+      },
+      academicCalendarPeriod: {
+        createMany: async ({ data }: any) => {
+          createdPeriods.push(...data);
+          return { count: data.length };
+        },
+      },
+    });
+
+    const created = await createAcademicCalendarVersion(db, {
+      instructorId: "instructor-1",
+      academicCalendarId: "calendar-1",
+      name: "2026-2027 Revised",
+      academicYear: "2026-2027",
+      sourceUri: "https://example.edu/calendar/v2",
+      events: [
+        { eventType: "term_end", startsOn: new Date("2027-05-14"), endsOn: new Date("2027-05-14"), label: "Term ends" },
+        { eventType: "term_start", startsOn: new Date("2027-01-11"), endsOn: new Date("2027-01-11"), label: "Term starts" },
+      ],
+      periods: [
+        { kind: "special_schedule", label: "Finals", startsOn: new Date("2027-05-17"), endsOn: new Date("2027-05-21") },
+        { kind: "instructional", label: "Instruction", startsOn: new Date("2027-01-11"), endsOn: new Date("2027-05-14") },
+      ],
+    });
+
+    expect(created.version.version).toBe(2);
+    expect(createdVersions[0]).toMatchObject({
+      academicCalendarId: "calendar-1",
+      version: 2,
+      name: "2026-2027 Revised",
+      academicYear: "2026-2027",
+    });
+    expect(createdEvents.map((event) => event.eventType)).toEqual(["term_start", "term_end"]);
+    expect(createdPeriods.map((period) => period.kind)).toEqual(["instructional", "special_schedule"]);
+    expect(updatedCalendars[0]).toMatchObject({
+      currentVersionId: "version-2",
+      version: 2,
+      name: "2026-2027 Revised",
+      academicYear: "2026-2027",
+      sourceUri: "https://example.edu/calendar/v2",
+    });
+
+    const listed = await listAcademicCalendarVersionsForInstructor(db, "instructor-1", "calendar-1");
+    expect(listed).toHaveLength(1);
+    expect(listed[0]?.version).toBe(1);
+  });
+
+  it("materializes a term calendar from the adopted version without reading InstructorCalendarOverride", async () => {
+    let overrideReads = 0;
+
+    const db = createTransactionalDb({
+      term: {
+        findUnique: async () => ({
+          id: "term-1",
+          courseId: "course-1",
+          academicCalendarId: "calendar-1",
+          academicCalendarVersionId: "version-1",
+          startDate: new Date("2027-05-10"),
+          endDate: new Date("2027-05-21"),
+          course: { instructorId: "instructor-1" },
+        }),
+      },
+      academicCalendarVersion: {
+        findUnique: async () => ({ id: "version-1", academicCalendarId: "calendar-1" }),
+      },
+      academicCalendarEvent: {
+        findMany: async () => [
+          { id: "event-start", academicCalendarId: "calendar-1", academicCalendarVersionId: "version-1", eventType: "term_start", startsOn: new Date("2027-05-10"), endsOn: new Date("2027-05-10"), label: "Start", sourceUri: null },
+          { id: "event-end", academicCalendarId: "calendar-1", academicCalendarVersionId: "version-1", eventType: "term_end", startsOn: new Date("2027-05-21"), endsOn: new Date("2027-05-21"), label: "End", sourceUri: null },
+        ],
+      },
+      academicCalendarPeriod: {
+        findMany: async () => [
+          { id: "period-1", academicCalendarVersionId: "version-1", kind: "instructional", label: "Instruction", startsOn: new Date("2027-05-10"), endsOn: new Date("2027-05-14") },
+          { id: "period-2", academicCalendarVersionId: "version-1", kind: "special_schedule", label: "Finals", startsOn: new Date("2027-05-17"), endsOn: new Date("2027-05-21") },
+        ],
+      },
+      termCalendarException: {
+        findMany: async () => [],
+      },
+      instructorCalendarOverride: {
+        findMany: async () => {
+          overrideReads += 1;
+          return [];
+        },
+      },
+      calendarSlot: {
+        findMany: async () => [],
+      },
+    });
+
+    const preview = await previewTermCalendar(db, {
+      instructorId: "instructor-1",
+      termId: "term-1",
+      meetingPatterns: [
+        {
+          activityTypeVersionId: "activity-type-1",
+          label: "Lecture",
+          daysOfWeek: ["monday", "wednesday", "friday"],
+          startTimeLocal: "09:00",
+          endTimeLocal: "10:15",
+          timeZone: "America/New_York",
+          startsOn: "2027-05-10",
+          endsOn: "2027-05-21",
+        },
+      ],
+    });
+
+    expect(overrideReads).toBe(0);
+    expect(preview.calendarSlotCandidates.some((slot) => slot.slotType === "finals")).toBe(true);
+    expect(preview.calendarSlotCandidates.some((slot) => slot.slotType === "class_day")).toBe(true);
+  });
+
+  it("applies deterministic preview/apply output and term-only exception actions", async () => {
+    const meetingPatternCreates: any[] = [];
+    const exceptionCreates: any[] = [];
+    const calendarSlotCreates: any[] = [];
+    const calendarSlotDeletes: any[] = [];
+
+    const tx = {
+      term: {
+        findUnique: async () => ({
+          id: "term-1",
+          courseId: "course-1",
+          academicCalendarId: "calendar-1",
+          academicCalendarVersionId: "version-1",
+          startDate: new Date("2027-03-01"),
+          endDate: new Date("2027-03-12"),
+          course: { instructorId: "instructor-1" },
+        }),
+      },
+      academicCalendarVersion: {
+        findUnique: async () => ({ id: "version-1", academicCalendarId: "calendar-1" }),
+      },
+      academicCalendarEvent: {
+        findMany: async () => [
+          { id: "event-start", academicCalendarId: "calendar-1", academicCalendarVersionId: "version-1", eventType: "term_start", startsOn: new Date("2027-03-01"), endsOn: new Date("2027-03-01"), label: "Start", sourceUri: null },
+          { id: "event-end", academicCalendarId: "calendar-1", academicCalendarVersionId: "version-1", eventType: "term_end", startsOn: new Date("2027-03-12"), endsOn: new Date("2027-03-12"), label: "End", sourceUri: null },
+        ],
+      },
+      academicCalendarPeriod: {
+        findMany: async () => [
+          { id: "period-instruction", academicCalendarVersionId: "version-1", kind: "instructional", label: "Instruction", startsOn: new Date("2027-03-01"), endsOn: new Date("2027-03-12") },
+          { id: "period-break", academicCalendarVersionId: "version-1", kind: "no_instruction", label: "Break", startsOn: new Date("2027-03-08"), endsOn: new Date("2027-03-08") },
+        ],
+      },
+      termCalendarException: {
+        findMany: async () => [
+          { id: "exception-cancel", termId: "term-1", action: "cancel", activityTypeVersionId: "activity-type-1", calendarSlotId: null, targetDate: new Date("2027-03-03"), startsAt: null, endsAt: null, label: "Canceled", reason: "Storm", provenance: null, createdAt: new Date("2027-01-01T00:00:00.000Z") },
+          { id: "exception-add", termId: "term-1", action: "add", activityTypeVersionId: "activity-type-1", calendarSlotId: null, targetDate: null, startsAt: new Date("2027-03-09T14:00:00.000Z"), endsAt: new Date("2027-03-09T15:00:00.000Z"), label: "Makeup", reason: "Replacement", provenance: null, createdAt: new Date("2027-01-02T00:00:00.000Z") },
+          { id: "exception-replace", termId: "term-1", action: "replace", activityTypeVersionId: "activity-type-1", calendarSlotId: "slot-2027-03-05", targetDate: new Date("2027-03-10"), startsAt: null, endsAt: null, label: "Moved", reason: "Conference", provenance: null, createdAt: new Date("2027-01-03T00:00:00.000Z") },
+          { id: "exception-modify", termId: "term-1", action: "modify", activityTypeVersionId: null, calendarSlotId: "slot-2027-03-12", targetDate: new Date("2027-03-12"), startsAt: null, endsAt: null, label: "Review Day", reason: "Compressed week", provenance: { mode: "review" }, createdAt: new Date("2027-01-04T00:00:00.000Z") },
+        ],
+        create: async ({ data }: any) => {
+          exceptionCreates.push(data);
+          return { id: `exception-${exceptionCreates.length}`, ...data };
+        },
+        findUnique: async () => ({
+          id: "exception-1",
+          termId: "term-1",
+          term: { course: { instructorId: "instructor-1" } },
+        }),
+        update: async ({ data }: any) => ({ id: "exception-1", termId: "term-1", ...data }),
+      },
+      activityTypeVersion: {
+        findUnique: async () => ({
+          id: "activity-type-1",
+          label: "Lecture",
+          activityType: { instructorId: "instructor-1" },
+        }),
+      },
+      calendarSlot: {
+        findMany: async () => [
+          { id: "existing-slot", termId: "term-1", date: new Date("2027-03-01") },
+          { id: "slot-2027-03-05", termId: "term-1", date: new Date("2027-03-05") },
+          { id: "slot-2027-03-12", termId: "term-1", date: new Date("2027-03-12") },
+        ],
+        deleteMany: async ({ where }: any) => {
+          calendarSlotDeletes.push(where);
+          return { count: 1 };
+        },
+        createMany: async ({ data }: any) => {
+          calendarSlotCreates.push(...data);
+          return { count: data.length };
+        },
+      },
+      termMeetingPattern: {
+        deleteMany: async () => ({ count: 2 }),
+        createMany: async ({ data }: any) => {
+          meetingPatternCreates.push(...data);
+          return { count: data.length };
+        },
+      },
+    };
+    const db = createTransactionalDb(tx);
+
+    await createTermCalendarException(db, "term-1", {
+      instructorId: "instructor-1",
+      action: "cancel",
+      targetDate: new Date("2027-03-04"),
+      reason: "Snow",
+    });
+    expect(exceptionCreates).toHaveLength(1);
+
+    const meetingPatterns = [
+      {
+        activityTypeVersionId: "activity-type-1",
+        label: "Lecture",
+        daysOfWeek: ["monday", "wednesday", "friday"],
+        startTimeLocal: "09:00",
+        endTimeLocal: "10:15",
+        timeZone: "America/New_York",
+        startsOn: "2027-03-01",
+        endsOn: "2027-03-12",
+      },
+    ];
+
+    const previewA = await previewTermCalendar(db, {
+      instructorId: "instructor-1",
+      termId: "term-1",
+      meetingPatterns,
+    });
+    const previewB = await previewTermCalendar(db, {
+      instructorId: "instructor-1",
+      termId: "term-1",
+      meetingPatterns,
+    });
+
+    expect(previewA).toEqual(previewB);
+    expect(previewA.calendarSlotCandidates.find((slot) => slot.date === "2027-03-03")?.slotType).toBe("break_day");
+    expect(previewA.calendarSlotCandidates.find((slot) => slot.date === "2027-03-09")?.label).toBe("Makeup");
+    expect(previewA.calendarSlotCandidates.find((slot) => slot.date === "2027-03-10")?.label).toBe("Moved");
+    expect(previewA.calendarSlotCandidates.find((slot) => slot.date === "2027-03-12")?.label).toBe("Review Day");
+    expect(previewA.conflicts.some((conflict) => conflict.code === "meeting_day_blocked")).toBe(true);
+
+    const applied = await applyTermCalendar(db, {
+      instructorId: "instructor-1",
+      termId: "term-1",
+      previewToken: previewA.previewToken,
+      expectedCurrentCalendarSlotCount: previewA.expectedCurrentCalendarSlotCount,
+      meetingPatterns,
+    });
+
+    expect(applied.calendarSlotCount).toBe(previewA.calendarSlotCandidates.length);
+    expect(meetingPatternCreates).toHaveLength(1);
+    expect(calendarSlotDeletes).toEqual([{ termId: "term-1" }]);
+    expect(calendarSlotCreates).toHaveLength(previewA.calendarSlotCandidates.length);
+
+    const updatedException = await updateTermCalendarException(db, "exception-1", "instructor-1", {
+      label: "Updated label",
+    });
+    expect(updatedException.label).toBe("Updated label");
   });
 });
 

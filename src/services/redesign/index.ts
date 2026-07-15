@@ -1,4 +1,5 @@
 export * from "./activity-relationship-service";
+export * from "./academic-calendar-service";
 export * from "./activity-service";
 export * from "./activity-type-service";
 export * from "./archive-removal-service";

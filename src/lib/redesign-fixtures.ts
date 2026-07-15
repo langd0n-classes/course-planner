@@ -576,6 +576,90 @@ export function createAcademicCalendarVersionRequest(
   };
 }
 
+/** Generic spring seasonal calendar fixture */
+export function createSpringAcademicCalendarVersionRequest(
+  overrides?: Partial<CreateAcademicCalendarVersionRequest>
+): CreateAcademicCalendarVersionRequest {
+  return createAcademicCalendarVersionRequest({
+    name: "Spring Term",
+    academicYear: "2027",
+    events: [
+      {
+        eventType: "term_start",
+        startsOn: "2027-01-11",
+        endsOn: "2027-01-11",
+        label: "Spring term starts",
+      },
+      {
+        eventType: "term_end",
+        startsOn: "2027-05-07",
+        endsOn: "2027-05-07",
+        label: "Spring term ends",
+      },
+    ],
+    periods: [
+      {
+        kind: "instructional",
+        label: "Spring instruction",
+        startsOn: "2027-01-11",
+        endsOn: "2027-05-07",
+      },
+      {
+        kind: "special_schedule",
+        label: "Finals period",
+        startsOn: "2027-05-10",
+        endsOn: "2027-05-14",
+      },
+    ],
+    ...overrides,
+  });
+}
+
+/** Generic fall seasonal calendar fixture */
+export function createFallAcademicCalendarVersionRequest(
+  overrides?: Partial<CreateAcademicCalendarVersionRequest>
+): CreateAcademicCalendarVersionRequest {
+  return createAcademicCalendarVersionRequest({
+    name: "Fall Term",
+    academicYear: "2027",
+    events: [
+      {
+        eventType: "term_start",
+        startsOn: "2027-08-30",
+        endsOn: "2027-08-30",
+        label: "Fall term starts",
+      },
+      {
+        eventType: "term_end",
+        startsOn: "2027-12-17",
+        endsOn: "2027-12-17",
+        label: "Fall term ends",
+      },
+    ],
+    periods: [
+      {
+        kind: "instructional",
+        label: "Fall instruction",
+        startsOn: "2027-08-30",
+        endsOn: "2027-12-10",
+      },
+      {
+        kind: "no_instruction",
+        label: "Autumn recess",
+        startsOn: "2027-11-24",
+        endsOn: "2027-11-26",
+      },
+      {
+        kind: "special_schedule",
+        label: "Finals period",
+        startsOn: "2027-12-13",
+        endsOn: "2027-12-17",
+      },
+    ],
+    ...overrides,
+  });
+}
+
 /** Factory for B.3 UpsertTermMeetingPatternRequest */
 export function createUpsertTermMeetingPatternRequest(
   overrides?: Partial<UpsertTermMeetingPatternRequest>
