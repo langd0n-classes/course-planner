@@ -10,9 +10,12 @@
 import type {
   AcademicCalendarDto,
   ActivityDto,
+  ActivityTopicScopeDto,
   ActivityTypeDto,
   ActivityTypeVersionDto,
   ActivityVersionDto,
+  ActivityVersionLearningModuleScopeDto,
+  ActivityVersionTopicActionWithSiblingsDto,
   ArtifactDto,
   AssessmentDto,
   CalendarSlotDto,
@@ -243,6 +246,55 @@ const _api = {
       (d) => d.version,
     ),
 
+  // Activity Learning Module scope --------------------------------------------
+  listActivityLmScope: (activityVersionId: Id): Promise<ActivityVersionLearningModuleScopeDto[]> =>
+    get<{ scopes: ActivityVersionLearningModuleScopeDto[] }>(
+      `/api/activity-versions/${activityVersionId}/lm-scope`,
+    ).then((d) => d.scopes),
+
+  replaceActivityLmScope: (
+    activityVersionId: Id,
+    scopes: Array<{ learningModuleId: Id; emphasis?: string | null; notes?: string | null }>,
+  ): Promise<ActivityVersionLearningModuleScopeDto[]> =>
+    put<{ scopes: ActivityVersionLearningModuleScopeDto[] }>(
+      `/api/activity-versions/${activityVersionId}/lm-scope`,
+      { scopes },
+    ).then((d) => d.scopes),
+
+  // Activity Topic actions -----------------------------------------------------
+  listActivityTopicActions: (activityVersionId: Id): Promise<ActivityVersionTopicActionWithSiblingsDto[]> =>
+    get<{ topicActions: ActivityVersionTopicActionWithSiblingsDto[] }>(
+      `/api/activity-versions/${activityVersionId}/topic-actions`,
+    ).then((d) => d.topicActions),
+
+  replaceActivityTopicActions: (
+    activityVersionId: Id,
+    actions: Array<{
+      topicVersionId: Id;
+      action: "introduced" | "practiced" | "assessed";
+      notes?: string | null;
+      provenance?: unknown;
+    }>,
+  ): Promise<ActivityVersionTopicActionWithSiblingsDto[]> =>
+    put<{ topicActions: ActivityVersionTopicActionWithSiblingsDto[] }>(
+      `/api/activity-versions/${activityVersionId}/topic-actions`,
+      { actions },
+    ).then((d) => d.topicActions),
+
+  // Activity Topic scope --------------------------------------------------------
+  listActivityTopicScope: (activityId: Id): Promise<ActivityTopicScopeDto[]> =>
+    get<{ scopes: ActivityTopicScopeDto[] }>(`/api/activities/${activityId}/topic-scope`).then(
+      (d) => d.scopes,
+    ),
+
+  replaceActivityTopicScope: (
+    activityId: Id,
+    scopes: Array<{ topicId: Id; notes?: string | null; provenance?: unknown }>,
+  ): Promise<ActivityTopicScopeDto[]> =>
+    put<{ scopes: ActivityTopicScopeDto[] }>(`/api/activities/${activityId}/topic-scope`, {
+      scopes,
+    }).then((d) => d.scopes),
+
   // Institutions / academic calendars -----------------------------------------
   listInstitutions: (): Promise<InstitutionDto[]> =>
     get<{ institutions: InstitutionDto[] }>("/api/institutions").then((d) => d.institutions),
@@ -348,6 +400,7 @@ const _api = {
       defaultSequence: source.defaultSequence,
       changeSummary: changeSummary ?? `Restored from revision ${source.revision}`,
       topics: source.topics,
+      activities: source.activities,
     });
   },
 

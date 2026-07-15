@@ -72,6 +72,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         defaultSequence: parsed.data.defaultSequence,
         changeSummary: parsed.data.changeSummary,
         topics: parsed.data.topics,
+        activities: parsed.data.activities,
       },
     });
 

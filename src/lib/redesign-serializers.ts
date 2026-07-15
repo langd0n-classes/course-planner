@@ -6,14 +6,20 @@ import type {
   ActivityBehaviorFamily,
   ActivityDetailDto,
   ActivityDto,
+  ActivityTopicActionSiblingDto,
+  ActivityTopicScopeDto,
   ActivityTypeDto,
   ActivityTypeVersionDto,
   ActivityVersionDto,
+  ActivityVersionLearningModuleScopeDto,
   ActivityVersionMilestoneTemplateDto,
+  ActivityVersionTopicActionDto,
+  ActivityVersionTopicActionWithSiblingsDto,
   AssessmentDto,
   CalendarSlotDto,
   CourseActivityTypeVersionDto,
   CoverageDto,
+  CoverageLevel,
   CourseDto,
   InstitutionDto,
   LearningModuleDto,
@@ -111,6 +117,12 @@ type LearningModuleVersionTopicRow = {
   sequence: number;
 };
 
+type LearningModuleVersionActivityRow = {
+  activityVersionId: string;
+  sequence: number;
+  notes: string | null;
+};
+
 type LearningModuleVersionRow = {
   id: string;
   learningModuleId: string;
@@ -124,6 +136,7 @@ type LearningModuleVersionRow = {
   changeSummary: string | null;
   publishedAt: Date | null;
   topics?: LearningModuleVersionTopicRow[];
+  activities?: LearningModuleVersionActivityRow[];
 };
 
 type TopicRow = {
@@ -244,6 +257,42 @@ type ActivityVersionMilestoneTemplateRow = {
   timeZone: string | null;
   notes: string | null;
   provenance: unknown | null;
+};
+
+type ActivityVersionLearningModuleScopeRow = {
+  id: string;
+  activityVersionId: string;
+  learningModuleId: string;
+  emphasis: string | null;
+  notes: string | null;
+};
+
+type ActivityVersionTopicActionSiblingRow = {
+  activityVersionId: string;
+  activityId: string;
+  activityStableCode: string;
+  action: CoverageLevel;
+};
+
+type ActivityVersionTopicActionRow = {
+  id: string;
+  activityVersionId: string;
+  topicVersionId: string;
+  action: CoverageLevel;
+  notes: string | null;
+  provenance: unknown;
+};
+
+type ActivityVersionTopicActionWithSiblingsRow = ActivityVersionTopicActionRow & {
+  siblings: ActivityVersionTopicActionSiblingRow[];
+};
+
+type ActivityTopicScopeRow = {
+  id: string;
+  activityId: string;
+  topicId: string;
+  notes: string | null;
+  provenance: unknown;
 };
 
 type ActivityVersionRow = {
@@ -404,6 +453,11 @@ export function toLearningModuleVersionDto(
     topics: (version.topics ?? []).map((topic) => ({
       topicVersionId: topic.topicVersionId,
       sequence: topic.sequence,
+    })),
+    activities: (version.activities ?? []).map((activity) => ({
+      activityVersionId: activity.activityVersionId,
+      sequence: activity.sequence,
+      notes: activity.notes,
     })),
   };
 }
@@ -597,5 +651,60 @@ export function toActivityVersionDto(version: ActivityVersionRow): ActivityVersi
       .slice()
       .sort((a, b) => a.sequence - b.sequence)
       .map(toMilestoneTemplateDto),
+  };
+}
+
+export function toActivityVersionLearningModuleScopeDto(
+  scope: ActivityVersionLearningModuleScopeRow,
+): ActivityVersionLearningModuleScopeDto {
+  return {
+    id: scope.id,
+    activityVersionId: scope.activityVersionId,
+    learningModuleId: scope.learningModuleId,
+    emphasis: scope.emphasis,
+    notes: scope.notes,
+  };
+}
+
+export function toActivityTopicActionSiblingDto(
+  sibling: ActivityVersionTopicActionSiblingRow,
+): ActivityTopicActionSiblingDto {
+  return {
+    activityVersionId: sibling.activityVersionId,
+    activityId: sibling.activityId,
+    activityStableCode: sibling.activityStableCode,
+    action: sibling.action,
+  };
+}
+
+export function toActivityVersionTopicActionDto(
+  action: ActivityVersionTopicActionRow,
+): ActivityVersionTopicActionDto {
+  return {
+    id: action.id,
+    activityVersionId: action.activityVersionId,
+    topicVersionId: action.topicVersionId,
+    action: action.action,
+    notes: action.notes,
+    provenance: action.provenance ?? null,
+  };
+}
+
+export function toActivityVersionTopicActionWithSiblingsDto(
+  action: ActivityVersionTopicActionWithSiblingsRow,
+): ActivityVersionTopicActionWithSiblingsDto {
+  return {
+    ...toActivityVersionTopicActionDto(action),
+    siblings: action.siblings.map(toActivityTopicActionSiblingDto),
+  };
+}
+
+export function toActivityTopicScopeDto(scope: ActivityTopicScopeRow): ActivityTopicScopeDto {
+  return {
+    id: scope.id,
+    activityId: scope.activityId,
+    topicId: scope.topicId,
+    notes: scope.notes,
+    provenance: scope.provenance ?? null,
   };
 }

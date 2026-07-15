@@ -1,6 +1,7 @@
 import { ConcurrencyConflictError, DomainInvariantError, ImmutablePublishedVersionError } from "./errors";
 import { assertSameCourse, assertSameIdentityVersion } from "./invariants";
 import type {
+  ActivitySnapshotInput,
   LearningModuleVersionDraft,
   RedesignDb,
   RedesignTx,
@@ -162,7 +163,14 @@ export async function getLearningModuleForInstructor(
   return db.$transaction(async (tx) => {
     const learningModule = await tx.learningModule.findUnique({
       where: { id: learningModuleId },
-      include: { currentVersion: { include: { topics: { orderBy: { sequence: "asc" } } } } },
+      include: {
+        currentVersion: {
+          include: {
+            topics: { orderBy: { sequence: "asc" } },
+            activities: { orderBy: { sequence: "asc" } },
+          },
+        },
+      },
     });
     if (!learningModule) {
       throw new DomainInvariantError("Learning Module not found");
@@ -191,7 +199,10 @@ export async function listLearningModuleVersionsForInstructor(
     await assertOwnedCourse(tx, instructorId, learningModule.courseId);
     return tx.learningModuleVersion.findMany({
       where: { learningModuleId },
-      include: { topics: { orderBy: { sequence: "asc" } } },
+      include: {
+        topics: { orderBy: { sequence: "asc" } },
+        activities: { orderBy: { sequence: "asc" } },
+      },
       orderBy: { revision: "asc" },
     });
   });
@@ -431,6 +442,9 @@ export async function createLearningModuleVersion(
     input.learningModule,
     input.draft.topics ?? [],
   );
+  const activities = input.draft.activities ?? [];
+  assertValidActivitySnapshotSequences(activities);
+  await assertActivityVersionSnapshotsBelongToLearningModuleCourse(tx, input.learningModule, activities);
 
   return tx.learningModuleVersion.create({
     data: {
@@ -451,8 +465,18 @@ export async function createLearningModuleVersion(
           sequence: topic.sequence,
         })),
       },
+      activities: {
+        create: activities.map((activity) => ({
+          activityVersionId: activity.activityVersionId,
+          sequence: activity.sequence,
+          notes: activity.notes ?? null,
+        })),
+      },
     },
-    include: { topics: { orderBy: { sequence: "asc" } } },
+    include: {
+      topics: { orderBy: { sequence: "asc" } },
+      activities: { orderBy: { sequence: "asc" } },
+    },
   });
 }
 
@@ -497,6 +521,43 @@ async function assertTopicSnapshotsBelongToLearningModuleCourse(
         "Learning Module version snapshots may only contain Topic versions assigned to that Learning Module",
       );
     }
+  }
+}
+
+function assertValidActivitySnapshotSequences(activities: ActivitySnapshotInput[]) {
+  const sequences = new Set<number>();
+  const activityVersionIds = new Set<string>();
+  for (const snapshot of activities) {
+    if (snapshot.sequence < 0) {
+      throw new DomainInvariantError("Learning Module version Activity membership sequence must be nonnegative");
+    }
+    if (sequences.has(snapshot.sequence)) {
+      throw new DomainInvariantError("Learning Module version Activity membership sequence must be unique within the version");
+    }
+    if (activityVersionIds.has(snapshot.activityVersionId)) {
+      throw new DomainInvariantError("Learning Module version Activity membership may not repeat an Activity version");
+    }
+    sequences.add(snapshot.sequence);
+    activityVersionIds.add(snapshot.activityVersionId);
+  }
+}
+
+async function assertActivityVersionSnapshotsBelongToLearningModuleCourse(
+  tx: RedesignTx,
+  learningModule: { id: string; courseId: string },
+  activities: ActivitySnapshotInput[],
+) {
+  for (const snapshot of activities) {
+    const activityVersion = await tx.activityVersion.findUnique({
+      where: { id: snapshot.activityVersionId },
+      include: { activity: { select: { courseId: true } } },
+    });
+    if (!activityVersion) throw new DomainInvariantError("Activity version not found");
+    assertSameCourse(
+      learningModule.courseId,
+      activityVersion.activity.courseId,
+      "Learning Module Activity membership",
+    );
   }
 }
 

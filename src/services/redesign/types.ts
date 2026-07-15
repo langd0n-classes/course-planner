@@ -19,6 +19,12 @@ export type TopicSnapshotInput = {
   sequence: number;
 };
 
+export type ActivitySnapshotInput = {
+  activityVersionId: string;
+  sequence: number;
+  notes?: string | null;
+};
+
 export type LearningModuleVersionDraft = {
   title: string;
   description?: string | null;
@@ -28,6 +34,7 @@ export type LearningModuleVersionDraft = {
   defaultSequence?: number | null;
   changeSummary?: string | null;
   topics?: TopicSnapshotInput[];
+  activities?: ActivitySnapshotInput[];
 };
 
 export type TopicVersionDraft = {
