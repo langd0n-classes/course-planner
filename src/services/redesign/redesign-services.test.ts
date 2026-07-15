@@ -12,6 +12,7 @@ import { createCourse } from "./course-service";
 import { ConcurrencyConflictError, DomainInvariantError, ImmutablePublishedVersionError } from "./errors";
 import { assertAcyclicTopicPrerequisite, assertSameCourse } from "./invariants";
 import { transitionTermLifecycle } from "./lifecycle-service";
+import { toLearningModuleVersionDto } from "../../lib/redesign-serializers";
 import { computePlannedDeliveredDiff, createDeliveredRevision } from "./offering-service";
 import {
   assertPublishedLearningModuleVersionImmutable,
@@ -795,6 +796,156 @@ describe("revision subsystem", () => {
         "lmv-1",
       ),
     ).rejects.toThrow(ImmutablePublishedVersionError);
+  });
+
+  describe("ordered Activity-version membership", () => {
+    function baseTx(overrides: Record<string, any> = {}) {
+      return {
+        learningModule: {
+          findUnique: async () => ({
+            id: "lm-1",
+            courseId: "course-1",
+            currentVersionId: "lmv-1",
+            currentVersion: {
+              id: "lmv-1",
+              learningModuleId: "lm-1",
+              revision: 1,
+              publishedAt: null,
+            },
+          }),
+          update: async ({ data }: any) => data,
+        },
+        learningModuleVersion: {
+          create: async ({ data }: any) => ({
+            id: "lmv-2",
+            learningModuleId: data.learningModuleId,
+            revision: data.revision,
+            publishedAt: data.publishedAt,
+            topics: [...data.topics.create],
+            activities: [...data.activities.create].sort((a: any, b: any) => a.sequence - b.sequence),
+          }),
+        },
+        activityVersion: {
+          findUnique: async () => ({ id: "av-1", activity: { courseId: "course-1" } }),
+        },
+        ...overrides,
+      };
+    }
+
+    it("persists ordered Activity-version membership and serializes it in sequence order", async () => {
+      const version = await reviseLearningModule(createTransactionalDb(baseTx()), {
+        learningModuleId: "lm-1",
+        expectedCurrentVersionId: "lmv-1",
+        createdByInstructorId: "instructor-1",
+        draft: {
+          title: "Probability revised",
+          activities: [
+            { activityVersionId: "av-2", sequence: 1, notes: null },
+            { activityVersionId: "av-1", sequence: 0, notes: "Intro" },
+          ],
+        },
+      });
+
+      expect(version.activities.map((a: any) => a.activityVersionId)).toEqual(["av-1", "av-2"]);
+
+      const dto = toLearningModuleVersionDto(version as any);
+      expect(dto.activities).toEqual([
+        { activityVersionId: "av-1", sequence: 0, notes: "Intro" },
+        { activityVersionId: "av-2", sequence: 1, notes: null },
+      ]);
+    });
+
+    it("leaves legacy Topic membership untouched when only activities are supplied", async () => {
+      const tx = baseTx({
+        topicVersion: {
+          findUnique: async () => ({
+            topic: { courseId: "course-1", learningModuleId: "lm-1" },
+          }),
+        },
+      });
+
+      const version = await reviseLearningModule(createTransactionalDb(tx), {
+        learningModuleId: "lm-1",
+        expectedCurrentVersionId: "lmv-1",
+        createdByInstructorId: "instructor-1",
+        draft: {
+          title: "Probability revised",
+          topics: [{ topicVersionId: "tv-1", sequence: 0 }],
+          activities: [{ activityVersionId: "av-1", sequence: 0 }],
+        },
+      });
+
+      expect(version.topics).toEqual([{ topicVersionId: "tv-1", sequence: 0 }]);
+      expect(version.activities.map((a: any) => a.activityVersionId)).toEqual(["av-1"]);
+    });
+
+    it("rejects an Activity version snapshot from a foreign Course", async () => {
+      const tx = baseTx({
+        activityVersion: {
+          findUnique: async () => ({ id: "av-1", activity: { courseId: "course-2" } }),
+        },
+      });
+
+      await expect(
+        reviseLearningModule(createTransactionalDb(tx), {
+          learningModuleId: "lm-1",
+          expectedCurrentVersionId: "lmv-1",
+          createdByInstructorId: "instructor-1",
+          draft: {
+            title: "Probability revised",
+            activities: [{ activityVersionId: "av-1", sequence: 0 }],
+          },
+        }),
+      ).rejects.toThrow("cannot cross Course boundaries");
+    });
+
+    it("rejects a negative Activity membership sequence", async () => {
+      await expect(
+        reviseLearningModule(createTransactionalDb(baseTx()), {
+          learningModuleId: "lm-1",
+          expectedCurrentVersionId: "lmv-1",
+          createdByInstructorId: "instructor-1",
+          draft: {
+            title: "Probability revised",
+            activities: [{ activityVersionId: "av-1", sequence: -1 }],
+          },
+        }),
+      ).rejects.toThrow("nonnegative");
+    });
+
+    it("rejects a duplicate sequence across Activity memberships", async () => {
+      await expect(
+        reviseLearningModule(createTransactionalDb(baseTx()), {
+          learningModuleId: "lm-1",
+          expectedCurrentVersionId: "lmv-1",
+          createdByInstructorId: "instructor-1",
+          draft: {
+            title: "Probability revised",
+            activities: [
+              { activityVersionId: "av-1", sequence: 0 },
+              { activityVersionId: "av-2", sequence: 0 },
+            ],
+          },
+        }),
+      ).rejects.toThrow("sequence must be unique");
+    });
+
+    it("rejects repeating the same Activity version in one membership set", async () => {
+      await expect(
+        reviseLearningModule(createTransactionalDb(baseTx()), {
+          learningModuleId: "lm-1",
+          expectedCurrentVersionId: "lmv-1",
+          createdByInstructorId: "instructor-1",
+          draft: {
+            title: "Probability revised",
+            activities: [
+              { activityVersionId: "av-1", sequence: 0 },
+              { activityVersionId: "av-1", sequence: 1 },
+            ],
+          },
+        }),
+      ).rejects.toThrow("may not repeat an Activity version");
+    });
   });
 });
 
