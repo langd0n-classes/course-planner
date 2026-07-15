@@ -27,6 +27,11 @@ import type {
   MilestoneRole,
   SessionDto,
   TermDto,
+  TermActivityDto,
+  TermActivityMilestoneDto,
+  TermActivityRevisionDetailDto,
+  TermActivityRevisionDto,
+  TermActivityRevisionTopicActionDto,
   TermLearningModuleDto,
   TopicDto,
   TopicPrerequisiteDto,
@@ -110,6 +115,22 @@ type TermLearningModuleRow = {
   deliveredLearningModuleVersionId: string | null;
   sequence: number;
   notes: string | null;
+};
+
+type TermActivityRow = {
+  id: string;
+  termId: string;
+  courseId: string;
+  activityId: string;
+  plannedActivityVersionId: string;
+  activityTypeVersionId: string;
+  adoptedLabel: string;
+  termLearningModuleId: string | null;
+  ordinal: number | null;
+  lifecycleState: string | null;
+  plannedRevisionId: string | null;
+  deliveredRevisionId: string | null;
+  archivedAt: Date | null;
 };
 
 type LearningModuleVersionTopicRow = {
@@ -310,6 +331,68 @@ type ActivityVersionRow = {
   milestoneTemplates?: ActivityVersionMilestoneTemplateRow[];
 };
 
+type TermMeetingRevisionDetailRow = {
+  calendarSlotId: string | null;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  status: string | null;
+  modality: string | null;
+  overrideReason: string | null;
+  overrideEvidence: unknown | null;
+};
+
+type TermCourseworkRevisionDetailRow = {
+  lifecycleState: string | null;
+  deliveryNotes: string | null;
+};
+
+type TermAssessmentRevisionDetailRow = {
+  lifecycleState: string | null;
+  modality: string | null;
+  deliveryNotes: string | null;
+};
+
+type TermActivityRevisionTopicActionRow = {
+  id: string;
+  termActivityRevisionId: string;
+  topicVersionId: string;
+  action: CoverageLevel;
+  notes: string | null;
+  provenance: unknown | null;
+};
+
+type TermActivityMilestoneRow = {
+  id: string;
+  termActivityRevisionId: string;
+  sourceTemplateId: string | null;
+  role: MilestoneRole;
+  label: string;
+  linkedTermActivityId: string | null;
+  occursAt: Date | null;
+  timeZone: string | null;
+  anchorPolicy: "follow_activity" | "fixed_instant" | "standalone";
+  notes: string | null;
+  provenance: unknown | null;
+  createdAt?: Date;
+};
+
+type TermActivityRevisionRow = {
+  id: string;
+  termActivityId: string;
+  revision: number;
+  baseActivityVersionId: string;
+  title: string;
+  summary: string | null;
+  changeReason: string | null;
+  createdByInstructorId: string | null;
+  createdAt: Date;
+  meetingDetail?: TermMeetingRevisionDetailRow | null;
+  courseworkDetail?: TermCourseworkRevisionDetailRow | null;
+  assessmentDetail?: TermAssessmentRevisionDetailRow | null;
+  topicActions?: TermActivityRevisionTopicActionRow[];
+  milestones?: TermActivityMilestoneRow[];
+};
+
 type AssessmentTopicRow = {
   topicVersionId: string;
 };
@@ -432,6 +515,24 @@ export function toTermLearningModuleDto(tlm: TermLearningModuleRow): TermLearnin
     deliveredLearningModuleVersionId: tlm.deliveredLearningModuleVersionId,
     sequence: tlm.sequence,
     notes: tlm.notes,
+  };
+}
+
+export function toTermActivityDto(activity: TermActivityRow): TermActivityDto {
+  return {
+    id: activity.id,
+    termId: activity.termId,
+    courseId: activity.courseId,
+    activityId: activity.activityId,
+    plannedActivityVersionId: activity.plannedActivityVersionId,
+    activityTypeVersionId: activity.activityTypeVersionId,
+    adoptedLabel: activity.adoptedLabel,
+    termLearningModuleId: activity.termLearningModuleId,
+    ordinal: activity.ordinal,
+    lifecycleState: activity.lifecycleState,
+    plannedRevisionId: activity.plannedRevisionId,
+    deliveredRevisionId: activity.deliveredRevisionId,
+    archivedAt: toIsoDateTimeNullable(activity.archivedAt),
   };
 }
 
@@ -616,6 +717,98 @@ function toActivityDetailDto(version: ActivityVersionRow): ActivityDetailDto {
     };
   }
   throw new Error("Activity version is missing its behavior-family detail row");
+}
+
+function toTermActivityRevisionDetailDto(
+  revision: TermActivityRevisionRow,
+): TermActivityRevisionDetailDto {
+  if (revision.meetingDetail) {
+    return {
+      behaviorFamily: "meeting",
+      calendarSlotId: revision.meetingDetail.calendarSlotId,
+      startsAt: toIsoDateTimeNullable(revision.meetingDetail.startsAt),
+      endsAt: toIsoDateTimeNullable(revision.meetingDetail.endsAt),
+      status: revision.meetingDetail.status,
+      modality: revision.meetingDetail.modality,
+      overrideReason: revision.meetingDetail.overrideReason,
+      overrideEvidence: revision.meetingDetail.overrideEvidence,
+    };
+  }
+  if (revision.courseworkDetail) {
+    return {
+      behaviorFamily: "coursework",
+      lifecycleState: revision.courseworkDetail.lifecycleState,
+      deliveryNotes: revision.courseworkDetail.deliveryNotes,
+    };
+  }
+  if (revision.assessmentDetail) {
+    return {
+      behaviorFamily: "assessment",
+      lifecycleState: revision.assessmentDetail.lifecycleState,
+      modality: revision.assessmentDetail.modality,
+      deliveryNotes: revision.assessmentDetail.deliveryNotes,
+    };
+  }
+  throw new Error("Term Activity revision is missing its behavior-family detail row");
+}
+
+function toTermActivityRevisionTopicActionDto(
+  action: TermActivityRevisionTopicActionRow,
+): TermActivityRevisionTopicActionDto {
+  return {
+    id: action.id,
+    termActivityRevisionId: action.termActivityRevisionId,
+    topicVersionId: action.topicVersionId,
+    action: action.action,
+    notes: action.notes,
+    provenance: action.provenance,
+  };
+}
+
+function toTermActivityMilestoneDto(milestone: TermActivityMilestoneRow): TermActivityMilestoneDto {
+  return {
+    id: milestone.id,
+    termActivityRevisionId: milestone.termActivityRevisionId,
+    sourceTemplateId: milestone.sourceTemplateId,
+    role: milestone.role,
+    label: milestone.label,
+    linkedTermActivityId: milestone.linkedTermActivityId,
+    occursAt: toIsoDateTimeNullable(milestone.occursAt),
+    timeZone: milestone.timeZone,
+    anchorPolicy: milestone.anchorPolicy,
+    notes: milestone.notes,
+    provenance: milestone.provenance,
+  };
+}
+
+export function toTermActivityRevisionDto(
+  revision: TermActivityRevisionRow,
+): TermActivityRevisionDto {
+  return {
+    id: revision.id,
+    termActivityId: revision.termActivityId,
+    revision: revision.revision,
+    baseActivityVersionId: revision.baseActivityVersionId,
+    title: revision.title,
+    summary: revision.summary,
+    changeReason: revision.changeReason,
+    createdByInstructorId: revision.createdByInstructorId,
+    createdAt: revision.createdAt.toISOString(),
+    detail: toTermActivityRevisionDetailDto(revision),
+    topicActions: [...(revision.topicActions ?? [])]
+      .sort((left, right) =>
+        `${left.topicVersionId}:${left.action}`.localeCompare(`${right.topicVersionId}:${right.action}`),
+      )
+      .map(toTermActivityRevisionTopicActionDto),
+    milestones: [...(revision.milestones ?? [])]
+      .sort((left, right) => {
+        const leftTime = left.createdAt?.getTime() ?? 0;
+        const rightTime = right.createdAt?.getTime() ?? 0;
+        if (leftTime !== rightTime) return leftTime - rightTime;
+        return left.id.localeCompare(right.id);
+      })
+      .map(toTermActivityMilestoneDto),
+  };
 }
 
 function toMilestoneTemplateDto(

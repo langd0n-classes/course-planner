@@ -100,3 +100,56 @@ export type ActivityVersionDraft = {
   detail: ActivityDetailDraft;
   milestoneTemplates?: MilestoneTemplateDraft[];
 };
+
+export type TermActivityRevisionDetailDraft =
+  | {
+      behaviorFamily: "meeting";
+      calendarSlotId?: string | null;
+      startsAt?: Date | null;
+      endsAt?: Date | null;
+      status?: string | null;
+      modality?: string | null;
+      overrideReason?: string | null;
+      overrideEvidence?: unknown | null;
+    }
+  | {
+      behaviorFamily: "coursework";
+      lifecycleState?: string | null;
+      deliveryNotes?: string | null;
+    }
+  | {
+      behaviorFamily: "assessment";
+      lifecycleState?: string | null;
+      modality?: string | null;
+      deliveryNotes?: string | null;
+    };
+
+export type TermActivityRevisionTopicActionInput = {
+  topicVersionId: string;
+  action: "introduced" | "practiced" | "assessed";
+  notes?: string | null;
+  provenance?: unknown;
+};
+
+export type TermMilestoneAnchorPolicy = "follow_activity" | "fixed_instant" | "standalone";
+
+export type TermActivityMilestoneInput = {
+  sourceTemplateId?: string | null;
+  role: MilestoneRole;
+  label: string;
+  linkedTermActivityId?: string | null;
+  occursAt?: Date | null;
+  timeZone?: string | null;
+  anchorPolicy: TermMilestoneAnchorPolicy;
+  notes?: string | null;
+  provenance?: unknown;
+};
+
+export type TermActivityRevisionDraft = {
+  title: string;
+  summary?: string | null;
+  changeReason?: string | null;
+  detail: TermActivityRevisionDetailDraft;
+  topicActions?: TermActivityRevisionTopicActionInput[];
+  milestones?: TermActivityMilestoneInput[];
+};

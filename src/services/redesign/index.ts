@@ -18,4 +18,5 @@ export * from "./prerequisite-service";
 export * from "./revision-service";
 export * from "./syllabus-import-service";
 export * from "./term-service";
+export * from "./term-activity-service";
 export * from "./types";

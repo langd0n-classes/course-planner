@@ -73,6 +73,34 @@ export async function getOwnedTermLearningModuleForInstructor(
   return termLearningModule;
 }
 
+export async function getOwnedTermActivityForInstructor(
+  tx: RedesignTx,
+  instructorId: string,
+  termActivityId: string,
+) {
+  const termActivity = await tx.termActivity.findUnique({
+    where: { id: termActivityId },
+    include: {
+      term: {
+        include: {
+          course: {
+            select: { instructorId: true },
+          },
+        },
+      },
+    },
+  });
+  if (!termActivity) {
+    throw new DomainInvariantError("Term Activity not found");
+  }
+  assertOwnedByInstructor(
+    instructorId,
+    termActivity.term?.course?.instructorId,
+    "Term Activity not found",
+  );
+  return termActivity;
+}
+
 export async function getOwnedSessionForInstructor(
   tx: RedesignTx,
   instructorId: string,
