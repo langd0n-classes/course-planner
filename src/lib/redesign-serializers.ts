@@ -3,6 +3,9 @@
 // byte-identical shapes for the same underlying row.
 import type {
   AcademicCalendarDto,
+  AcademicCalendarEventDto,
+  AcademicCalendarPeriodDto,
+  AcademicCalendarVersionDto,
   ActivityBehaviorFamily,
   ActivityDetailDto,
   ActivityDto,
@@ -17,6 +20,8 @@ import type {
   ActivityVersionTopicActionWithSiblingsDto,
   AssessmentDto,
   CalendarSlotDto,
+  CalendarSlotCandidateDto,
+  CalendarMaterializationConflictDto,
   CourseActivityTypeVersionDto,
   CoverageDto,
   CoverageLevel,
@@ -32,6 +37,9 @@ import type {
   TermActivityRevisionDetailDto,
   TermActivityRevisionDto,
   TermActivityRevisionTopicActionDto,
+  TermCalendarExceptionDto,
+  TermCalendarSlotProvenanceDto,
+  TermMeetingPatternDto,
   TermLearningModuleDto,
   TopicDto,
   TopicPrerequisiteDto,
@@ -55,6 +63,37 @@ type AcademicCalendarRow = {
   sourceUri: string | null;
   publishedAt: Date | null;
   archivedAt: Date | null;
+};
+
+type AcademicCalendarVersionRow = {
+  id: string;
+  academicCalendarId: string;
+  version: number;
+  name: string;
+  academicYear: string;
+  sourceUri: string | null;
+  publishedAt: Date | null;
+  archivedAt: Date | null;
+};
+
+type AcademicCalendarEventRow = {
+  id: string;
+  academicCalendarId: string;
+  academicCalendarVersionId: string | null;
+  eventType: "term_start" | "term_end" | "holiday" | "break_day" | "reading_day" | "finals_start" | "finals_end" | "other";
+  startsOn: Date;
+  endsOn: Date;
+  label: string;
+  sourceUri: string | null;
+};
+
+type AcademicCalendarPeriodRow = {
+  id: string;
+  academicCalendarVersionId: string;
+  kind: "instructional" | "no_instruction" | "special_schedule";
+  label: string;
+  startsOn: Date;
+  endsOn: Date;
 };
 
 type CourseRow = {
@@ -104,6 +143,33 @@ type CalendarSlotRow = {
   instructionalCapacity: "normal" | "reduced_engagement" | "recovery" | "assessment_period";
   capacitySource: "baseline" | "heuristic" | "instructor_override";
   capacityReason: string | null;
+};
+
+type TermMeetingPatternRow = {
+  id: string;
+  termId: string;
+  activityTypeVersionId: string;
+  label: string | null;
+  daysOfWeek: string[];
+  startTimeLocal: string;
+  endTimeLocal: string | null;
+  timeZone: string;
+  startsOn: Date;
+  endsOn: Date;
+};
+
+type TermCalendarExceptionRow = {
+  id: string;
+  termId: string;
+  action: "cancel" | "add" | "replace" | "modify";
+  activityTypeVersionId: string | null;
+  calendarSlotId: string | null;
+  targetDate: Date | null;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  label: string | null;
+  reason: string | null;
+  provenance: unknown | null;
 };
 
 type TermLearningModuleRow = {
@@ -448,6 +514,43 @@ export function toAcademicCalendarDto(calendar: AcademicCalendarRow): AcademicCa
   };
 }
 
+export function toAcademicCalendarVersionDto(version: AcademicCalendarVersionRow): AcademicCalendarVersionDto {
+  return {
+    id: version.id,
+    academicCalendarId: version.academicCalendarId,
+    version: version.version,
+    name: version.name,
+    academicYear: version.academicYear,
+    sourceUri: version.sourceUri,
+    publishedAt: toIsoDateTimeNullable(version.publishedAt),
+    archivedAt: toIsoDateTimeNullable(version.archivedAt),
+  };
+}
+
+export function toAcademicCalendarEventDto(event: AcademicCalendarEventRow): AcademicCalendarEventDto {
+  return {
+    id: event.id,
+    academicCalendarId: event.academicCalendarId,
+    academicCalendarVersionId: event.academicCalendarVersionId,
+    eventType: event.eventType,
+    startsOn: toIsoDate(event.startsOn),
+    endsOn: toIsoDate(event.endsOn),
+    label: event.label,
+    sourceUri: event.sourceUri,
+  };
+}
+
+export function toAcademicCalendarPeriodDto(period: AcademicCalendarPeriodRow): AcademicCalendarPeriodDto {
+  return {
+    id: period.id,
+    academicCalendarVersionId: period.academicCalendarVersionId,
+    kind: period.kind,
+    label: period.label,
+    startsOn: toIsoDate(period.startsOn),
+    endsOn: toIsoDate(period.endsOn),
+  };
+}
+
 export function toCourseDto(course: CourseRow): CourseDto {
   return {
     id: course.id,
@@ -503,6 +606,56 @@ export function toCalendarSlotDto(slot: CalendarSlotRow): CalendarSlotDto {
     capacitySource: slot.capacitySource,
     capacityReason: slot.capacityReason,
   };
+}
+
+export function toTermMeetingPatternDto(pattern: TermMeetingPatternRow): TermMeetingPatternDto {
+  return {
+    id: pattern.id,
+    termId: pattern.termId,
+    activityTypeVersionId: pattern.activityTypeVersionId,
+    label: pattern.label,
+    daysOfWeek: pattern.daysOfWeek,
+    startTimeLocal: pattern.startTimeLocal,
+    endTimeLocal: pattern.endTimeLocal,
+    timeZone: pattern.timeZone,
+    startsOn: toIsoDate(pattern.startsOn),
+    endsOn: toIsoDate(pattern.endsOn),
+  };
+}
+
+export function toTermCalendarExceptionDto(exception: TermCalendarExceptionRow): TermCalendarExceptionDto {
+  return {
+    id: exception.id,
+    termId: exception.termId,
+    action: exception.action,
+    activityTypeVersionId: exception.activityTypeVersionId,
+    calendarSlotId: exception.calendarSlotId,
+    targetDate: toIsoDateNullable(exception.targetDate),
+    startsAt: toIsoDateTimeNullable(exception.startsAt),
+    endsAt: toIsoDateTimeNullable(exception.endsAt),
+    label: exception.label,
+    reason: exception.reason,
+    provenance: exception.provenance,
+  };
+}
+
+export function toTermCalendarSlotProvenanceDto(
+  provenance: TermCalendarSlotProvenanceDto,
+): TermCalendarSlotProvenanceDto {
+  return provenance;
+}
+
+export function toCalendarSlotCandidateDto(candidate: CalendarSlotCandidateDto): CalendarSlotCandidateDto {
+  return {
+    ...candidate,
+    provenance: candidate.provenance.map(toTermCalendarSlotProvenanceDto),
+  };
+}
+
+export function toCalendarMaterializationConflictDto(
+  conflict: CalendarMaterializationConflictDto,
+): CalendarMaterializationConflictDto {
+  return conflict;
 }
 
 export function toTermLearningModuleDto(tlm: TermLearningModuleRow): TermLearningModuleDto {

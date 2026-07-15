@@ -9,6 +9,7 @@
 
 import type {
   AcademicCalendarDto,
+  AcademicCalendarVersionDto,
   ActivityDto,
   ActivityTopicScopeDto,
   ActivityTypeDto,
@@ -25,6 +26,8 @@ import type {
   CourseDto,
   CoverageHealthDto,
   CreateAcademicCalendarRequest,
+  CreateAcademicCalendarVersionRequest,
+  CreateAcademicCalendarVersionResponse,
   CreateActivityRequest,
   CreateActivityResponse,
   CreateActivityTypeRequest,
@@ -50,6 +53,8 @@ import type {
   ListActivityVersionsResponse,
   ListArtifactsResponse,
   ListCourseActivityTypeVersionsResponse,
+  ListTermCalendarExceptionsResponse,
+  ListAcademicCalendarVersionsResponse,
   ListTermsResponse,
   PlannedDeliveredDiffResponse,
   PublishActivityVersionResponse,
@@ -67,12 +72,16 @@ import type {
   TermAdoptionApplyResponse,
   TermAdoptionPreviewRequest,
   TermAdoptionPreviewResponse,
+  TermCalendarApplyResponse,
+  TermCalendarExceptionDto,
+  TermCalendarPreviewResponse,
   TermLearningModuleDto,
   TermLifecycleTransition,
   TermStatus,
   TopicDto,
   TopicPrerequisiteDto,
   TopicVersionDto,
+  UpdateTermCalendarExceptionRequest,
   UpdateActivityRequest,
   UpdateActivityResponse,
   UpsertActivityTypeVersionRequest,
@@ -133,6 +142,17 @@ async function patch<T>(path: string, body?: unknown): Promise<T> {
     throw new ApiError(res.status, (responseBody as { error?: string }).error ?? res.statusText);
   }
   return res.json() as Promise<T>;
+}
+
+async function del(path: string): Promise<void> {
+  const res = await fetch(path, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const responseBody = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, (responseBody as { error?: string }).error ?? res.statusText);
+  }
 }
 
 async function put<T>(path: string, body?: unknown): Promise<T> {
@@ -322,6 +342,23 @@ const _api = {
     post<{ academicCalendar: AcademicCalendarDto }>("/api/academic-calendars", input).then(
       (d) => d.academicCalendar,
     ),
+
+  listAcademicCalendarVersions: (academicCalendarId: Id): Promise<AcademicCalendarVersionDto[]> =>
+    get<ListAcademicCalendarVersionsResponse>(`/api/academic-calendars/${academicCalendarId}/versions`).then(
+      (d) => d.versions,
+    ),
+
+  createAcademicCalendarVersion: (
+    academicCalendarId: Id,
+    input: CreateAcademicCalendarVersionRequest,
+  ): Promise<CreateAcademicCalendarVersionResponse> =>
+    post<CreateAcademicCalendarVersionResponse>(
+      `/api/academic-calendars/${academicCalendarId}/versions`,
+      input,
+    ),
+
+  getAcademicCalendarVersion: (versionId: Id): Promise<CreateAcademicCalendarVersionResponse> =>
+    get<CreateAcademicCalendarVersionResponse>(`/api/academic-calendar-versions/${versionId}`),
 
   // Courses -------------------------------------------------------------------
   listCourses: (): Promise<CourseDto[]> =>
@@ -527,6 +564,76 @@ const _api = {
     },
   ): Promise<CloneTermApplyResponse> =>
     post<CloneTermApplyResponse>(`/api/terms/${sourceTermId}/clone`, { ...input, mode: "apply" }),
+
+  previewTermCalendar: (
+    termId: Id,
+    meetingPatterns: TermCalendarPreviewResponse["calendarSlotCandidates"] extends never ? never : Array<{
+      activityTypeVersionId: Id;
+      label?: string | null;
+      daysOfWeek: string[];
+      startTimeLocal: string;
+      endTimeLocal?: string | null;
+      timeZone: string;
+      startsOn: string;
+      endsOn: string;
+    }>,
+  ): Promise<TermCalendarPreviewResponse> =>
+    post<TermCalendarPreviewResponse>(`/api/terms/${termId}/calendar/preview`, { meetingPatterns }),
+
+  applyTermCalendar: (
+    termId: Id,
+    input: {
+      previewToken: string;
+      expectedCurrentCalendarSlotCount: number;
+      meetingPatterns: Array<{
+        activityTypeVersionId: Id;
+        label?: string | null;
+        daysOfWeek: string[];
+        startTimeLocal: string;
+        endTimeLocal?: string | null;
+        timeZone: string;
+        startsOn: string;
+        endsOn: string;
+      }>;
+    },
+  ): Promise<TermCalendarApplyResponse> =>
+    post<TermCalendarApplyResponse>(`/api/terms/${termId}/calendar/apply`, input),
+
+  listTermCalendarExceptions: (termId: Id): Promise<TermCalendarExceptionDto[]> =>
+    get<ListTermCalendarExceptionsResponse>(`/api/terms/${termId}/calendar-exceptions`).then(
+      (d) => d.exceptions,
+    ),
+
+  createTermCalendarException: (
+    termId: Id,
+    input: {
+      action: "cancel" | "add" | "replace" | "modify";
+      activityTypeVersionId?: Id | null;
+      calendarSlotId?: Id | null;
+      targetDate?: string | null;
+      startsAt?: string | null;
+      endsAt?: string | null;
+      label?: string | null;
+      reason?: string | null;
+      provenance?: unknown;
+    },
+  ): Promise<TermCalendarExceptionDto> =>
+    post<{ exception: TermCalendarExceptionDto }>(`/api/terms/${termId}/calendar-exceptions`, input).then(
+      (d) => d.exception,
+    ),
+
+  updateTermCalendarException: (
+    termId: Id,
+    exceptionId: Id,
+    input: UpdateTermCalendarExceptionRequest,
+  ): Promise<TermCalendarExceptionDto> =>
+    patch<{ exception: TermCalendarExceptionDto }>(
+      `/api/terms/${termId}/calendar-exceptions/${exceptionId}`,
+      input,
+    ).then((d) => d.exception),
+
+  deleteTermCalendarException: (termId: Id, exceptionId: Id): Promise<void> =>
+    del(`/api/terms/${termId}/calendar-exceptions/${exceptionId}`).then(() => undefined),
 
   // Calendar slots -----------------------------------------------------------
   listCalendarSlots: (termId: Id): Promise<CalendarSlotDto[]> =>

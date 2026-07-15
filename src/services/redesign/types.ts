@@ -153,3 +153,44 @@ export type TermActivityRevisionDraft = {
   topicActions?: TermActivityRevisionTopicActionInput[];
   milestones?: TermActivityMilestoneInput[];
 };
+export type AcademicCalendarVersionDraft = {
+  name: string;
+  academicYear: string;
+  sourceUri?: string | null;
+  events?: Array<{
+    eventType: "term_start" | "term_end" | "holiday" | "break_day" | "reading_day" | "finals_start" | "finals_end" | "other";
+    startsOn: Date;
+    endsOn: Date;
+    label: string;
+    sourceUri?: string | null;
+  }>;
+  periods?: Array<{
+    kind: "instructional" | "no_instruction" | "special_schedule";
+    label: string;
+    startsOn: Date;
+    endsOn: Date;
+  }>;
+};
+
+export type TermMeetingPatternDraft = {
+  activityTypeVersionId: string;
+  label?: string | null;
+  daysOfWeek: string[];
+  startTimeLocal: string;
+  endTimeLocal?: string | null;
+  timeZone: string;
+  startsOn: string;
+  endsOn: string;
+};
+
+export type TermCalendarExceptionDraft = {
+  action: "cancel" | "add" | "replace" | "modify";
+  activityTypeVersionId?: string | null;
+  calendarSlotId?: string | null;
+  targetDate?: Date | null;
+  startsAt?: Date | null;
+  endsAt?: Date | null;
+  label?: string | null;
+  reason?: string | null;
+  provenance?: unknown;
+};
