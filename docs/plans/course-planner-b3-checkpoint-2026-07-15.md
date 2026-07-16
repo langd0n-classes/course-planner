@@ -2,8 +2,8 @@
 
 Date: 2026-07-15
 
-Status: prepared for operator review; B.4 remains gated until this checkpoint
-is accepted.
+Status: accepted by the operator 2026-07-15; `redesign-b3-integration` promoted
+to `redesign`, B.4 (#34) authorized.
 
 ## Outcome
 
