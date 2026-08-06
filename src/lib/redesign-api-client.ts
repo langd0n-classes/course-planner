@@ -489,11 +489,21 @@ const _api = {
     );
   },
 
+  // Identity fields only — Topic placement flows through ActivityVersionTopicAction,
+  // never a direct learningModuleId write (ADR-0002). The body is allowlisted so
+  // stray fields cannot reach PATCH /api/topics/:id even past the type layer.
   updateTopic: (
     topicId: Id,
-    input: { stableCode?: string; learningModuleId?: Id | null; archivedAt?: string | null },
-  ): Promise<{ topic: TopicDto; currentVersion: TopicVersionDto | null }> =>
-    patch<{ topic: TopicDto; currentVersion: TopicVersionDto | null }>(`/api/topics/${topicId}`, input),
+    input: { stableCode?: string; archivedAt?: string | null },
+  ): Promise<{ topic: TopicDto; currentVersion: TopicVersionDto | null }> => {
+    const body: { stableCode?: string; archivedAt?: string | null } = {};
+    if (input.stableCode !== undefined) body.stableCode = input.stableCode;
+    if (input.archivedAt !== undefined) body.archivedAt = input.archivedAt;
+    return patch<{ topic: TopicDto; currentVersion: TopicVersionDto | null }>(
+      `/api/topics/${topicId}`,
+      body,
+    );
+  },
 
   createTopicVersion: (
     topicId: Id,
