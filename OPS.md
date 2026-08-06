@@ -145,10 +145,20 @@ gh api repos/langd0n-classes/course-planner/issues/comments/<id> \
 issues, not new prompt files.
 
 **Current issues:**
-- #4 — Phase 2B.1: Coverage Matrix + Content Views
-- #5 — Phase 2B.2: Skill Flow Visualization
-- #6 — Phase 2C: External-System Exports (planned)
-- #18 — Redesign Phase A: schema + revision subsystem + REST contract freeze
+- #34 — Redesign Phase B.4: Course design studio + active-Term daily driver
+  (current work; `redesign` branch tip has absorbed B.1/B.2/B.2R/B.3 as of
+  commit d222dc5). B.4.1 has an uncommitted draft in
+  `wt/34-b4-1-course-shell` — read
+  `docs/handoffs/course-planner-b4-1-handoff-2026-07-19.md` before touching
+  it; it flags a possible contract risk (legacy Topic→LearningModule
+  behavior vs. the activity-first B.2R/ADR-0002 contract) and has no
+  tests/typecheck/build run yet.
+- #6 — Phase 2C: External-System Exports (OPEN, planned, not yet started)
+
+Earlier issues: #4 and #5 are CLOSED (shipped). #18 (Redesign Phase A) is
+still technically OPEN on GitHub but its scope has been superseded by later
+merged phases (B.1/B.2/B.2R/B.3, now B.4) — don't treat it as current work;
+worth a housekeeping close-out at some point.
 
 ## Lessons from prior phases
 
