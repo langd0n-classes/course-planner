@@ -196,8 +196,15 @@ const _api = {
       (d) => d.activityTypes,
     ),
 
-  createActivityType: (input: CreateActivityTypeRequest): Promise<CreateActivityTypeResponse> =>
-    post<CreateActivityTypeResponse>("/api/instructors/me/activity-types", input),
+  createActivityType: async (
+    input: Omit<CreateActivityTypeRequest, "createdByInstructorId">,
+  ): Promise<CreateActivityTypeResponse> => {
+    const instructor = await _api.getCurrentInstructor();
+    return post<CreateActivityTypeResponse>("/api/instructors/me/activity-types", {
+      ...input,
+      createdByInstructorId: instructor.id,
+    });
+  },
 
   getActivityType: (id: Id): Promise<GetActivityTypeResponse> =>
     get<GetActivityTypeResponse>(`/api/activity-types/${id}`),
@@ -481,6 +488,18 @@ const _api = {
       { stableCode, learningModuleId, createdByInstructorId: instructor.id, version },
     );
   },
+
+  updateTopic: (
+    topicId: Id,
+    input: { stableCode?: string; learningModuleId?: Id | null; archivedAt?: string | null },
+  ): Promise<{ topic: TopicDto; currentVersion: TopicVersionDto | null }> =>
+    patch<{ topic: TopicDto; currentVersion: TopicVersionDto | null }>(`/api/topics/${topicId}`, input),
+
+  createTopicVersion: (
+    topicId: Id,
+    version: UpsertTopicVersionRequest,
+  ): Promise<TopicVersionDto> =>
+    post<{ version: TopicVersionDto }>(`/api/topics/${topicId}/versions`, version).then((d) => d.version),
 
   assignTopicLearningModule: (topicId: Id, learningModuleId: Id | null): Promise<TopicDto> =>
     patch<{ topic: TopicDto; currentVersion: TopicVersionDto | null }>(`/api/topics/${topicId}`, {

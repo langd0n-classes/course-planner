@@ -5,6 +5,8 @@ import { useEffect, useEffectEvent, useMemo, useState } from "react";
 import { redesignApi } from "@/lib/redesign-api-client";
 import type {
   AcademicCalendarDto,
+  ActivityTypeDto,
+  ActivityTypeVersionDto,
   Id,
   InstitutionDto,
   LearningModuleDto,
@@ -12,7 +14,7 @@ import type {
   TermDto,
   TopicVersionDto,
 } from "@/lib/redesign-contract";
-import { buildTopicBrowserBuckets } from "@/lib/redesign-workspace";
+import { buildTopicBrowserBuckets, suggestTopicStableCode } from "@/lib/redesign-workspace";
 import CreateTermPanel from "./CreateTermPanel";
 import GapNotice from "./GapNotice";
 import LifecycleBadge from "./LifecycleBadge";
@@ -22,10 +24,6 @@ import TopicBrowser from "./TopicBrowser";
 type Props = {
   courseId: string;
 };
-
-// ---------------------------------------------------------------------------
-// Bootstrap: institution + calendar creation
-// ---------------------------------------------------------------------------
 
 type InstitutionFormState =
   | { open: false }
@@ -47,10 +45,6 @@ type LinkInstitutionState =
   | { open: false }
   | { open: true; selectedId: Id; submitting: boolean; error: string | null };
 
-// ---------------------------------------------------------------------------
-// Course content: learning module + topic creation
-// ---------------------------------------------------------------------------
-
 type CreateLmState =
   | { open: false }
   | {
@@ -70,7 +64,18 @@ type CreateTopicState =
       stableCode: string;
       title: string;
       category: string;
-      learningModuleId: Id | "";
+      codeOverridden: boolean;
+      submitting: boolean;
+      error: string | null;
+    };
+
+type CreateActivityTypeState =
+  | { open: false }
+  | {
+      open: true;
+      label: string;
+      behaviorFamily: "meeting" | "coursework" | "assessment";
+      description: string;
       submitting: boolean;
       error: string | null;
     };
@@ -94,40 +99,63 @@ export default function CourseWorkspacePage({ courseId }: Props) {
   const [currentVersionsByTopicId, setCurrentVersionsByTopicId] = useState(new Map<Id, TopicVersionDto | null>());
   const [topicVersionsById, setTopicVersionsById] = useState(new Map<Id, TopicVersionDto>());
   const [prerequisites, setPrerequisites] = useState<Awaited<ReturnType<typeof redesignApi.listTopicPrerequisites>>>([]);
+  const [activityTypes, setActivityTypes] = useState<ActivityTypeDto[]>([]);
+  const [activityTypeVersionsById, setActivityTypeVersionsById] = useState(
+    new Map<Id, ActivityTypeVersionDto[]>(),
+  );
 
-  // Form states
   const [institutionForm, setInstitutionForm] = useState<InstitutionFormState>({ open: false });
   const [calendarForm, setCalendarForm] = useState<CalendarFormState>({ open: false });
   const [linkInstForm, setLinkInstForm] = useState<LinkInstitutionState>({ open: false });
   const [createLmState, setCreateLmState] = useState<CreateLmState>({ open: false });
   const [createTopicState, setCreateTopicState] = useState<CreateTopicState>({ open: false });
+  const [createActivityTypeState, setCreateActivityTypeState] = useState<CreateActivityTypeState>({
+    open: false,
+  });
 
   async function loadWorkspace() {
     setLoading(true);
     setError(null);
     try {
-      const [loadedCourse, loadedAllInstitutions, loadedInstitutions, loadedTerms, loadedLearningModules, loadedTopics, loadedPrerequisites] =
-        await Promise.all([
-          redesignApi.getCourse(courseId),
-          redesignApi.listInstitutions(),
-          redesignApi.listCourseInstitutions(courseId),
-          redesignApi.listTerms(courseId),
-          redesignApi.listLearningModules(courseId),
-          redesignApi.listTopics(courseId),
-          redesignApi.listTopicPrerequisites(courseId),
-        ]);
+      const [
+        loadedCourse,
+        loadedAllInstitutions,
+        loadedInstitutions,
+        loadedTerms,
+        loadedLearningModules,
+        loadedTopics,
+        loadedPrerequisites,
+        loadedActivityTypes,
+      ] = await Promise.all([
+        redesignApi.getCourse(courseId),
+        redesignApi.listInstitutions(),
+        redesignApi.listCourseInstitutions(courseId),
+        redesignApi.listTerms(courseId),
+        redesignApi.listLearningModules(courseId),
+        redesignApi.listTopics(courseId),
+        redesignApi.listTopicPrerequisites(courseId),
+        redesignApi.listActivityTypes(),
+      ]);
 
-      const [moduleDetails, moduleVersions, topicDetails, institutionCalendars] = await Promise.all([
+      const [
+        moduleDetails,
+        moduleVersions,
+        topicDetails,
+        institutionCalendars,
+        loadedActivityTypeVersions,
+      ] = await Promise.all([
         Promise.all(loadedLearningModules.map((lm) => redesignApi.getLearningModule(lm.id))),
         Promise.all(loadedLearningModules.map((lm) => redesignApi.listLearningModuleVersions(lm.id))),
         Promise.all(loadedTopics.map((topic) => redesignApi.getTopic(topic.id))),
         Promise.all(loadedInstitutions.map((inst) => redesignApi.listAcademicCalendars(inst.id))),
+        Promise.all(loadedActivityTypes.map((activityType) => redesignApi.listActivityTypeVersions(activityType.id))),
       ]);
 
       const nextCurrentLmVersions = new Map<Id, LearningModuleVersionDto | null>();
       for (const detail of moduleDetails) {
         nextCurrentLmVersions.set(detail.learningModule.id, detail.currentVersion);
       }
+
       const nextVersionsByLmId = new Map<Id, LearningModuleVersionDto[]>();
       for (const versions of moduleVersions) {
         if (versions[0]) nextVersionsByLmId.set(versions[0].learningModuleId, versions);
@@ -151,13 +179,23 @@ export default function CourseWorkspacePage({ courseId }: Props) {
         [...neededTopicVersionIds].map((id) => redesignApi.getTopicVersion(id)),
       );
       const nextTopicVersionsById = new Map<Id, TopicVersionDto>();
-      for (const tv of loadedTopicVersions) nextTopicVersionsById.set(tv.id, tv);
+      for (const topicVersion of loadedTopicVersions) {
+        nextTopicVersionsById.set(topicVersion.id, topicVersion);
+      }
+
+      const nextActivityTypeVersionsById = new Map<Id, ActivityTypeVersionDto[]>();
+      for (let index = 0; index < loadedActivityTypes.length; index += 1) {
+        nextActivityTypeVersionsById.set(
+          loadedActivityTypes[index]!.id,
+          loadedActivityTypeVersions[index] ?? [],
+        );
+      }
 
       setCourse(loadedCourse);
-      setAllInstitutions(loadedAllInstitutions.filter((i) => !i.archivedAt));
+      setAllInstitutions(loadedAllInstitutions.filter((institution) => !institution.archivedAt));
       setInstitutions(loadedInstitutions);
       setCalendars(institutionCalendars.flat());
-      setTerms(loadedTerms.slice().sort((a, b) => a.startDate.localeCompare(b.startDate)));
+      setTerms(loadedTerms.slice().sort((left, right) => left.startDate.localeCompare(right.startDate)));
       setLearningModules(loadedLearningModules);
       setCurrentVersionsByLearningModuleId(nextCurrentLmVersions);
       setVersionsByLearningModuleId(nextVersionsByLmId);
@@ -165,6 +203,8 @@ export default function CourseWorkspacePage({ courseId }: Props) {
       setCurrentVersionsByTopicId(nextCurrentTopicVersions);
       setTopicVersionsById(nextTopicVersionsById);
       setPrerequisites(loadedPrerequisites);
+      setActivityTypes(loadedActivityTypes);
+      setActivityTypeVersionsById(nextActivityTypeVersionsById);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to load course workspace.");
     } finally {
@@ -198,13 +238,39 @@ export default function CourseWorkspacePage({ courseId }: Props) {
     [currentVersionsByLearningModuleId, currentVersionsByTopicId, learningModules, prerequisites, topics],
   );
 
-  async function handleAssignTopic(topicId: Id, learningModuleId: Id | null) {
-    await redesignApi.assignTopicLearningModule(topicId, learningModuleId);
-    await loadWorkspace();
-  }
+  async function handleSaveTopic(
+    topicId: Id,
+    input: {
+      stableCode: string;
+      title: string;
+      category: string;
+      prerequisiteTopicIds: Id[];
+    },
+  ) {
+    const topic = topics.find((candidate) => candidate.id === topicId);
+    const currentVersion = currentVersionsByTopicId.get(topicId) ?? null;
+    if (!topic) throw new Error("Topic not found.");
 
-  async function handleSavePrerequisites(topicId: Id, prerequisiteTopicIds: Id[]) {
-    await redesignApi.replaceTopicPrerequisites(topicId, prerequisiteTopicIds);
+    if (topic.stableCode !== input.stableCode) {
+      await redesignApi.updateTopic(topicId, {
+        stableCode: input.stableCode,
+      });
+    }
+
+    if (
+      currentVersion &&
+      ((currentVersion.title ?? "") !== input.title || (currentVersion.category ?? "") !== input.category)
+    ) {
+      await redesignApi.createTopicVersion(topicId, {
+        expectedCurrentVersionId: currentVersion.id,
+        title: input.title,
+        category: input.category || null,
+        description: currentVersion.description,
+        publish: false,
+      });
+    }
+
+    await redesignApi.replaceTopicPrerequisites(topicId, input.prerequisiteTopicIds);
     await loadWorkspace();
   }
 
@@ -217,22 +283,17 @@ export default function CourseWorkspacePage({ courseId }: Props) {
     await loadWorkspace();
   }
 
-  // -------------------------------------------------------------------------
-  // Institution bootstrap handlers
-  // -------------------------------------------------------------------------
-
   async function handleCreateInstitution(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!institutionForm.open) return;
     setInstitutionForm({ ...institutionForm, submitting: true, error: null });
     try {
-      const inst = await redesignApi.createInstitution({
+      const institution = await redesignApi.createInstitution({
         name: institutionForm.name,
         shortName: institutionForm.shortName || null,
       });
-      // Automatically link the new institution to this course
-      const currentIds = institutions.map((i) => i.id);
-      await redesignApi.replaceCourseInstitutions(courseId, [...currentIds, inst.id]);
+      const currentIds = institutions.map((item) => item.id);
+      await redesignApi.replaceCourseInstitutions(courseId, [...currentIds, institution.id]);
       setInstitutionForm({ open: false });
       await loadWorkspace();
     } catch (err) {
@@ -249,7 +310,7 @@ export default function CourseWorkspacePage({ courseId }: Props) {
     if (!linkInstForm.open) return;
     setLinkInstForm({ ...linkInstForm, submitting: true, error: null });
     try {
-      const currentIds = institutions.map((i) => i.id);
+      const currentIds = institutions.map((item) => item.id);
       await redesignApi.replaceCourseInstitutions(courseId, [...currentIds, linkInstForm.selectedId]);
       setLinkInstForm({ open: false });
       await loadWorkspace();
@@ -284,10 +345,6 @@ export default function CourseWorkspacePage({ courseId }: Props) {
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Learning module creation handler
-  // -------------------------------------------------------------------------
-
   async function handleCreateLm(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!createLmState.open) return;
@@ -295,7 +352,7 @@ export default function CourseWorkspacePage({ courseId }: Props) {
     try {
       const objectives = createLmState.objectives
         .split("\n")
-        .map((s) => s.trim())
+        .map((line) => line.trim())
         .filter(Boolean);
       await redesignApi.createLearningModule(courseId, createLmState.stableCode, {
         title: createLmState.title,
@@ -313,10 +370,6 @@ export default function CourseWorkspacePage({ courseId }: Props) {
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Topic creation handler
-  // -------------------------------------------------------------------------
-
   async function handleCreateTopic(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!createTopicState.open) return;
@@ -325,7 +378,7 @@ export default function CourseWorkspacePage({ courseId }: Props) {
       await redesignApi.createTopic(
         courseId,
         createTopicState.stableCode,
-        createTopicState.learningModuleId || null,
+        null,
         {
           title: createTopicState.title,
           category: createTopicState.category || null,
@@ -340,6 +393,67 @@ export default function CourseWorkspacePage({ courseId }: Props) {
         error: err instanceof Error ? err.message : "Failed to create topic.",
       });
     }
+  }
+
+  async function handleCreateActivityType(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!createActivityTypeState.open) return;
+    setCreateActivityTypeState({ ...createActivityTypeState, submitting: true, error: null });
+    try {
+      await redesignApi.createActivityType({
+        behaviorFamily: createActivityTypeState.behaviorFamily,
+        version: {
+          label: createActivityTypeState.label,
+          description: createActivityTypeState.description || null,
+          publish: true,
+        },
+      });
+      setCreateActivityTypeState({ open: false });
+      await loadWorkspace();
+    } catch (err) {
+      setCreateActivityTypeState({
+        ...createActivityTypeState,
+        submitting: false,
+        error: err instanceof Error ? err.message : "Failed to create activity type.",
+      });
+    }
+  }
+
+  const activeTerms = terms.filter((term) => term.status === "active");
+  const plannedTerms = terms.filter((term) => term.status === "planned");
+  const closedTerms = terms.filter((term) => term.status === "closed");
+  const unassignedTopicCount = topics.filter((topic) => topic.learningModuleId === null).length;
+  const unlinkedInstitutions = allInstitutions.filter(
+    (institution) => !institutions.some((linkedInstitution) => linkedInstitution.id === institution.id),
+  );
+  const needsInstitution = institutions.length === 0;
+  const needsCalendar = institutions.length > 0 && calendars.length === 0;
+
+  function openInstitutionSetup() {
+    if (unlinkedInstitutions.length > 0) {
+      setLinkInstForm({
+        open: true,
+        selectedId: unlinkedInstitutions[0]!.id,
+        submitting: false,
+        error: null,
+      });
+      return;
+    }
+
+    setInstitutionForm({ open: true, name: "", shortName: "", submitting: false, error: null });
+  }
+
+  function openCalendarSetup() {
+    if (institutions.length === 0) return;
+    setCalendarForm({
+      open: true,
+      institutionId: institutions[0]!.id,
+      name: "",
+      academicYear: "",
+      sourceUri: "",
+      submitting: false,
+      error: null,
+    });
   }
 
   if (loading) {
@@ -364,20 +478,8 @@ export default function CourseWorkspacePage({ courseId }: Props) {
     return <p className="text-sm text-rose-700">Course not found.</p>;
   }
 
-  const activeTerms = terms.filter((t) => t.status === "active");
-  const plannedTerms = terms.filter((t) => t.status === "planned");
-  const closedTerms = terms.filter((t) => t.status === "closed");
-  const unassignedTopicCount = topics.filter((t) => t.learningModuleId === null).length;
-
-  // Institutions not yet linked to this course (for link-existing flow)
-  const unlinkedInstitutions = allInstitutions.filter((i) => !institutions.some((li) => li.id === i.id));
-
-  const needsInstitution = institutions.length === 0;
-  const needsCalendar = institutions.length > 0 && calendars.length === 0;
-
   return (
     <div className="space-y-8">
-      {/* Course header */}
       <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
         <Link href="/" className="text-sm font-medium text-sky-700 hover:text-sky-800">
           ← Courses
@@ -402,7 +504,10 @@ export default function CourseWorkspacePage({ courseId }: Props) {
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           {institutions.map((institution) => (
-            <span key={institution.id} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+            <span
+              key={institution.id}
+              className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700"
+            >
               {institution.shortName ?? institution.name}
             </span>
           ))}
@@ -433,7 +538,6 @@ export default function CourseWorkspacePage({ courseId }: Props) {
         </div>
       </section>
 
-      {/* Bootstrap: institution setup */}
       {needsInstitution ? (
         <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
           <h2 className="text-lg font-semibold text-slate-900">Link an institution</h2>
@@ -441,7 +545,6 @@ export default function CourseWorkspacePage({ courseId }: Props) {
             A term requires an institution and an academic calendar. Link one to this course to unlock term creation.
           </p>
 
-          {/* Link existing institution */}
           {unlinkedInstitutions.length > 0 ? (
             <div className="mt-5">
               {!linkInstForm.open ? (
@@ -465,13 +568,15 @@ export default function CourseWorkspacePage({ courseId }: Props) {
                     <span className="mb-1 block font-medium">Institution</span>
                     <select
                       value={linkInstForm.selectedId}
-                      onChange={(e) => setLinkInstForm({ ...linkInstForm, selectedId: e.target.value })}
+                      onChange={(event) =>
+                        setLinkInstForm({ ...linkInstForm, selectedId: event.target.value })
+                      }
                       className="rounded-lg border border-slate-300 bg-white px-3 py-2"
                       disabled={linkInstForm.submitting}
                     >
-                      {unlinkedInstitutions.map((i) => (
-                        <option key={i.id} value={i.id}>
-                          {i.shortName ?? i.name}
+                      {unlinkedInstitutions.map((institution) => (
+                        <option key={institution.id} value={institution.id}>
+                          {institution.shortName ?? institution.name}
                         </option>
                       ))}
                     </select>
@@ -497,7 +602,6 @@ export default function CourseWorkspacePage({ courseId }: Props) {
             </div>
           ) : null}
 
-          {/* Create institution */}
           {!institutionForm.open ? (
             <button
               type="button"
@@ -514,7 +618,9 @@ export default function CourseWorkspacePage({ courseId }: Props) {
                 <span className="mb-1 block font-medium">Institution name</span>
                 <input
                   value={institutionForm.name}
-                  onChange={(e) => setInstitutionForm({ ...institutionForm, name: e.target.value })}
+                  onChange={(event) =>
+                    setInstitutionForm({ ...institutionForm, name: event.target.value })
+                  }
                   placeholder="University of California, Berkeley"
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
                   required
@@ -525,7 +631,9 @@ export default function CourseWorkspacePage({ courseId }: Props) {
                 <span className="mb-1 block font-medium">Short name (optional)</span>
                 <input
                   value={institutionForm.shortName}
-                  onChange={(e) => setInstitutionForm({ ...institutionForm, shortName: e.target.value })}
+                  onChange={(event) =>
+                    setInstitutionForm({ ...institutionForm, shortName: event.target.value })
+                  }
                   placeholder="UC Berkeley"
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
                   disabled={institutionForm.submitting}
@@ -555,29 +663,18 @@ export default function CourseWorkspacePage({ courseId }: Props) {
         </section>
       ) : null}
 
-      {/* Bootstrap: academic calendar setup */}
       {needsCalendar ? (
         <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
           <h2 className="text-lg font-semibold text-slate-900">Add an academic calendar</h2>
           <p className="mt-1 text-sm text-slate-600">
             Each term uses an academic calendar from its institution. Create one for{" "}
-            {institutions.map((i) => i.shortName ?? i.name).join(", ")}.
+            {institutions.map((institution) => institution.shortName ?? institution.name).join(", ")}.
           </p>
 
           {!calendarForm.open ? (
             <button
               type="button"
-              onClick={() =>
-                setCalendarForm({
-                  open: true,
-                  institutionId: institutions[0]!.id,
-                  name: "",
-                  academicYear: "",
-                  sourceUri: "",
-                  submitting: false,
-                  error: null,
-                })
-              }
+              onClick={openCalendarSetup}
               className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
             >
               Create academic calendar
@@ -589,13 +686,15 @@ export default function CourseWorkspacePage({ courseId }: Props) {
                   <span className="mb-1 block font-medium">Institution</span>
                   <select
                     value={calendarForm.institutionId}
-                    onChange={(e) => setCalendarForm({ ...calendarForm, institutionId: e.target.value })}
+                    onChange={(event) =>
+                      setCalendarForm({ ...calendarForm, institutionId: event.target.value })
+                    }
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
                     disabled={calendarForm.submitting}
                   >
-                    {institutions.map((i) => (
-                      <option key={i.id} value={i.id}>
-                        {i.shortName ?? i.name}
+                    {institutions.map((institution) => (
+                      <option key={institution.id} value={institution.id}>
+                        {institution.shortName ?? institution.name}
                       </option>
                     ))}
                   </select>
@@ -605,7 +704,7 @@ export default function CourseWorkspacePage({ courseId }: Props) {
                 <span className="mb-1 block font-medium">Calendar name</span>
                 <input
                   value={calendarForm.name}
-                  onChange={(e) => setCalendarForm({ ...calendarForm, name: e.target.value })}
+                  onChange={(event) => setCalendarForm({ ...calendarForm, name: event.target.value })}
                   placeholder="AY 2026–27"
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
                   required
@@ -616,7 +715,9 @@ export default function CourseWorkspacePage({ courseId }: Props) {
                 <span className="mb-1 block font-medium">Academic year</span>
                 <input
                   value={calendarForm.academicYear}
-                  onChange={(e) => setCalendarForm({ ...calendarForm, academicYear: e.target.value })}
+                  onChange={(event) =>
+                    setCalendarForm({ ...calendarForm, academicYear: event.target.value })
+                  }
                   placeholder="2026-27"
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
                   required
@@ -628,7 +729,7 @@ export default function CourseWorkspacePage({ courseId }: Props) {
                 <input
                   type="url"
                   value={calendarForm.sourceUri}
-                  onChange={(e) => setCalendarForm({ ...calendarForm, sourceUri: e.target.value })}
+                  onChange={(event) => setCalendarForm({ ...calendarForm, sourceUri: event.target.value })}
                   placeholder="https://registrar.example.edu/calendar"
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
                   disabled={calendarForm.submitting}
@@ -658,7 +759,6 @@ export default function CourseWorkspacePage({ courseId }: Props) {
         </section>
       ) : null}
 
-      {/* Terms + term creation */}
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(21rem,0.95fr)]">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between gap-3">
@@ -699,7 +799,13 @@ export default function CourseWorkspacePage({ courseId }: Props) {
               </Link>
             ))}
             {terms.length === 0 ? (
-              <GapNotice title="No terms yet.">Create the first term from this workspace.</GapNotice>
+              <GapNotice title="No terms yet.">
+                {needsInstitution
+                  ? "Link an institution first, then create the first term."
+                  : needsCalendar
+                    ? "Create an academic calendar first, then create the first term."
+                    : "Create the first term from this workspace."}
+              </GapNotice>
             ) : null}
           </div>
         </div>
@@ -709,16 +815,17 @@ export default function CourseWorkspacePage({ courseId }: Props) {
           institutions={institutions}
           calendars={calendars}
           onTermCreated={loadWorkspace}
+          onResolveMissingInstitution={openInstitutionSetup}
+          onResolveMissingCalendar={openCalendarSetup}
         />
       </section>
 
-      {/* Learning modules section */}
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">Learning modules</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Modules group related topics. Create modules here, then add topics and assign them.
+              Modules group related topics. Create modules here, then place topics and later activities.
             </p>
           </div>
           {!createLmState.open ? (
@@ -748,7 +855,9 @@ export default function CourseWorkspacePage({ courseId }: Props) {
               <span className="mb-1 block font-medium">Stable code</span>
               <input
                 value={createLmState.stableCode}
-                onChange={(e) => setCreateLmState({ ...createLmState, stableCode: e.target.value })}
+                onChange={(event) =>
+                  setCreateLmState({ ...createLmState, stableCode: event.target.value })
+                }
                 placeholder="lm-intro-ds"
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
                 required
@@ -760,7 +869,7 @@ export default function CourseWorkspacePage({ courseId }: Props) {
               <span className="mb-1 block font-medium">Title</span>
               <input
                 value={createLmState.title}
-                onChange={(e) => setCreateLmState({ ...createLmState, title: e.target.value })}
+                onChange={(event) => setCreateLmState({ ...createLmState, title: event.target.value })}
                 placeholder="Introduction to Data Science"
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
                 required
@@ -771,7 +880,9 @@ export default function CourseWorkspacePage({ courseId }: Props) {
               <span className="mb-1 block font-medium">Description (optional)</span>
               <textarea
                 value={createLmState.description}
-                onChange={(e) => setCreateLmState({ ...createLmState, description: e.target.value })}
+                onChange={(event) =>
+                  setCreateLmState({ ...createLmState, description: event.target.value })
+                }
                 rows={2}
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
                 disabled={createLmState.submitting}
@@ -781,7 +892,9 @@ export default function CourseWorkspacePage({ courseId }: Props) {
               <span className="mb-1 block font-medium">Learning objectives (one per line, optional)</span>
               <textarea
                 value={createLmState.objectives}
-                onChange={(e) => setCreateLmState({ ...createLmState, objectives: e.target.value })}
+                onChange={(event) =>
+                  setCreateLmState({ ...createLmState, objectives: event.target.value })
+                }
                 rows={3}
                 placeholder={"Understand the data science lifecycle\nApply Python for exploratory analysis"}
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
@@ -820,14 +933,16 @@ export default function CourseWorkspacePage({ courseId }: Props) {
 
         {learningModules.length > 0 ? (
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            {learningModules.map((lm) => {
-              const v = currentVersionsByLearningModuleId.get(lm.id);
+            {learningModules.map((learningModule) => {
+              const version = currentVersionsByLearningModuleId.get(learningModule.id);
               return (
-                <div key={lm.id} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-sm font-medium text-slate-900">{v?.title ?? lm.stableCode}</p>
+                <div key={learningModule.id} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-sm font-medium text-slate-900">
+                    {version?.title ?? learningModule.stableCode}
+                  </p>
                   <p className="mt-0.5 text-xs text-slate-500">
-                    {lm.stableCode}
-                    {v ? ` · rev. ${v.revision}` : " · no version yet"}
+                    {learningModule.stableCode}
+                    {version ? ` · rev. ${version.revision}` : " · no version yet"}
                   </p>
                 </div>
               );
@@ -836,14 +951,12 @@ export default function CourseWorkspacePage({ courseId }: Props) {
         ) : null}
       </section>
 
-      {/* Topics section */}
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">Topic-first browser</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Topics are the planning atoms. Unassigned topics stay visible until they have a learning module home.
-              Prerequisite edits stay at the course level.
+              Topics stay visible even before they have a module home. Edit title, code, category, and prerequisites without leaving the workspace.
             </p>
           </div>
           {!createTopicState.open ? (
@@ -855,7 +968,7 @@ export default function CourseWorkspacePage({ courseId }: Props) {
                   stableCode: "",
                   title: "",
                   category: "",
-                  learningModuleId: "",
+                  codeOverridden: false,
                   submitting: false,
                   error: null,
                 })
@@ -872,21 +985,19 @@ export default function CourseWorkspacePage({ courseId }: Props) {
             <h3 className="mb-4 text-base font-semibold text-slate-900">New topic</h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="text-sm text-slate-700">
-                <span className="mb-1 block font-medium">Stable code</span>
-                <input
-                  value={createTopicState.stableCode}
-                  onChange={(e) => setCreateTopicState({ ...createTopicState, stableCode: e.target.value })}
-                  placeholder="topic-pandas-basics"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
-                  required
-                  disabled={createTopicState.submitting}
-                />
-              </label>
-              <label className="text-sm text-slate-700">
-                <span className="mb-1 block font-medium">Title</span>
+                <span className="mb-1 block font-medium">Topic title</span>
                 <input
                   value={createTopicState.title}
-                  onChange={(e) => setCreateTopicState({ ...createTopicState, title: e.target.value })}
+                  onChange={(event) => {
+                    const nextTitle = event.target.value;
+                    setCreateTopicState({
+                      ...createTopicState,
+                      title: nextTitle,
+                      stableCode: createTopicState.codeOverridden
+                        ? createTopicState.stableCode
+                        : suggestTopicStableCode(nextTitle),
+                    });
+                  }}
                   placeholder="Pandas basics"
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
                   required
@@ -894,36 +1005,51 @@ export default function CourseWorkspacePage({ courseId }: Props) {
                 />
               </label>
               <label className="text-sm text-slate-700">
+                <span className="mb-1 block font-medium">Topic code</span>
+                <input
+                  value={createTopicState.stableCode}
+                  onChange={(event) =>
+                    setCreateTopicState({
+                      ...createTopicState,
+                      stableCode: event.target.value,
+                      codeOverridden:
+                        event.target.value !== "" &&
+                        event.target.value !== suggestTopicStableCode(createTopicState.title),
+                    })
+                  }
+                  onKeyDown={(event) => {
+                    if (
+                      event.key === "Tab" &&
+                      !event.shiftKey &&
+                      !createTopicState.codeOverridden &&
+                      suggestTopicStableCode(createTopicState.title) &&
+                      createTopicState.stableCode !== suggestTopicStableCode(createTopicState.title)
+                    ) {
+                      setCreateTopicState({
+                        ...createTopicState,
+                        stableCode: suggestTopicStableCode(createTopicState.title),
+                      });
+                    }
+                  }}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                  disabled={createTopicState.submitting}
+                  aria-describedby="new-topic-code-suggestion"
+                />
+              </label>
+              <p id="new-topic-code-suggestion" className="text-xs text-slate-500 sm:col-span-2">
+                Suggested from the title. Press Tab to accept it and continue.
+              </p>
+              <label className="text-sm text-slate-700">
                 <span className="mb-1 block font-medium">Category (optional)</span>
                 <input
                   value={createTopicState.category}
-                  onChange={(e) => setCreateTopicState({ ...createTopicState, category: e.target.value })}
+                  onChange={(event) =>
+                    setCreateTopicState({ ...createTopicState, category: event.target.value })
+                  }
                   placeholder="tools / concepts / skills"
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
                   disabled={createTopicState.submitting}
                 />
-              </label>
-              <label className="text-sm text-slate-700">
-                <span className="mb-1 block font-medium">Learning module (optional)</span>
-                <select
-                  value={createTopicState.learningModuleId}
-                  onChange={(e) =>
-                    setCreateTopicState({ ...createTopicState, learningModuleId: e.target.value as Id | "" })
-                  }
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
-                  disabled={createTopicState.submitting}
-                >
-                  <option value="">— Unassigned —</option>
-                  {learningModules.map((lm) => {
-                    const v = currentVersionsByLearningModuleId.get(lm.id);
-                    return (
-                      <option key={lm.id} value={lm.id}>
-                        {v?.title ?? lm.stableCode}
-                      </option>
-                    );
-                  })}
-                </select>
-                <p className="mt-1 text-xs text-slate-500">Unassigned topics remain visible in the browser until placed.</p>
               </label>
             </div>
             {createTopicState.error ? (
@@ -950,11 +1076,147 @@ export default function CourseWorkspacePage({ courseId }: Props) {
 
         <TopicBrowser
           buckets={topicBuckets}
-          learningModules={learningModules}
           topicTitleById={topicTitleById}
-          onAssignTopic={handleAssignTopic}
-          onSavePrerequisites={handleSavePrerequisites}
+          onSaveTopic={handleSaveTopic}
         />
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Activity types</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              The instructor&apos;s label stays separate from the stable behavior family used by the product.
+            </p>
+          </div>
+          {!createActivityTypeState.open ? (
+            <button
+              type="button"
+              onClick={() =>
+                setCreateActivityTypeState({
+                  open: true,
+                  label: "",
+                  behaviorFamily: "meeting",
+                  description: "",
+                  submitting: false,
+                  error: null,
+                })
+              }
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+            >
+              New activity type
+            </button>
+          ) : null}
+        </div>
+
+        {createActivityTypeState.open ? (
+          <form onSubmit={handleCreateActivityType} className="mt-4 grid gap-4 sm:grid-cols-3">
+            <label className="text-sm text-slate-700">
+              <span className="mb-1 block font-medium">Activity type label</span>
+              <input
+                value={createActivityTypeState.label}
+                onChange={(event) =>
+                  setCreateActivityTypeState({ ...createActivityTypeState, label: event.target.value })
+                }
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                required
+                disabled={createActivityTypeState.submitting}
+              />
+            </label>
+            <label className="text-sm text-slate-700">
+              <span className="mb-1 block font-medium">Stable behavior family</span>
+              <select
+                value={createActivityTypeState.behaviorFamily}
+                onChange={(event) =>
+                  setCreateActivityTypeState({
+                    ...createActivityTypeState,
+                    behaviorFamily: event.target.value as "meeting" | "coursework" | "assessment",
+                  })
+                }
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                disabled={createActivityTypeState.submitting}
+              >
+                <option value="meeting">meeting</option>
+                <option value="coursework">coursework</option>
+                <option value="assessment">assessment</option>
+              </select>
+            </label>
+            <label className="text-sm text-slate-700">
+              <span className="mb-1 block font-medium">Description (optional)</span>
+              <input
+                value={createActivityTypeState.description}
+                onChange={(event) =>
+                  setCreateActivityTypeState({
+                    ...createActivityTypeState,
+                    description: event.target.value,
+                  })
+                }
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                disabled={createActivityTypeState.submitting}
+              />
+            </label>
+            {createActivityTypeState.error ? (
+              <p className="sm:col-span-3 text-sm text-rose-700">{createActivityTypeState.error}</p>
+            ) : null}
+            <div className="sm:col-span-3 flex gap-3">
+              <button
+                type="submit"
+                disabled={createActivityTypeState.submitting}
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:bg-slate-400"
+              >
+                {createActivityTypeState.submitting ? "Creating..." : "Create activity type"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreateActivityTypeState({ open: false })}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : null}
+
+        {activityTypes.length === 0 ? (
+          <div className="mt-4">
+            <GapNotice title="No instructor activity types yet.">
+              Create the first custom label, then reuse its historical versions as the course design grows.
+            </GapNotice>
+          </div>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Label</th>
+                  <th className="px-3 py-2 font-medium">Stable behavior family</th>
+                  <th className="px-3 py-2 font-medium">Version</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activityTypes.map((activityType) => {
+                  const versions = activityTypeVersionsById.get(activityType.id) ?? [];
+                  const currentVersion =
+                    versions.find((version) => version.id === activityType.currentVersionId) ??
+                    versions[0] ??
+                    null;
+
+                  return (
+                    <tr key={activityType.id} className="border-b border-slate-100">
+                      <td className="px-3 py-2 font-medium text-slate-900">
+                        {currentVersion?.label ?? "Untitled"}
+                      </td>
+                      <td className="px-3 py-2 text-slate-700">{activityType.behaviorFamily}</td>
+                      <td className="px-3 py-2 text-slate-600">
+                        Historical version {currentVersion?.revision ?? 0}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <RevisionHistoryPanel

@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { setMockBackend } from "@/lib/redesign-api-client";
 import type {
   AcademicCalendarDto,
+  ActivityTypeDto,
+  ActivityTypeVersionDto,
   CourseDto,
   LearningModuleDto,
   LearningModuleVersionDto,
@@ -18,6 +20,7 @@ function buildCourseWorkspaceBackend(options?: {
   calendars?: AcademicCalendarDto[];
   learningModules?: Array<{ learningModule: LearningModuleDto; currentVersion: LearningModuleVersionDto }>;
   topics?: Array<{ topic: TopicDto; currentVersion: TopicVersionDto }>;
+  activityTypes?: Array<{ activityType: ActivityTypeDto; currentVersion: ActivityTypeVersionDto }>;
 }) {
   const course: CourseDto = {
     id: "course-1",
@@ -47,6 +50,7 @@ function buildCourseWorkspaceBackend(options?: {
 
   const learningModules = [...(options?.learningModules ?? [])];
   const topics = [...(options?.topics ?? [])];
+  const activityTypes = [...(options?.activityTypes ?? [])];
 
   const createInstitution = vi.fn(async (input: { name: string; shortName?: string | null }) => {
     const institution = {
@@ -149,6 +153,70 @@ function buildCourseWorkspaceBackend(options?: {
     },
   );
 
+  const updateTopic = vi.fn(
+    async (
+      topicId: string,
+      input: { stableCode?: string; learningModuleId?: string | null },
+    ) => {
+      const entry = topics.find((candidate) => candidate.topic.id === topicId);
+      if (!entry) throw new Error(`Unknown topic ${topicId}`);
+      entry.topic = {
+        ...entry.topic,
+        stableCode: input.stableCode ?? entry.topic.stableCode,
+        learningModuleId:
+          input.learningModuleId === undefined
+            ? entry.topic.learningModuleId
+            : input.learningModuleId,
+      };
+      return { topic: entry.topic, currentVersion: entry.currentVersion };
+    },
+  );
+
+  const createTopicVersion = vi.fn(
+    async (
+      topicId: string,
+      input: { title: string; category?: string | null },
+    ) => {
+      const entry = topics.find((candidate) => candidate.topic.id === topicId);
+      if (!entry) throw new Error(`Unknown topic ${topicId}`);
+      entry.currentVersion = {
+        ...entry.currentVersion,
+        id: `${entry.currentVersion.id}-r${entry.currentVersion.revision + 1}`,
+        revision: entry.currentVersion.revision + 1,
+        title: input.title,
+        category: input.category ?? null,
+      };
+      entry.topic.currentVersionId = entry.currentVersion.id;
+      return entry.currentVersion;
+    },
+  );
+
+  const createActivityType = vi.fn(
+    async (input: {
+      behaviorFamily: "meeting" | "coursework" | "assessment";
+      version: { label: string; description?: string | null };
+    }) => {
+      const activityType: ActivityTypeDto = {
+        id: `activity-type-${activityTypes.length + 1}`,
+        instructorId: "instructor-1",
+        behaviorFamily: input.behaviorFamily,
+        currentVersionId: `activity-type-version-${activityTypes.length + 1}`,
+        archivedAt: null,
+      };
+      const currentVersion: ActivityTypeVersionDto = {
+        id: activityType.currentVersionId!,
+        activityTypeId: activityType.id,
+        revision: 1,
+        label: input.version.label,
+        description: input.version.description ?? null,
+        changeSummary: null,
+        publishedAt: "2026-07-15T00:00:00.000Z",
+      };
+      activityTypes.push({ activityType, currentVersion });
+      return { activityType, currentVersion };
+    },
+  );
+
   const backend = {
     getCourse: vi.fn(async () => course),
     listInstitutions: vi.fn(async () => [...allInstitutions]),
@@ -190,14 +258,32 @@ function buildCourseWorkspaceBackend(options?: {
       return entry.currentVersion;
     }),
     createTopic,
+    updateTopic,
+    createTopicVersion,
     listTopicPrerequisites: vi.fn(async () => []),
     assignTopicLearningModule: vi.fn(async () => {
       throw new Error("assignTopicLearningModule should not be called in this test");
     }),
     replaceTopicPrerequisites: vi.fn(async () => []),
+    listActivityTypes: vi.fn(async () => activityTypes.map((entry) => entry.activityType)),
+    listActivityTypeVersions: vi.fn(async (activityTypeId: string) => {
+      const entry = activityTypes.find((candidate) => candidate.activityType.id === activityTypeId);
+      return entry ? [entry.currentVersion] : [];
+    }),
+    createActivityType,
   };
 
-  return { backend, createInstitution, replaceCourseInstitutions, createAcademicCalendar, createLearningModule, createTopic };
+  return {
+    backend,
+    createInstitution,
+    replaceCourseInstitutions,
+    createAcademicCalendar,
+    createLearningModule,
+    createTopic,
+    updateTopic,
+    createTopicVersion,
+    createActivityType,
+  };
 }
 
 describe("CourseWorkspacePage", () => {
@@ -296,25 +382,144 @@ describe("CourseWorkspacePage", () => {
 
     await screen.findByRole("heading", { name: "Introduction to Data Science" });
     fireEvent.click(screen.getByRole("button", { name: "New topic" }));
-    fireEvent.change(await screen.findByLabelText(/^Stable code/), {
-      target: { value: "topic-pandas-basics" },
-    });
-    fireEvent.change(screen.getByLabelText("Title"), {
+    fireEvent.change(screen.getByLabelText("Topic title"), {
       target: { value: "Pandas basics" },
     });
+    const topicCodeInput = screen.getByLabelText("Topic code");
+    fireEvent.keyDown(topicCodeInput, { key: "Tab" });
     fireEvent.change(screen.getByLabelText("Category (optional)"), {
       target: { value: "tools" },
-    });
-    fireEvent.change(screen.getByLabelText(/^Learning module \(optional\)/), {
-      target: { value: "learning-module-1" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Create topic" }));
 
     await waitFor(() => {
-      expect(createTopic).toHaveBeenCalledWith("course-1", "topic-pandas-basics", "learning-module-1", {
+      expect(createTopic).toHaveBeenCalledWith("course-1", "topic-pandas-basics", null, {
         title: "Pandas basics",
         category: "tools",
       });
     });
+  });
+
+  it("shows prerequisite-led term empty states and opens the missing setup step", async () => {
+    const { backend } = buildCourseWorkspaceBackend();
+    setMockBackend(backend);
+
+    render(<CourseWorkspacePage courseId="course-1" />);
+
+    await screen.findByRole("button", { name: "Link institution to create a term" });
+    fireEvent.click(screen.getByRole("button", { name: "Link institution to create a term" }));
+
+    expect(await screen.findByLabelText("Institution name")).toBeInTheDocument();
+  });
+
+  it("saves compact topic edits through the real topic identity and version handlers", async () => {
+    const { backend, updateTopic, createTopicVersion } = buildCourseWorkspaceBackend({
+      linkedInstitutions: [{ id: "institution-1", name: "University of Example", shortName: "UExample" }],
+      calendars: [
+        {
+          id: "calendar-1",
+          institutionId: "institution-1",
+          name: "AY 2026-27",
+          academicYear: "2026-27",
+          version: 1,
+          sourceUri: null,
+          publishedAt: null,
+          archivedAt: null,
+        },
+      ],
+      topics: [
+        {
+          topic: {
+            id: "topic-1",
+            courseId: "course-1",
+            learningModuleId: null,
+            stableCode: "topic-selecting",
+            currentVersionId: "topic-version-1",
+            archivedAt: null,
+          },
+          currentVersion: {
+            id: "topic-version-1",
+            topicId: "topic-1",
+            revision: 1,
+            title: "Selecting",
+            category: "SQL",
+            description: null,
+            changeSummary: null,
+            publishedAt: null,
+          },
+        },
+      ],
+    });
+    setMockBackend(backend);
+
+    render(<CourseWorkspacePage courseId="course-1" />);
+
+    await screen.findByDisplayValue("Selecting");
+    fireEvent.change(screen.getByLabelText("Topic title"), {
+      target: { value: "Selecting rows" },
+    });
+    fireEvent.change(screen.getByLabelText("Topic code"), {
+      target: { value: "topic-selecting-rows" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
+
+    await waitFor(() => {
+      expect(updateTopic).toHaveBeenCalledWith("topic-1", {
+        stableCode: "topic-selecting-rows",
+      });
+      expect(createTopicVersion).toHaveBeenCalledWith("topic-1", {
+        expectedCurrentVersionId: "topic-version-1",
+        title: "Selecting rows",
+        category: "SQL",
+        description: null,
+        publish: false,
+      });
+    });
+  });
+
+  it("authors instructor activity types with a custom label distinct from the stable behavior family", async () => {
+    const { backend, createActivityType } = buildCourseWorkspaceBackend({
+      linkedInstitutions: [{ id: "institution-1", name: "University of Example", shortName: "UExample" }],
+      calendars: [
+        {
+          id: "calendar-1",
+          institutionId: "institution-1",
+          name: "AY 2026-27",
+          academicYear: "2026-27",
+          version: 1,
+          sourceUri: null,
+          publishedAt: null,
+          archivedAt: null,
+        },
+      ],
+    });
+    setMockBackend(backend);
+
+    render(<CourseWorkspacePage courseId="course-1" />);
+
+    await screen.findByRole("heading", { name: "Activity types" });
+    fireEvent.click(screen.getByRole("button", { name: "New activity type" }));
+    fireEvent.change(screen.getByLabelText("Activity type label"), {
+      target: { value: "Discussion" },
+    });
+    fireEvent.change(screen.getByLabelText("Stable behavior family"), {
+      target: { value: "meeting" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create activity type" }));
+
+    await waitFor(() => {
+      expect(createActivityType).toHaveBeenCalledWith({
+        behaviorFamily: "meeting",
+        version: {
+          label: "Discussion",
+          description: null,
+          publish: true,
+        },
+      });
+    });
+
+    await screen.findByText("Discussion");
+    expect(screen.getByText("meeting")).toBeInTheDocument();
+    expect(screen.getByText("Historical version 1")).toBeInTheDocument();
   });
 });

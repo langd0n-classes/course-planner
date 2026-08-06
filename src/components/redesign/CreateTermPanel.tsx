@@ -35,6 +35,8 @@ type Props = {
   institutions: InstitutionDto[];
   calendars: AcademicCalendarDto[];
   onTermCreated: () => void;
+  onResolveMissingInstitution?: () => void;
+  onResolveMissingCalendar?: () => void;
 };
 
 type PanelState =
@@ -78,7 +80,14 @@ function formatProvenanceLabel(source: CalendarSlotCandidateDto["provenance"][nu
   }
 }
 
-export default function CreateTermPanel({ courseId, institutions, calendars, onTermCreated }: Props) {
+export default function CreateTermPanel({
+  courseId,
+  institutions,
+  calendars,
+  onTermCreated,
+  onResolveMissingInstitution,
+  onResolveMissingCalendar,
+}: Props) {
   const initialInstitutionId = institutions[0]?.id ?? "";
   const [institutionId, setInstitutionId] = useState(initialInstitutionId);
   const [academicCalendarId, setAcademicCalendarId] = useState("");
@@ -175,6 +184,46 @@ export default function CreateTermPanel({ courseId, institutions, calendars, onT
     visibleCalendars.length === 0 ||
     selectedDays.length === 0 ||
     (panelState.phase === "form" && panelState.submitting);
+
+  if (institutions.length === 0) {
+    return (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-900">Create a term</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Terms are blocked until this course is linked to an institution.
+        </p>
+        {onResolveMissingInstitution ? (
+          <button
+            type="button"
+            onClick={onResolveMissingInstitution}
+            className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+          >
+            Link institution to create a term
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (visibleCalendars.length === 0) {
+    return (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-900">Create a term</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Terms need an academic calendar before dates and meeting patterns can be previewed.
+        </p>
+        {onResolveMissingCalendar ? (
+          <button
+            type="button"
+            onClick={onResolveMissingCalendar}
+            className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+          >
+            Create calendar to continue
+          </button>
+        ) : null}
+      </div>
+    );
+  }
 
   if (panelState.phase === "preview") {
     const { preview, applying, error } = panelState;
