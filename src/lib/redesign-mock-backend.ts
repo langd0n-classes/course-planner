@@ -187,25 +187,25 @@ function seed(): void {
     publish: true,
   });
 
-  const t1 = createTopicInternal(ds100.id, "PROB1", null, {
+  const t1 = createTopicInternal(ds100.id, "PROB1", {
     title: "Probability 1: Sample spaces & events",
     category: "Probability",
     description: "Foundational vocabulary.",
     publish: true,
   });
-  const t2 = createTopicInternal(ds100.id, "PROB2", probLm.learningModule.id, {
+  const t2 = createTopicInternal(ds100.id, "PROB2", {
     title: "Probability 2: Random variables",
     category: "Probability",
     description: "Discrete and continuous random variables.",
     publish: true,
   });
-  const t3 = createTopicInternal(ds100.id, "PROB3", probLm.learningModule.id, {
+  const t3 = createTopicInternal(ds100.id, "PROB3", {
     title: "Probability 3: Expectation & variance",
     category: "Probability",
     description: "Linearity of expectation, variance identities.",
     publish: true,
   });
-  createTopicInternal(ds100.id, "SQL1", null, {
+  createTopicInternal(ds100.id, "SQL1", {
     title: "SQL 1: Selecting & filtering",
     category: "Data Wrangling",
     description: "Unassigned — not yet placed into a module.",
@@ -585,13 +585,12 @@ export function restoreLearningModuleVersion(learningModuleId: Id, versionId: Id
 function createTopicInternal(
   courseId: Id,
   stableCode: string,
-  learningModuleId: Id | null,
   version: UpsertTopicVersionRequest,
 ): { topic: TopicDto; currentVersion: TopicVersionDto | null } {
   const topic: TopicDto = {
     id: nextId("topic"),
     courseId,
-    learningModuleId,
+    learningModuleId: null,
     stableCode,
     currentVersionId: null,
     archivedAt: null,
@@ -642,10 +641,9 @@ export function listTopicVersions(topicId: Id): TopicVersionDto[] {
 export function createTopic(
   courseId: Id,
   stableCode: string,
-  learningModuleId: Id | null,
   version: UpsertTopicVersionRequest,
 ): { topic: TopicDto; currentVersion: TopicVersionDto | null } {
-  return createTopicInternal(courseId, stableCode, learningModuleId, version);
+  return createTopicInternal(courseId, stableCode, version);
 }
 
 export function createTopicVersion(topicId: Id, version: UpsertTopicVersionRequest): TopicVersionDto {
@@ -657,15 +655,6 @@ export function createTopicVersion(topicId: Id, version: UpsertTopicVersionReque
     store.topics.set(topicId, topic);
   }
   return newVersion;
-}
-
-/** LM assignment is an editable property of the Topic (v2.1 §9.1), not creation-time only. */
-export function assignTopicLearningModule(topicId: Id, learningModuleId: Id | null): TopicDto {
-  const topic = store.topics.get(topicId);
-  if (!topic) throw new MockNotFoundError(`Topic ${topicId} not found`);
-  const updated = { ...topic, learningModuleId };
-  store.topics.set(topicId, updated);
-  return updated;
 }
 
 export function listTopicPrerequisites(courseId: Id): TopicPrerequisiteDto[] {

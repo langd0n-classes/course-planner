@@ -103,26 +103,16 @@ export async function createTopic(
   db: RedesignDb,
   input: {
     courseId: string;
-    learningModuleId?: string | null;
     stableCode: string;
     createdByInstructorId: string;
     draft: TopicVersionDraft;
   },
 ) {
   return db.$transaction(async (tx) => {
-    if (input.learningModuleId) {
-      const learningModule = await tx.learningModule.findUnique({
-        where: { id: input.learningModuleId },
-        select: { courseId: true },
-      });
-      if (!learningModule) throw new DomainInvariantError("Learning Module not found");
-      assertSameCourse(input.courseId, learningModule.courseId, "Topic assignment");
-    }
-
     const topic = await tx.topic.create({
       data: {
         courseId: input.courseId,
-        learningModuleId: input.learningModuleId ?? null,
+        learningModuleId: null,
         stableCode: input.stableCode,
       },
     });
@@ -317,7 +307,7 @@ export async function updateTopic(
   db: RedesignDb,
   instructorId: string,
   topicId: string,
-  input: { stableCode?: string; learningModuleId?: string | null; archivedAt?: Date | null },
+  input: { stableCode?: string; archivedAt?: Date | null },
 ) {
   return db.$transaction(async (tx) => {
     const topic = await tx.topic.findUnique({
@@ -328,17 +318,6 @@ export async function updateTopic(
       throw new DomainInvariantError("Topic not found");
     }
     await assertOwnedCourse(tx, instructorId, topic.courseId);
-
-    if (input.learningModuleId !== undefined && input.learningModuleId !== null) {
-      const learningModule = await tx.learningModule.findUnique({
-        where: { id: input.learningModuleId },
-        select: { courseId: true },
-      });
-      if (!learningModule) {
-        throw new DomainInvariantError("Learning Module not found");
-      }
-      assertSameCourse(topic.courseId, learningModule.courseId, "Topic assignment");
-    }
 
     if (input.stableCode && input.stableCode !== topic.stableCode) {
       const duplicate = await tx.topic.findUnique({
@@ -356,7 +335,6 @@ export async function updateTopic(
 
     const data = withoutUndefined({
       stableCode: input.stableCode,
-      learningModuleId: input.learningModuleId,
       archivedAt: input.archivedAt,
     });
     if (Object.keys(data).length === 0) {

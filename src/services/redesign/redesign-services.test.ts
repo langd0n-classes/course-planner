@@ -17,7 +17,6 @@ import { computePlannedDeliveredDiff, createDeliveredRevision } from "./offering
 import {
   assertPublishedLearningModuleVersionImmutable,
   reviseLearningModule,
-  updateTopic,
 } from "./revision-service";
 import { applyTermCreation, createTerm } from "./term-service";
 import {
@@ -993,37 +992,6 @@ describe("versioned academic calendar services", () => {
       label: "Updated label",
     });
     expect(updatedException.label).toBe("Updated label");
-  });
-});
-
-describe("topic ownership invariants", () => {
-  it("rejects moving a Topic across Course boundaries", async () => {
-    const db = createTransactionalDb({
-      course: {
-        findUnique: async ({ where }: any) => {
-          if (where.id_instructorId?.id === "course-1" && where.id_instructorId?.instructorId === "instructor-1") {
-            return { id: "course-1", instructorId: "instructor-1" };
-          }
-          return null;
-        },
-      },
-      topic: {
-        findUnique: async () => ({
-          id: "topic-1",
-          courseId: "course-1",
-          stableCode: "TOPIC-1",
-          learningModuleId: "lm-1",
-        }),
-        update: async ({ data }: any) => ({ id: "topic-1", courseId: "course-1", ...data }),
-      },
-      learningModule: {
-        findUnique: async () => ({ id: "lm-2", courseId: "course-2" }),
-      },
-    });
-
-    await expect(
-      updateTopic(db, "instructor-1", "topic-1", { learningModuleId: "lm-2" }),
-    ).rejects.toThrow("cannot cross Course boundaries");
   });
 });
 

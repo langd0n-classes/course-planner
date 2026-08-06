@@ -479,13 +479,12 @@ const _api = {
   createTopic: async (
     courseId: Id,
     stableCode: string,
-    learningModuleId: Id | null,
     version: UpsertTopicVersionRequest,
   ): Promise<{ topic: TopicDto; currentVersion: TopicVersionDto | null }> => {
     const instructor = await _api.getCurrentInstructor();
     return post<{ topic: TopicDto; currentVersion: TopicVersionDto }>(
       `/api/courses/${courseId}/topics`,
-      { stableCode, learningModuleId, createdByInstructorId: instructor.id, version },
+      { stableCode, createdByInstructorId: instructor.id, version },
     );
   },
 
@@ -510,11 +509,6 @@ const _api = {
     version: UpsertTopicVersionRequest,
   ): Promise<TopicVersionDto> =>
     post<{ version: TopicVersionDto }>(`/api/topics/${topicId}/versions`, version).then((d) => d.version),
-
-  assignTopicLearningModule: (topicId: Id, learningModuleId: Id | null): Promise<TopicDto> =>
-    patch<{ topic: TopicDto; currentVersion: TopicVersionDto | null }>(`/api/topics/${topicId}`, {
-      learningModuleId,
-    }).then((d) => d.topic),
 
   listTopicPrerequisites: (courseId: Id): Promise<TopicPrerequisiteDto[]> =>
     get<{ prerequisites: TopicPrerequisiteDto[] }>(

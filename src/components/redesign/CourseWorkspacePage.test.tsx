@@ -127,13 +127,12 @@ function buildCourseWorkspaceBackend(options?: {
     async (
       _courseId: string,
       stableCode: string,
-      learningModuleId: string | null,
       versionInput: { title: string; category?: string | null },
     ) => {
       const topic: TopicDto = {
         id: `topic-${topics.length + 1}`,
         courseId: course.id,
-        learningModuleId,
+        learningModuleId: null,
         stableCode,
         currentVersionId: `topic-version-${topics.length + 1}`,
         archivedAt: null,
@@ -156,17 +155,14 @@ function buildCourseWorkspaceBackend(options?: {
   const updateTopic = vi.fn(
     async (
       topicId: string,
-      input: { stableCode?: string; learningModuleId?: string | null },
+      input: { stableCode?: string },
     ) => {
       const entry = topics.find((candidate) => candidate.topic.id === topicId);
       if (!entry) throw new Error(`Unknown topic ${topicId}`);
       entry.topic = {
         ...entry.topic,
         stableCode: input.stableCode ?? entry.topic.stableCode,
-        learningModuleId:
-          input.learningModuleId === undefined
-            ? entry.topic.learningModuleId
-            : input.learningModuleId,
+        learningModuleId: entry.topic.learningModuleId,
       };
       return { topic: entry.topic, currentVersion: entry.currentVersion };
     },
@@ -261,9 +257,6 @@ function buildCourseWorkspaceBackend(options?: {
     updateTopic,
     createTopicVersion,
     listTopicPrerequisites: vi.fn(async () => []),
-    assignTopicLearningModule: vi.fn(async () => {
-      throw new Error("assignTopicLearningModule should not be called in this test");
-    }),
     replaceTopicPrerequisites: vi.fn(async () => []),
     listActivityTypes: vi.fn(async () => activityTypes.map((entry) => entry.activityType)),
     listActivityTypeVersions: vi.fn(async (activityTypeId: string) => {
@@ -393,7 +386,7 @@ describe("CourseWorkspacePage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create topic" }));
 
     await waitFor(() => {
-      expect(createTopic).toHaveBeenCalledWith("course-1", "topic-pandas-basics", null, {
+      expect(createTopic).toHaveBeenCalledWith("course-1", "topic-pandas-basics", {
         title: "Pandas basics",
         category: "tools",
       });

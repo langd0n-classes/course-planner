@@ -378,7 +378,6 @@ export default function CourseWorkspacePage({ courseId }: Props) {
       await redesignApi.createTopic(
         courseId,
         createTopicState.stableCode,
-        null,
         {
           title: createTopicState.title,
           category: createTopicState.category || null,

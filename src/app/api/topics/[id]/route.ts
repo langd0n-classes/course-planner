@@ -45,7 +45,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   try {
     await updateTopic(prisma, instructor.id, id, {
       stableCode: parsed.data.stableCode,
-      learningModuleId: parsed.data.learningModuleId,
       archivedAt:
         parsed.data.archivedAt === undefined
           ? undefined
