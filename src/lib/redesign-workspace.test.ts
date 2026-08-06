@@ -8,7 +8,69 @@ import {
   deriveTermPlanningGaps,
   suggestTopicStableCode,
   moveActivityBoardCard,
+  planActivityMove,
 } from "./redesign-workspace";
+
+function lmVersion(id: string, learningModuleId: string, activities: Array<{ activityVersionId: string; sequence: number; notes: string | null }>) {
+  return { id, learningModuleId, revision: 1, title: learningModuleId, description: null, studentDescription: null, learningObjectives: [], notes: null, defaultSequence: 1, changeSummary: null, publishedAt: null, topics: [], activities };
+}
+const lm = (id: string) => ({ id, courseId: "c", stableCode: id.toUpperCase(), currentVersionId: `${id}-v`, archivedAt: null });
+
+describe("planActivityMove", () => {
+  it("puts the destination append before source removals so a partial failure duplicates rather than loses the card", () => {
+    const steps = planActivityMove({
+      learningModules: [lm("lm-a"), lm("lm-b")],
+      currentVersionsByLearningModuleId: new Map([
+        ["lm-a", lmVersion("lmv-a", "lm-a", [{ activityVersionId: "av-1", sequence: 1, notes: "keep" }, { activityVersionId: "av-2", sequence: 2, notes: null }])],
+        ["lm-b", lmVersion("lmv-b", "lm-b", [{ activityVersionId: "av-3", sequence: 1, notes: null }])],
+      ]),
+      activityVersionId: "av-1",
+      destinationLearningModuleId: "lm-b",
+    });
+
+    expect(steps.map((step) => step.learningModuleId)).toEqual(["lm-b", "lm-a"]);
+    expect(steps[0]).toEqual({
+      learningModuleId: "lm-b",
+      expectedCurrentVersionId: "lmv-b",
+      activities: [
+        { activityVersionId: "av-3", sequence: 1, notes: null },
+        { activityVersionId: "av-1", sequence: 2, notes: null },
+      ],
+    });
+    expect(steps[1]).toEqual({
+      learningModuleId: "lm-a",
+      expectedCurrentVersionId: "lmv-a",
+      activities: [{ activityVersionId: "av-2", sequence: 1, notes: null }],
+    });
+  });
+
+  it("plans only source removals when moving to unassigned, and removes from every module holding the card", () => {
+    const steps = planActivityMove({
+      learningModules: [lm("lm-a"), lm("lm-b")],
+      currentVersionsByLearningModuleId: new Map([
+        ["lm-a", lmVersion("lmv-a", "lm-a", [{ activityVersionId: "av-1", sequence: 1, notes: null }])],
+        ["lm-b", lmVersion("lmv-b", "lm-b", [{ activityVersionId: "av-1", sequence: 1, notes: null }, { activityVersionId: "av-2", sequence: 2, notes: null }])],
+      ]),
+      activityVersionId: "av-1",
+      destinationLearningModuleId: null,
+    });
+
+    expect(steps.map((step) => step.learningModuleId)).toEqual(["lm-a", "lm-b"]);
+    expect(steps[0]?.activities).toEqual([]);
+    expect(steps[1]?.activities).toEqual([{ activityVersionId: "av-2", sequence: 1, notes: null }]);
+  });
+
+  it("plans nothing when the card is already only in the destination", () => {
+    expect(planActivityMove({
+      learningModules: [lm("lm-a")],
+      currentVersionsByLearningModuleId: new Map([
+        ["lm-a", lmVersion("lmv-a", "lm-a", [{ activityVersionId: "av-1", sequence: 1, notes: null }])],
+      ]),
+      activityVersionId: "av-1",
+      destinationLearningModuleId: "lm-a",
+    })).toEqual([]);
+  });
+});
 
 describe("activity board placement", () => {
   it("moves a card through one domain action without duplicating it", () => {

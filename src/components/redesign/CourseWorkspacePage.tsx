@@ -14,7 +14,7 @@ import type {
   TermDto,
   TopicVersionDto,
 } from "@/lib/redesign-contract";
-import { buildTopicBrowserBuckets, suggestTopicStableCode } from "@/lib/redesign-workspace";
+import { buildTopicBrowserBuckets, planActivityMove, suggestTopicStableCode } from "@/lib/redesign-workspace";
 import CreateTermPanel from "./CreateTermPanel";
 import GapNotice from "./GapNotice";
 import LifecycleBadge from "./LifecycleBadge";
@@ -288,30 +288,36 @@ export default function CourseWorkspacePage({ courseId }: Props) {
     if (destination === "cross-cutting") {
       throw new Error("Choose the learning-module scope in the activity detail before making an activity cross-cutting.");
     }
-    const affected = learningModules.filter((learningModule) => {
-      const version = currentVersionsByLearningModuleId.get(learningModule.id);
-      return version?.activities?.some((membership) => membership.activityVersionId === activityVersionId) || learningModule.id === destination;
+    const steps = planActivityMove({
+      learningModules,
+      currentVersionsByLearningModuleId,
+      activityVersionId,
+      destinationLearningModuleId: destination === "unassigned" ? null : destination,
     });
-    await Promise.all(affected.map(async (learningModule) => {
-      const current = currentVersionsByLearningModuleId.get(learningModule.id);
-      if (!current) return;
-      const withoutMoved = (current.activities ?? []).filter((membership) => membership.activityVersionId !== activityVersionId);
-      const activities = learningModule.id === destination
-        ? [...withoutMoved, { activityVersionId, sequence: withoutMoved.length + 1, notes: null }]
-        : withoutMoved.map((membership, index) => ({ ...membership, sequence: index + 1 }));
-      await redesignApi.createLearningModuleVersion(learningModule.id, {
-        expectedCurrentVersionId: current.id,
-        title: current.title,
-        description: current.description,
-        studentDescription: current.studentDescription,
-        learningObjectives: current.learningObjectives,
-        notes: current.notes,
-        defaultSequence: current.defaultSequence,
-        changeSummary: "Moved activity from the activity board.",
-        activities,
-        publish: true,
-      });
-    }));
+    try {
+      // Sequential and destination-first (see planActivityMove): a failure part
+      // way through can only leave the card visible in two columns, never in none.
+      for (const step of steps) {
+        const current = currentVersionsByLearningModuleId.get(step.learningModuleId);
+        if (!current) continue;
+        await redesignApi.createLearningModuleVersion(step.learningModuleId, {
+          expectedCurrentVersionId: step.expectedCurrentVersionId,
+          title: current.title,
+          description: current.description,
+          studentDescription: current.studentDescription,
+          learningObjectives: current.learningObjectives,
+          notes: current.notes,
+          defaultSequence: current.defaultSequence,
+          changeSummary: "Moved activity from the activity board.",
+          activities: step.activities,
+          publish: true,
+        });
+      }
+    } catch (error) {
+      // Resync the board with whatever committed before surfacing the failure.
+      await loadWorkspace();
+      throw error;
+    }
     await loadWorkspace();
   }
 

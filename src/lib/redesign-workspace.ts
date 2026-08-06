@@ -40,6 +40,61 @@ export function moveActivityBoardCard(args: {
   });
 }
 
+export type ActivityMovePlanStep = {
+  learningModuleId: Id;
+  expectedCurrentVersionId: Id;
+  activities: Array<{ activityVersionId: Id; sequence: number; notes: string | null }>;
+};
+
+/**
+ * Orders the per-LM revisions for a board move so a mid-move failure can only
+ * duplicate the card across columns (visible and self-healing on retry), never
+ * lose it: the destination append is always the first step, source removals
+ * follow. Cross-LM moves are not atomic server-side, so ordering is the safety.
+ */
+export function planActivityMove(args: {
+  learningModules: LearningModuleDto[];
+  currentVersionsByLearningModuleId: Map<Id, LearningModuleVersionDto | null>;
+  activityVersionId: Id;
+  destinationLearningModuleId: Id | null;
+}): ActivityMovePlanStep[] {
+  const steps: ActivityMovePlanStep[] = [];
+  for (const learningModule of args.learningModules) {
+    const current = args.currentVersionsByLearningModuleId.get(learningModule.id);
+    if (!current) continue;
+    const memberships = [...(current.activities ?? [])].sort((left, right) => left.sequence - right.sequence);
+    const hasCard = memberships.some((membership) => membership.activityVersionId === args.activityVersionId);
+    const isDestination = learningModule.id === args.destinationLearningModuleId;
+    if (isDestination && !hasCard) {
+      steps.unshift({
+        learningModuleId: learningModule.id,
+        expectedCurrentVersionId: current.id,
+        activities: [
+          ...memberships.map((membership, index) => ({
+            activityVersionId: membership.activityVersionId,
+            sequence: index + 1,
+            notes: membership.notes ?? null,
+          })),
+          { activityVersionId: args.activityVersionId, sequence: memberships.length + 1, notes: null },
+        ],
+      });
+    } else if (!isDestination && hasCard) {
+      steps.push({
+        learningModuleId: learningModule.id,
+        expectedCurrentVersionId: current.id,
+        activities: memberships
+          .filter((membership) => membership.activityVersionId !== args.activityVersionId)
+          .map((membership, index) => ({
+            activityVersionId: membership.activityVersionId,
+            sequence: index + 1,
+            notes: membership.notes ?? null,
+          })),
+      });
+    }
+  }
+  return steps;
+}
+
 export function buildActivityBoardColumns(args: {
   learningModules: LearningModuleDto[];
   currentVersionsByLearningModuleId: Map<Id, LearningModuleVersionDto | null>;
