@@ -1,11 +1,33 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildActivityBoardColumns,
+  buildTopicFlow,
   buildTermCalendarTimeline,
   buildTopicBrowserBuckets,
   compareLearningModuleVersions,
   deriveTermPlanningGaps,
   suggestTopicStableCode,
+  moveActivityBoardCard,
 } from "./redesign-workspace";
+
+describe("activity board placement", () => {
+  it("moves a card through one domain action without duplicating it", () => {
+    expect(moveActivityBoardCard({ columns: [
+      { key: "unassigned", label: "Unassigned", activityVersionIds: ["av-1"] },
+      { key: "lm-1", label: "Foundations", activityVersionIds: [] },
+    ], activityVersionId: "av-1", destinationKey: "lm-1" })).toEqual([
+      { key: "unassigned", label: "Unassigned", activityVersionIds: [] },
+      { key: "lm-1", label: "Foundations", activityVersionIds: ["av-1"] },
+    ]);
+  });
+
+  it("derives board placement and topic flow from activity versions, never Topic.learningModuleId", () => {
+    const version = { id: "av-1", activityId: "a-1", revision: 1, title: "Workshop", summary: null, activityTypeVersionId: "type-1", changeSummary: null, publishedAt: null, detail: { behaviorFamily: "meeting" as const, defaultDurationMinutes: null, modality: null, preparationNotes: null, authoringNotes: null }, milestoneTemplates: [] };
+    const columns = buildActivityBoardColumns({ learningModules: [{ id: "lm-1", courseId: "c", stableCode: "F", currentVersionId: "lmv-1", archivedAt: null }], currentVersionsByLearningModuleId: new Map([["lm-1", { id: "lmv-1", learningModuleId: "lm-1", revision: 1, title: "Foundations", description: null, studentDescription: null, learningObjectives: [], notes: null, defaultSequence: 1, changeSummary: null, publishedAt: null, topics: [], activities: [{ activityVersionId: "av-1", sequence: 1, notes: null }] }]]), activities: [{ id: "a-1", courseId: "c", stableCode: "A1", currentVersionId: "av-1", archivedAt: null }], currentVersionsByActivityId: new Map([["a-1", version]]) });
+    expect(columns.find((column) => column.key === "lm-1")?.activityVersionIds).toEqual(["av-1"]);
+    expect(buildTopicFlow({ columns, activities: [{ id: "a-1", courseId: "c", stableCode: "A1", currentVersionId: "av-1", archivedAt: null }], versionsByActivityId: new Map([["a-1", version]]), actionsByActivityVersionId: new Map([["av-1", [{ id: "action-1", activityVersionId: "av-1", topicVersionId: "tv-1", action: "introduced", notes: null, provenance: null, siblings: [] }]]]) }).get("tv-1")?.[0]?.columnKey).toBe("lm-1");
+  });
+});
 
 describe("buildTopicBrowserBuckets", () => {
   it("keeps an explicit Unassigned bucket and preserves empty modules", () => {

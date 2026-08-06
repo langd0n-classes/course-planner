@@ -20,6 +20,7 @@ import GapNotice from "./GapNotice";
 import LifecycleBadge from "./LifecycleBadge";
 import RevisionHistoryPanel from "./RevisionHistoryPanel";
 import TopicBrowser from "./TopicBrowser";
+import ActivityBoard from "./ActivityBoard";
 
 type Props = {
   courseId: string;
@@ -280,6 +281,37 @@ export default function CourseWorkspacePage({ courseId }: Props) {
       versionId,
       "Restored from course workspace revision history.",
     );
+    await loadWorkspace();
+  }
+
+  async function handleMoveActivity(activityVersionId: Id, destination: Id | "unassigned" | "cross-cutting") {
+    if (destination === "cross-cutting") {
+      throw new Error("Choose the learning-module scope in the activity detail before making an activity cross-cutting.");
+    }
+    const affected = learningModules.filter((learningModule) => {
+      const version = currentVersionsByLearningModuleId.get(learningModule.id);
+      return version?.activities?.some((membership) => membership.activityVersionId === activityVersionId) || learningModule.id === destination;
+    });
+    await Promise.all(affected.map(async (learningModule) => {
+      const current = currentVersionsByLearningModuleId.get(learningModule.id);
+      if (!current) return;
+      const withoutMoved = (current.activities ?? []).filter((membership) => membership.activityVersionId !== activityVersionId);
+      const activities = learningModule.id === destination
+        ? [...withoutMoved, { activityVersionId, sequence: withoutMoved.length + 1, notes: null }]
+        : withoutMoved.map((membership, index) => ({ ...membership, sequence: index + 1 }));
+      await redesignApi.createLearningModuleVersion(learningModule.id, {
+        expectedCurrentVersionId: current.id,
+        title: current.title,
+        description: current.description,
+        studentDescription: current.studentDescription,
+        learningObjectives: current.learningObjectives,
+        notes: current.notes,
+        defaultSequence: current.defaultSequence,
+        changeSummary: "Moved activity from the activity board.",
+        activities,
+        publish: true,
+      });
+    }));
     await loadWorkspace();
   }
 
@@ -1079,6 +1111,15 @@ export default function CourseWorkspacePage({ courseId }: Props) {
           onSaveTopic={handleSaveTopic}
         />
       </section>
+
+      <ActivityBoard
+        courseId={courseId}
+        learningModules={learningModules}
+        currentVersionsByLearningModuleId={currentVersionsByLearningModuleId}
+        topics={topics}
+        currentVersionsByTopicId={currentVersionsByTopicId}
+        onMove={handleMoveActivity}
+      />
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between gap-3">

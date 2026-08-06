@@ -1,4 +1,7 @@
 import type {
+  ActivityDto,
+  ActivityVersionDto,
+  ActivityVersionTopicActionWithSiblingsDto,
   CalendarSlotDto,
   Id,
   LearningModuleDto,
@@ -8,6 +11,87 @@ import type {
   TopicPrerequisiteDto,
   TopicVersionDto,
 } from "./redesign-contract";
+
+export type ActivityBoardColumn = {
+  key: Id | "unassigned" | "cross-cutting";
+  label: string;
+  activityVersionIds: Id[];
+};
+
+export type TopicFlowOccurrence = {
+  activityVersionId: Id;
+  activityTitle: string;
+  activityStableCode: string;
+  columnKey: Id | "unassigned" | "cross-cutting";
+  action: "introduced" | "practiced" | "assessed";
+};
+
+/** The one placement action used by both pointer drop and keyboard move. */
+export function moveActivityBoardCard(args: {
+  columns: ActivityBoardColumn[];
+  activityVersionId: Id;
+  destinationKey: ActivityBoardColumn["key"];
+}): ActivityBoardColumn[] {
+  return args.columns.map((column) => {
+    const withoutCard = column.activityVersionIds.filter((id) => id !== args.activityVersionId);
+    return column.key === args.destinationKey
+      ? { ...column, activityVersionIds: [...withoutCard, args.activityVersionId] }
+      : { ...column, activityVersionIds: withoutCard };
+  });
+}
+
+export function buildActivityBoardColumns(args: {
+  learningModules: LearningModuleDto[];
+  currentVersionsByLearningModuleId: Map<Id, LearningModuleVersionDto | null>;
+  activities: ActivityDto[];
+  currentVersionsByActivityId: Map<Id, ActivityVersionDto | null>;
+}): ActivityBoardColumn[] {
+  const columns: ActivityBoardColumn[] = [
+    { key: "unassigned", label: "Unassigned", activityVersionIds: [] },
+    ...[...args.learningModules]
+      .sort((left, right) => (args.currentVersionsByLearningModuleId.get(left.id)?.defaultSequence ?? Number.MAX_SAFE_INTEGER) - (args.currentVersionsByLearningModuleId.get(right.id)?.defaultSequence ?? Number.MAX_SAFE_INTEGER))
+      .map((learningModule) => ({
+        key: learningModule.id,
+        label: args.currentVersionsByLearningModuleId.get(learningModule.id)?.title ?? learningModule.stableCode,
+        activityVersionIds: [...(args.currentVersionsByLearningModuleId.get(learningModule.id)?.activities ?? [])]
+          .sort((left, right) => left.sequence - right.sequence)
+          .map((membership) => membership.activityVersionId),
+      })),
+    { key: "cross-cutting", label: "Cross-cutting", activityVersionIds: [] },
+  ];
+  const placed = new Set(columns.flatMap((column) => column.activityVersionIds));
+  for (const activity of args.activities) {
+    const version = args.currentVersionsByActivityId.get(activity.id);
+    if (version && !placed.has(version.id)) columns[0]!.activityVersionIds.push(version.id);
+  }
+  return columns;
+}
+
+export function buildTopicFlow(args: {
+  columns: ActivityBoardColumn[];
+  activities: ActivityDto[];
+  versionsByActivityId: Map<Id, ActivityVersionDto | null>;
+  actionsByActivityVersionId: Map<Id, ActivityVersionTopicActionWithSiblingsDto[]>;
+}): Map<Id, TopicFlowOccurrence[]> {
+  const columnByVersion = new Map(args.columns.flatMap((column) => column.activityVersionIds.map((id) => [id, column.key] as const)));
+  const activityById = new Map(args.activities.map((activity) => [activity.id, activity]));
+  const flow = new Map<Id, TopicFlowOccurrence[]>();
+  for (const [activityId, version] of args.versionsByActivityId) {
+    if (!version) continue;
+    const activity = activityById.get(activityId);
+    for (const action of args.actionsByActivityVersionId.get(version.id) ?? []) {
+      const occurrence: TopicFlowOccurrence = {
+        activityVersionId: version.id,
+        activityTitle: version.title,
+        activityStableCode: activity?.stableCode ?? activityId,
+        columnKey: columnByVersion.get(version.id) ?? "unassigned",
+        action: action.action,
+      };
+      flow.set(action.topicVersionId, [...(flow.get(action.topicVersionId) ?? []), occurrence]);
+    }
+  }
+  return flow;
+}
 
 export type TopicBrowserEntry = {
   topic: TopicDto;
