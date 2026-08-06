@@ -151,7 +151,8 @@ async function main() {
   const topic = await db.topic.create({
     data: {
       courseId: course.id,
-      learningModuleId: lm.id,
+      // Direct Topic→LM ownership is retired (ADR-0002); placement is activity-derived.
+      learningModuleId: null,
       stableCode: "TOPIC-PROB-1",
     },
   });
