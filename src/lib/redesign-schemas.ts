@@ -116,7 +116,6 @@ export const upsertLearningModuleVersionSchema = z.object({
 
 export const createTopicSchema = z.object({
   stableCode: z.string().min(1),
-  learningModuleId: z.string().uuid().nullable().optional(),
   createdByInstructorId: z.string().uuid(),
   version: z.object({
     expectedCurrentVersionId: z.string().uuid().optional(),
@@ -131,7 +130,6 @@ export const createTopicSchema = z.object({
 export const updateTopicSchema = z
   .object({
     stableCode: z.string().min(1),
-    learningModuleId: z.string().uuid().nullable(),
     archivedAt: isoDateTime.nullable(),
   })
   .partial();

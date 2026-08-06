@@ -340,8 +340,6 @@ export class ExemplarImportService {
       }
 
       for (const topic of staged.snapshot.topics) {
-        const learningModuleId = moduleIds.get(topic.learningModuleCode);
-        if (!learningModuleId) throw new DomainInvariantError("Topic Learning Module not found");
         const existing = await tx.topic.findUnique({
           where: { courseId_stableCode: { courseId: input.courseId, stableCode: topic.stableCode } },
           include: { currentVersion: true },
@@ -350,7 +348,6 @@ export class ExemplarImportService {
           existing ??
           (await createTopic(transactional(tx), {
             courseId: input.courseId,
-            learningModuleId,
             stableCode: topic.stableCode,
             createdByInstructorId: input.instructorId,
             draft: {
@@ -458,9 +455,8 @@ export class ExemplarImportService {
           where: { id: currentVersionId },
           include: { topics: true, activities: true },
         });
-        const topics = staged.snapshot.topics
-          .filter((topic) => topic.learningModuleCode === module.stableCode)
-          .map((topic, index) => ({ topicVersionId: topicVersionIds.get(topic.stableCode)!, sequence: index }));
+        // Topic placement is activity-derived; imported Topics remain unassigned.
+        const topics: { topicVersionId: string; sequence: number }[] = [];
         const activities = staged.snapshot.activities
           .filter((activity) => activity.learningModuleCode === module.stableCode)
           .map((activity, index) => ({

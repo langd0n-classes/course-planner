@@ -47,7 +47,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const createdTopic = await createTopic(prisma, {
       courseId: id,
       stableCode: parsed.data.stableCode,
-      learningModuleId: parsed.data.learningModuleId,
       createdByInstructorId: instructor.id,
       draft: {
         title: parsed.data.version.title,
