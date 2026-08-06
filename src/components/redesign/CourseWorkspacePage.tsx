@@ -14,12 +14,13 @@ import type {
   TermDto,
   TopicVersionDto,
 } from "@/lib/redesign-contract";
-import { buildTopicBrowserBuckets, suggestTopicStableCode } from "@/lib/redesign-workspace";
+import { buildTopicBrowserBuckets, planActivityMove, suggestTopicStableCode } from "@/lib/redesign-workspace";
 import CreateTermPanel from "./CreateTermPanel";
 import GapNotice from "./GapNotice";
 import LifecycleBadge from "./LifecycleBadge";
 import RevisionHistoryPanel from "./RevisionHistoryPanel";
 import TopicBrowser from "./TopicBrowser";
+import ActivityBoard from "./ActivityBoard";
 
 type Props = {
   courseId: string;
@@ -280,6 +281,43 @@ export default function CourseWorkspacePage({ courseId }: Props) {
       versionId,
       "Restored from course workspace revision history.",
     );
+    await loadWorkspace();
+  }
+
+  async function handleMoveActivity(activityVersionId: Id, destination: Id | "unassigned" | "cross-cutting") {
+    if (destination === "cross-cutting") {
+      throw new Error("Choose the learning-module scope in the activity detail before making an activity cross-cutting.");
+    }
+    const steps = planActivityMove({
+      learningModules,
+      currentVersionsByLearningModuleId,
+      activityVersionId,
+      destinationLearningModuleId: destination === "unassigned" ? null : destination,
+    });
+    try {
+      // Sequential and destination-first (see planActivityMove): a failure part
+      // way through can only leave the card visible in two columns, never in none.
+      for (const step of steps) {
+        const current = currentVersionsByLearningModuleId.get(step.learningModuleId);
+        if (!current) continue;
+        await redesignApi.createLearningModuleVersion(step.learningModuleId, {
+          expectedCurrentVersionId: step.expectedCurrentVersionId,
+          title: current.title,
+          description: current.description,
+          studentDescription: current.studentDescription,
+          learningObjectives: current.learningObjectives,
+          notes: current.notes,
+          defaultSequence: current.defaultSequence,
+          changeSummary: "Moved activity from the activity board.",
+          activities: step.activities,
+          publish: true,
+        });
+      }
+    } catch (error) {
+      // Resync the board with whatever committed before surfacing the failure.
+      await loadWorkspace();
+      throw error;
+    }
     await loadWorkspace();
   }
 
@@ -1079,6 +1117,15 @@ export default function CourseWorkspacePage({ courseId }: Props) {
           onSaveTopic={handleSaveTopic}
         />
       </section>
+
+      <ActivityBoard
+        courseId={courseId}
+        learningModules={learningModules}
+        currentVersionsByLearningModuleId={currentVersionsByLearningModuleId}
+        topics={topics}
+        currentVersionsByTopicId={currentVersionsByTopicId}
+        onMove={handleMoveActivity}
+      />
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between gap-3">

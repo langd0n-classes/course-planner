@@ -516,3 +516,101 @@ describe("CourseWorkspacePage", () => {
     expect(screen.getByText("Historical version 1")).toBeInTheDocument();
   });
 });
+
+describe("CourseWorkspacePage activity board moves", () => {
+  afterEach(() => {
+    setMockBackend(null);
+    vi.clearAllMocks();
+  });
+
+  const activity = { id: "a-1", courseId: "course-1", stableCode: "W1", currentVersionId: "av-1", archivedAt: null };
+  const activityVersion = {
+    id: "av-1",
+    activityId: "a-1",
+    revision: 1,
+    title: "Probability workshop",
+    summary: null,
+    activityTypeVersionId: "type-1",
+    changeSummary: null,
+    publishedAt: null,
+    detail: { behaviorFamily: "meeting" as const, defaultDurationMinutes: null, modality: null, preparationNotes: null, authoringNotes: null },
+    milestoneTemplates: [],
+  };
+
+  function lmEntry(id: string, versionId: string, activities: Array<{ activityVersionId: string; sequence: number; notes: string | null }>) {
+    const learningModule: LearningModuleDto = { id, courseId: "course-1", stableCode: id.toUpperCase(), currentVersionId: versionId, archivedAt: null };
+    const currentVersion = {
+      id: versionId,
+      learningModuleId: id,
+      revision: 1,
+      title: `Module ${id}`,
+      description: null,
+      studentDescription: null,
+      learningObjectives: [],
+      notes: null,
+      defaultSequence: id === "lm-1" ? 1 : 2,
+      changeSummary: null,
+      publishedAt: "2026-01-01T00:00:00Z",
+      topics: [],
+      activities,
+    } as unknown as LearningModuleVersionDto;
+    return { learningModule, currentVersion };
+  }
+
+  function renderBoardWorkspace(
+    impl: (learningModuleId: string, version: UpsertLearningModuleVersionRequest) => Promise<LearningModuleVersionDto>,
+  ) {
+    const createLearningModuleVersion = vi.fn(impl);
+    const { backend } = buildCourseWorkspaceBackend({
+      learningModules: [
+        lmEntry("lm-1", "lmv-1", [{ activityVersionId: "av-1", sequence: 1, notes: null }]),
+        lmEntry("lm-2", "lmv-2", []),
+      ],
+    });
+    setMockBackend({
+      ...backend,
+      listCourseActivities: vi.fn(async () => [activity]),
+      getActivity: vi.fn(async () => ({ activity, currentVersion: activityVersion })),
+      listActivityTopicActions: vi.fn(async () => []),
+      listActivityLmScope: vi.fn(async () => []),
+      createLearningModuleVersion,
+    });
+    render(<CourseWorkspacePage courseId="course-1" />);
+    return createLearningModuleVersion;
+  }
+
+  it("revises the destination module before removing from the source", async () => {
+    const createLearningModuleVersion = renderBoardWorkspace(
+      async (learningModuleId) => ({ id: `new-${learningModuleId}` }) as unknown as LearningModuleVersionDto,
+    );
+
+    const control = await screen.findByLabelText("Move Probability workshop to");
+    fireEvent.change(control, { target: { value: "lm-2" } });
+
+    await waitFor(() => expect(createLearningModuleVersion).toHaveBeenCalledTimes(2));
+    expect(createLearningModuleVersion.mock.calls.map((call) => call[0])).toEqual(["lm-2", "lm-1"]);
+    expect(createLearningModuleVersion.mock.calls[0]?.[1]).toMatchObject({
+      expectedCurrentVersionId: "lmv-2",
+      activities: [{ activityVersionId: "av-1", sequence: 1, notes: null }],
+      publish: true,
+    });
+    expect(createLearningModuleVersion.mock.calls[1]?.[1]).toMatchObject({
+      expectedCurrentVersionId: "lmv-1",
+      activities: [],
+    });
+  });
+
+  it("keeps the card in its source module when the destination revision fails", async () => {
+    const createLearningModuleVersion = renderBoardWorkspace(async (learningModuleId) => {
+      if (learningModuleId === "lm-2") throw new Error("Concurrent edit detected");
+      return { id: `new-${learningModuleId}` } as unknown as LearningModuleVersionDto;
+    });
+
+    const control = await screen.findByLabelText("Move Probability workshop to");
+    fireEvent.change(control, { target: { value: "lm-2" } });
+
+    await screen.findByText("Concurrent edit detected");
+    expect(createLearningModuleVersion).toHaveBeenCalledTimes(1);
+    expect(createLearningModuleVersion.mock.calls[0]?.[0]).toBe("lm-2");
+  });
+});

@@ -1,4 +1,7 @@
 import type {
+  ActivityDto,
+  ActivityVersionDto,
+  ActivityVersionTopicActionWithSiblingsDto,
   CalendarSlotDto,
   Id,
   LearningModuleDto,
@@ -8,6 +11,142 @@ import type {
   TopicPrerequisiteDto,
   TopicVersionDto,
 } from "./redesign-contract";
+
+export type ActivityBoardColumn = {
+  key: Id | "unassigned" | "cross-cutting";
+  label: string;
+  activityVersionIds: Id[];
+};
+
+export type TopicFlowOccurrence = {
+  activityVersionId: Id;
+  activityTitle: string;
+  activityStableCode: string;
+  columnKey: Id | "unassigned" | "cross-cutting";
+  action: "introduced" | "practiced" | "assessed";
+};
+
+/** The one placement action used by both pointer drop and keyboard move. */
+export function moveActivityBoardCard(args: {
+  columns: ActivityBoardColumn[];
+  activityVersionId: Id;
+  destinationKey: ActivityBoardColumn["key"];
+}): ActivityBoardColumn[] {
+  return args.columns.map((column) => {
+    const withoutCard = column.activityVersionIds.filter((id) => id !== args.activityVersionId);
+    return column.key === args.destinationKey
+      ? { ...column, activityVersionIds: [...withoutCard, args.activityVersionId] }
+      : { ...column, activityVersionIds: withoutCard };
+  });
+}
+
+export type ActivityMovePlanStep = {
+  learningModuleId: Id;
+  expectedCurrentVersionId: Id;
+  activities: Array<{ activityVersionId: Id; sequence: number; notes: string | null }>;
+};
+
+/**
+ * Orders the per-LM revisions for a board move so a mid-move failure can only
+ * duplicate the card across columns (visible and self-healing on retry), never
+ * lose it: the destination append is always the first step, source removals
+ * follow. Cross-LM moves are not atomic server-side, so ordering is the safety.
+ */
+export function planActivityMove(args: {
+  learningModules: LearningModuleDto[];
+  currentVersionsByLearningModuleId: Map<Id, LearningModuleVersionDto | null>;
+  activityVersionId: Id;
+  destinationLearningModuleId: Id | null;
+}): ActivityMovePlanStep[] {
+  const steps: ActivityMovePlanStep[] = [];
+  for (const learningModule of args.learningModules) {
+    const current = args.currentVersionsByLearningModuleId.get(learningModule.id);
+    if (!current) continue;
+    const memberships = [...(current.activities ?? [])].sort((left, right) => left.sequence - right.sequence);
+    const hasCard = memberships.some((membership) => membership.activityVersionId === args.activityVersionId);
+    const isDestination = learningModule.id === args.destinationLearningModuleId;
+    if (isDestination && !hasCard) {
+      steps.unshift({
+        learningModuleId: learningModule.id,
+        expectedCurrentVersionId: current.id,
+        activities: [
+          ...memberships.map((membership, index) => ({
+            activityVersionId: membership.activityVersionId,
+            sequence: index + 1,
+            notes: membership.notes ?? null,
+          })),
+          { activityVersionId: args.activityVersionId, sequence: memberships.length + 1, notes: null },
+        ],
+      });
+    } else if (!isDestination && hasCard) {
+      steps.push({
+        learningModuleId: learningModule.id,
+        expectedCurrentVersionId: current.id,
+        activities: memberships
+          .filter((membership) => membership.activityVersionId !== args.activityVersionId)
+          .map((membership, index) => ({
+            activityVersionId: membership.activityVersionId,
+            sequence: index + 1,
+            notes: membership.notes ?? null,
+          })),
+      });
+    }
+  }
+  return steps;
+}
+
+export function buildActivityBoardColumns(args: {
+  learningModules: LearningModuleDto[];
+  currentVersionsByLearningModuleId: Map<Id, LearningModuleVersionDto | null>;
+  activities: ActivityDto[];
+  currentVersionsByActivityId: Map<Id, ActivityVersionDto | null>;
+}): ActivityBoardColumn[] {
+  const columns: ActivityBoardColumn[] = [
+    { key: "unassigned", label: "Unassigned", activityVersionIds: [] },
+    ...[...args.learningModules]
+      .sort((left, right) => (args.currentVersionsByLearningModuleId.get(left.id)?.defaultSequence ?? Number.MAX_SAFE_INTEGER) - (args.currentVersionsByLearningModuleId.get(right.id)?.defaultSequence ?? Number.MAX_SAFE_INTEGER))
+      .map((learningModule) => ({
+        key: learningModule.id,
+        label: args.currentVersionsByLearningModuleId.get(learningModule.id)?.title ?? learningModule.stableCode,
+        activityVersionIds: [...(args.currentVersionsByLearningModuleId.get(learningModule.id)?.activities ?? [])]
+          .sort((left, right) => left.sequence - right.sequence)
+          .map((membership) => membership.activityVersionId),
+      })),
+    { key: "cross-cutting", label: "Cross-cutting", activityVersionIds: [] },
+  ];
+  const placed = new Set(columns.flatMap((column) => column.activityVersionIds));
+  for (const activity of args.activities) {
+    const version = args.currentVersionsByActivityId.get(activity.id);
+    if (version && !placed.has(version.id)) columns[0]!.activityVersionIds.push(version.id);
+  }
+  return columns;
+}
+
+export function buildTopicFlow(args: {
+  columns: ActivityBoardColumn[];
+  activities: ActivityDto[];
+  versionsByActivityId: Map<Id, ActivityVersionDto | null>;
+  actionsByActivityVersionId: Map<Id, ActivityVersionTopicActionWithSiblingsDto[]>;
+}): Map<Id, TopicFlowOccurrence[]> {
+  const columnByVersion = new Map(args.columns.flatMap((column) => column.activityVersionIds.map((id) => [id, column.key] as const)));
+  const activityById = new Map(args.activities.map((activity) => [activity.id, activity]));
+  const flow = new Map<Id, TopicFlowOccurrence[]>();
+  for (const [activityId, version] of args.versionsByActivityId) {
+    if (!version) continue;
+    const activity = activityById.get(activityId);
+    for (const action of args.actionsByActivityVersionId.get(version.id) ?? []) {
+      const occurrence: TopicFlowOccurrence = {
+        activityVersionId: version.id,
+        activityTitle: version.title,
+        activityStableCode: activity?.stableCode ?? activityId,
+        columnKey: columnByVersion.get(version.id) ?? "unassigned",
+        action: action.action,
+      };
+      flow.set(action.topicVersionId, [...(flow.get(action.topicVersionId) ?? []), occurrence]);
+    }
+  }
+  return flow;
+}
 
 export type TopicBrowserEntry = {
   topic: TopicDto;
