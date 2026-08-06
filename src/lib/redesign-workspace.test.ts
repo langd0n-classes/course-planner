@@ -4,6 +4,7 @@ import {
   buildTopicBrowserBuckets,
   compareLearningModuleVersions,
   deriveTermPlanningGaps,
+  suggestTopicStableCode,
 } from "./redesign-workspace";
 
 describe("buildTopicBrowserBuckets", () => {
@@ -327,5 +328,14 @@ describe("buildTermCalendarTimeline", () => {
     expect(timeline.allRows).toHaveLength(1);
     expect(timeline.allRows[0]?.isGap).toBe(true);
     expect(timeline.todaySignal).toBe("after_term");
+  });
+});
+
+describe("suggestTopicStableCode", () => {
+  it("builds a stable topic slug from the title", () => {
+    expect(suggestTopicStableCode("Pandas Basics")).toBe("topic-pandas-basics");
+    expect(suggestTopicStableCode("SQL joins & null handling")).toBe(
+      "topic-sql-joins-null-handling",
+    );
   });
 });

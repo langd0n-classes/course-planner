@@ -69,6 +69,17 @@ function sortText(value: string | null | undefined): string {
   return (value ?? "").toLocaleLowerCase();
 }
 
+export function suggestTopicStableCode(title: string): string {
+  const slug = title
+    .toLocaleLowerCase()
+    .trim()
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return slug ? `topic-${slug}` : "";
+}
+
 export function buildTopicBrowserBuckets(args: {
   learningModules: LearningModuleDto[];
   currentVersionsByLearningModuleId: Map<Id, LearningModuleVersionDto | null>;

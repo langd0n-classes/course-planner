@@ -91,10 +91,9 @@ describe("redesignApi Activity Type methods", () => {
   });
 
   describe("createActivityType", () => {
-    it("calls POST /api/instructors/me/activity-types with request body", async () => {
-      const request: CreateActivityTypeRequest = {
+    it("injects the authenticated instructor before POSTing the activity type", async () => {
+      const request: Omit<CreateActivityTypeRequest, "createdByInstructorId"> = {
         behaviorFamily: "meeting",
-        createdByInstructorId: "instr-1",
         version: {
           label: "Lecture",
           description: "In-class lecture meeting",
@@ -121,38 +120,69 @@ describe("redesignApi Activity Type methods", () => {
         },
       };
 
-      const mockFetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            instructor: {
+              id: "instr-1",
+              name: "Instructor",
+              email: "instructor@example.com",
+              archivedAt: null,
+            },
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockResponse,
+        });
       global.fetch = mockFetch;
 
       const result = await redesignApi.createActivityType(request);
 
-      expect(mockFetch).toHaveBeenCalledWith("/api/instructors/me/activity-types", {
+      expect(mockFetch).toHaveBeenNthCalledWith(1, "/api/instructors/me", {
+        credentials: "include",
+      });
+      expect(mockFetch).toHaveBeenNthCalledWith(2, "/api/instructors/me/activity-types", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(request),
+        body: JSON.stringify({
+          ...request,
+          createdByInstructorId: "instr-1",
+        }),
       });
       expect(result).toEqual(mockResponse);
     });
 
     it("throws ApiError on 400 response with validation error", async () => {
-      const request: CreateActivityTypeRequest = {
+      const request: Omit<CreateActivityTypeRequest, "createdByInstructorId"> = {
         behaviorFamily: "meeting",
-        createdByInstructorId: "instr-1",
         version: {
           label: "",
         },
       };
 
-      const mockFetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 400,
-        statusText: "Bad Request",
-        json: async () => ({ error: "Label is required" }),
-      });
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            instructor: {
+              id: "instr-1",
+              name: "Instructor",
+              email: "instructor@example.com",
+              archivedAt: null,
+            },
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 400,
+          statusText: "Bad Request",
+          json: async () => ({ error: "Label is required" }),
+        });
       global.fetch = mockFetch;
 
       await expect(redesignApi.createActivityType(request)).rejects.toThrow("Label is required");

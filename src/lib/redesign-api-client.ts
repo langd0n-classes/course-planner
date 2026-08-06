@@ -196,8 +196,15 @@ const _api = {
       (d) => d.activityTypes,
     ),
 
-  createActivityType: (input: CreateActivityTypeRequest): Promise<CreateActivityTypeResponse> =>
-    post<CreateActivityTypeResponse>("/api/instructors/me/activity-types", input),
+  createActivityType: async (
+    input: Omit<CreateActivityTypeRequest, "createdByInstructorId">,
+  ): Promise<CreateActivityTypeResponse> => {
+    const instructor = await _api.getCurrentInstructor();
+    return post<CreateActivityTypeResponse>("/api/instructors/me/activity-types", {
+      ...input,
+      createdByInstructorId: instructor.id,
+    });
+  },
 
   getActivityType: (id: Id): Promise<GetActivityTypeResponse> =>
     get<GetActivityTypeResponse>(`/api/activity-types/${id}`),
@@ -481,6 +488,28 @@ const _api = {
       { stableCode, learningModuleId, createdByInstructorId: instructor.id, version },
     );
   },
+
+  // Identity fields only — Topic placement flows through ActivityVersionTopicAction,
+  // never a direct learningModuleId write (ADR-0002). The body is allowlisted so
+  // stray fields cannot reach PATCH /api/topics/:id even past the type layer.
+  updateTopic: (
+    topicId: Id,
+    input: { stableCode?: string; archivedAt?: string | null },
+  ): Promise<{ topic: TopicDto; currentVersion: TopicVersionDto | null }> => {
+    const body: { stableCode?: string; archivedAt?: string | null } = {};
+    if (input.stableCode !== undefined) body.stableCode = input.stableCode;
+    if (input.archivedAt !== undefined) body.archivedAt = input.archivedAt;
+    return patch<{ topic: TopicDto; currentVersion: TopicVersionDto | null }>(
+      `/api/topics/${topicId}`,
+      body,
+    );
+  },
+
+  createTopicVersion: (
+    topicId: Id,
+    version: UpsertTopicVersionRequest,
+  ): Promise<TopicVersionDto> =>
+    post<{ version: TopicVersionDto }>(`/api/topics/${topicId}/versions`, version).then((d) => d.version),
 
   assignTopicLearningModule: (topicId: Id, learningModuleId: Id | null): Promise<TopicDto> =>
     patch<{ topic: TopicDto; currentVersion: TopicVersionDto | null }>(`/api/topics/${topicId}`, {
