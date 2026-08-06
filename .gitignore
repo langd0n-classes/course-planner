@@ -52,3 +52,6 @@ build_prompts/
 # agent skills symlinks (machine-local, not project content)
 /skills/
 /.agents/
+
+# git worktrees (machine-local, not project content)
+/wt/
