@@ -48,3 +48,7 @@ next-env.d.ts
 .debris/
 .megaignore
 build_prompts/
+
+# agent skills symlinks (machine-local, not project content)
+/skills/
+/.agents/
