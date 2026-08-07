@@ -542,14 +542,13 @@ export function buildTermCalendarTimeline(args: {
       session,
       isClassDay,
       isGap,
-      isToday: calendarDate(slot.date) === calendarDate(args.today),
+      isToday: slot.date === args.today,
       provenance,
     };
   });
 
   const totalClassDays = allRows.filter((row) => row.isClassDay).length;
-  const today = calendarDate(args.today);
-  const completedClassDays = allRows.filter((row) => row.isClassDay && calendarDate(row.slot.date) <= today).length;
+  const completedClassDays = allRows.filter((row) => row.isClassDay && row.slot.date <= args.today).length;
   const progressPercent =
     totalClassDays === 0 ? 0 : Math.round((completedClassDays / totalClassDays) * 100);
 
@@ -558,11 +557,11 @@ export function buildTermCalendarTimeline(args: {
   if (classDayDates.length > 0) {
     const firstClassDay = classDayDates[0]!;
     const lastClassDay = classDayDates[classDayDates.length - 1]!;
-    if (today < calendarDate(firstClassDay)) {
+    if (args.today < firstClassDay) {
       todaySignal = "before_term";
-    } else if (today > calendarDate(lastClassDay)) {
+    } else if (args.today > lastClassDay) {
       todaySignal = "after_term";
-    } else if (classDayDates.map(calendarDate).includes(today)) {
+    } else if (classDayDates.includes(args.today)) {
       todaySignal = "today_class_day";
     } else {
       todaySignal = "between_class_days";
@@ -583,8 +582,8 @@ export function buildTermCalendarTimeline(args: {
   }
 
   const radius = args.windowRadius ?? DEFAULT_WINDOW_RADIUS;
-  const exactIndex = allRows.findIndex((row) => calendarDate(row.slot.date) === today);
-  const insertionIndex = allRows.findIndex((row) => calendarDate(row.slot.date) > today);
+  const exactIndex = allRows.findIndex((row) => row.slot.date === args.today);
+  const insertionIndex = allRows.findIndex((row) => row.slot.date > args.today);
   const anchorIndex =
     exactIndex >= 0
       ? exactIndex
