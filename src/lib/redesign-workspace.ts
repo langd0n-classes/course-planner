@@ -7,6 +7,7 @@ import type {
   LearningModuleDto,
   LearningModuleVersionDto,
   SessionDto,
+  TermCalendarExceptionDto,
   TopicDto,
   TopicPrerequisiteDto,
   TopicVersionDto,
@@ -177,6 +178,7 @@ export type LearningModuleVersionComparison = {
 export type TermPlanningGaps = {
   unscheduledSessions: SessionDto[];
   unplannedClassDays: CalendarSlotDto[];
+  unplannedSpecialScheduleSlots: CalendarSlotDto[];
   canceledSessions: SessionDto[];
 };
 
@@ -186,6 +188,7 @@ export type CalendarTimelineRow = {
   isClassDay: boolean;
   isGap: boolean;
   isToday: boolean;
+  provenance: "calendar_inherited" | "term_specific";
 };
 
 export type TermCalendarTimeline = {
@@ -337,6 +340,7 @@ export function compareLearningModuleVersions(args: {
 export function deriveTermPlanningGaps(args: {
   calendarSlots: CalendarSlotDto[];
   sessions: SessionDto[];
+  exceptions?: TermCalendarExceptionDto[];
 }): TermPlanningGaps {
   const activeSessionDates = new Set(
     args.sessions
@@ -344,10 +348,33 @@ export function deriveTermPlanningGaps(args: {
       .map((session) => session.date as string),
   );
 
+  const resolvedSlotIds = new Set(
+    (args.exceptions ?? [])
+      .filter((exception) => exception.action === "modify" || exception.action === "replace")
+      .map((exception) => exception.calendarSlotId)
+      .filter((slotId): slotId is string => slotId !== null),
+  );
+  const resolvedDates = new Set(
+    (args.exceptions ?? [])
+      .filter((exception) => exception.action === "modify" || exception.action === "replace")
+      .map((exception) => exception.targetDate)
+      .filter((date): date is string => date !== null),
+  );
+
   return {
     unscheduledSessions: args.sessions.filter((session) => session.date === null && session.status !== "canceled"),
     unplannedClassDays: args.calendarSlots.filter(
       (slot) => slot.slotType === "class_day" && !activeSessionDates.has(slot.date),
+    ),
+    // Finals and other special slots are deliberately not regular meeting-pattern
+    // gaps. They need an explicit alternate/manual decision, so keep them in a
+    // separate signal rather than folding them into ordinary class-day coverage.
+    unplannedSpecialScheduleSlots: args.calendarSlots.filter(
+      (slot) =>
+        slot.slotType === "finals" &&
+        !activeSessionDates.has(slot.date) &&
+        !resolvedSlotIds.has(slot.id) &&
+        !resolvedDates.has(slot.date),
     ),
     canceledSessions: args.sessions.filter((session) => session.status === "canceled"),
   };
@@ -364,10 +391,22 @@ export function buildTermCalendarTimeline(args: {
   sessions: SessionDto[];
   today: string;
   windowRadius?: number;
+  exceptions?: TermCalendarExceptionDto[];
 }): TermCalendarTimeline {
   const orderedSlots = [...args.calendarSlots].sort((left, right) => left.date.localeCompare(right.date));
   const sessionsBySlotId = new Map<string, SessionDto>();
   const sessionsByDate = new Map<string, SessionDto>();
+  // Mirrors deriveTermPlanningGaps: a targeted modify/replace exception is a
+  // Term-specific decision about that slot/date, whatever the slot inherited.
+  const overridingExceptions = (args.exceptions ?? []).filter(
+    (exception) => exception.action === "modify" || exception.action === "replace",
+  );
+  const exceptionSlotIds = new Set(
+    overridingExceptions.map((exception) => exception.calendarSlotId).filter((slotId): slotId is string => slotId !== null),
+  );
+  const exceptionDates = new Set(
+    overridingExceptions.map((exception) => exception.targetDate).filter((date): date is string => date !== null),
+  );
 
   for (const session of args.sessions) {
     if (session.calendarSlotId && !sessionsBySlotId.has(session.calendarSlotId)) {
@@ -382,12 +421,21 @@ export function buildTermCalendarTimeline(args: {
     const session = sessionsBySlotId.get(slot.id) ?? sessionsByDate.get(slot.date) ?? null;
     const isClassDay = slot.slotType === "class_day";
     const isGap = isClassDay && (!session || session.status === "canceled");
+    const provenance: CalendarTimelineRow["provenance"] =
+      session?.scheduleOverrideLabel ||
+      slot.capacitySource === "instructor_override" ||
+      !slot.academicCalendarEventId ||
+      exceptionSlotIds.has(slot.id) ||
+      exceptionDates.has(slot.date)
+        ? "term_specific"
+        : "calendar_inherited";
     return {
       slot,
       session,
       isClassDay,
       isGap,
       isToday: slot.date === args.today,
+      provenance,
     };
   });
 

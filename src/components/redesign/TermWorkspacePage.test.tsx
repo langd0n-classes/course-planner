@@ -8,6 +8,7 @@ import type {
   LearningModuleDto,
   LearningModuleVersionDto,
   SessionDto,
+  TermCalendarExceptionDto,
   TermDto,
   TermLearningModuleDto,
 } from "@/lib/redesign-contract";
@@ -99,6 +100,35 @@ function buildTermWorkspaceBackend() {
   }));
 
   let termLearningModules: TermLearningModuleDto[] = [];
+  let calendarExceptions: TermCalendarExceptionDto[] = [];
+
+  const createTermCalendarException = vi.fn(async (_termId: string, input: Partial<TermCalendarExceptionDto>) => {
+    const exception: TermCalendarExceptionDto = {
+      id: `exception-${calendarExceptions.length + 1}`,
+      termId: term.id,
+      action: input.action ?? "modify",
+      activityTypeVersionId: input.activityTypeVersionId ?? null,
+      calendarSlotId: input.calendarSlotId ?? null,
+      targetDate: input.targetDate ?? null,
+      startsAt: input.startsAt ?? null,
+      endsAt: input.endsAt ?? null,
+      label: input.label ?? null,
+      reason: input.reason ?? null,
+      provenance: null,
+    };
+    calendarExceptions = [...calendarExceptions, exception];
+    return exception;
+  });
+  const updateTermCalendarException = vi.fn(async (_termId: string, exceptionId: string, input: Partial<TermCalendarExceptionDto>) => {
+    const existing = calendarExceptions.find((exception) => exception.id === exceptionId);
+    if (!existing) throw new Error("Unknown exception");
+    const updated = { ...existing, ...input };
+    calendarExceptions = calendarExceptions.map((exception) => exception.id === exceptionId ? updated : exception);
+    return updated;
+  });
+  const deleteTermCalendarException = vi.fn(async (_termId: string, exceptionId: string) => {
+    calendarExceptions = calendarExceptions.filter((exception) => exception.id !== exceptionId);
+  });
 
   const transitionTerm = vi.fn(async (_termId: string, transition: "activate" | "close" | "reopen") => {
     term = {
@@ -176,6 +206,10 @@ function buildTermWorkspaceBackend() {
       },
     ]),
     listCalendarSlots: vi.fn(async () => calendarSlots),
+    listTermCalendarExceptions: vi.fn(async () => calendarExceptions),
+    createTermCalendarException,
+    updateTermCalendarException,
+    deleteTermCalendarException,
     computeCoverageHealth: vi.fn(async () => ({
       fullyCovered: 1,
       partiallyCovered: 0,
@@ -190,7 +224,7 @@ function buildTermWorkspaceBackend() {
     }),
   };
 
-  return { backend, transitionTerm, adoptTermLearningModule };
+  return { backend, transitionTerm, adoptTermLearningModule, createTermCalendarException, updateTermCalendarException, deleteTermCalendarException };
 }
 
 describe("TermWorkspacePage", () => {
@@ -274,5 +308,49 @@ describe("TermWorkspacePage", () => {
 
     await screen.findByText("Probability Foundations");
     expect(screen.getByText("All course learning modules are already adopted for this term.")).toBeInTheDocument();
+  });
+
+  it("records an explicit alternate schedule for a finals slot", async () => {
+    const { backend, createTermCalendarException } = buildTermWorkspaceBackend();
+    backend.listCalendarSlots = vi.fn(async () => [{
+      id: "finals-slot", termId: "term-1", academicCalendarEventId: "event-finals", date: "2026-05-12",
+      slotType: "finals", label: "Final examination period", source: "academic_calendar",
+      instructionalCapacity: "assessment_period", capacitySource: "heuristic", capacityReason: "Finals.",
+    }]);
+    setMockBackend(backend);
+
+    render(<TermWorkspacePage termId="term-1" />);
+
+    const button = await screen.findByRole("button", { name: "Record alternate schedule" });
+    fireEvent.click(button);
+
+    await waitFor(() => expect(createTermCalendarException).toHaveBeenCalledWith("term-1", {
+      action: "modify", calendarSlotId: "finals-slot", targetDate: "2026-05-12",
+      label: "Alternate schedule: Final examination period", reason: "Instructor-approved alternate schedule.",
+    }));
+    expect(await screen.findByText("Final examination period marked with an explicit alternate schedule.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Record alternate schedule" })).not.toBeInTheDocument();
+  });
+
+  it("creates, edits, and deletes Term calendar exceptions", async () => {
+    const { backend, createTermCalendarException, updateTermCalendarException, deleteTermCalendarException } = buildTermWorkspaceBackend();
+    setMockBackend(backend);
+
+    render(<TermWorkspacePage termId="term-1" />);
+    await screen.findByText("Calendar exceptions");
+    fireEvent.change(screen.getByLabelText("Exception target date"), { target: { value: "2026-02-10" } });
+    fireEvent.change(screen.getByLabelText("Exception label"), { target: { value: "Makeup class" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create exception" }));
+
+    await waitFor(() => expect(createTermCalendarException).toHaveBeenCalled());
+    expect(await screen.findByText(/Makeup class/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.change(screen.getByLabelText("Exception reason"), { target: { value: "Weather recovery" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save exception" }));
+
+    await waitFor(() => expect(updateTermCalendarException).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(deleteTermCalendarException).toHaveBeenCalledWith("term-1", "exception-1"));
+    expect(await screen.findByText("No Term calendar exceptions recorded.")).toBeInTheDocument();
   });
 });

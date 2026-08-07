@@ -252,6 +252,18 @@ describe("deriveTermPlanningGaps", () => {
           capacitySource: "baseline",
           capacityReason: null,
         },
+        {
+          id: "slot-finals",
+          termId: "term-1",
+          academicCalendarEventId: "event-finals",
+          date: "2026-05-12",
+          slotType: "finals",
+          label: "Final examination period",
+          source: "academic_calendar",
+          instructionalCapacity: "assessment_period",
+          capacitySource: "heuristic",
+          capacityReason: "Finals are an alternate schedule.",
+        },
       ],
       sessions: [
         {
@@ -299,6 +311,61 @@ describe("deriveTermPlanningGaps", () => {
 
     expect(gaps.unplannedClassDays.map((slot) => slot.id)).toEqual(["slot-2"]);
     expect(gaps.unscheduledSessions.map((session) => session.id)).toEqual(["sess-2"]);
+    expect(gaps.unplannedSpecialScheduleSlots.map((slot) => slot.id)).toEqual(["slot-finals"]);
+  });
+
+  it("does not report a finals slot as unplanned once an active session covers its date", () => {
+    const gaps = deriveTermPlanningGaps({
+      calendarSlots: [
+        {
+          id: "slot-finals",
+          termId: "term-1",
+          academicCalendarEventId: "event-finals",
+          date: "2026-05-12",
+          slotType: "finals",
+          label: "Final examination period",
+          source: "academic_calendar",
+          instructionalCapacity: "assessment_period",
+          capacitySource: "heuristic",
+          capacityReason: "Finals are an alternate schedule.",
+        },
+      ],
+      sessions: [
+        {
+          id: "sess-final",
+          termId: "term-1",
+          termLearningModuleId: "tlm-1",
+          calendarSlotId: "slot-finals",
+          sequence: 1,
+          sessionType: "lecture",
+          code: "F01",
+          title: "Final exam",
+          date: "2026-05-12",
+          scheduleOverrideLabel: "Alternate finals schedule",
+          description: null,
+          format: null,
+          notes: null,
+          status: "scheduled",
+          instructionalMode: "standard",
+          canceledAt: null,
+          canceledReason: null,
+          archivedAt: null,
+        },
+      ],
+    });
+
+    expect(gaps.unplannedSpecialScheduleSlots).toEqual([]);
+    expect(gaps.unplannedClassDays).toEqual([]);
+  });
+
+  it("treats a targeted Term calendar modification as an explicit alternate schedule", () => {
+    const gaps = deriveTermPlanningGaps({
+      calendarSlots: [{ id: "slot-finals", termId: "term-1", academicCalendarEventId: "event-finals", date: "2026-05-12", slotType: "finals", label: "Final examination period", source: "academic_calendar", instructionalCapacity: "assessment_period", capacitySource: "heuristic", capacityReason: "Finals are an alternate schedule." }],
+      sessions: [],
+      exceptions: [{ id: "exception-1", termId: "term-1", action: "modify", activityTypeVersionId: null, calendarSlotId: "slot-finals", targetDate: "2026-05-12", startsAt: null, endsAt: null, label: "Alternate final", reason: "Instructor-approved alternate schedule.", provenance: null }],
+    });
+
+    expect(gaps.unplannedSpecialScheduleSlots).toEqual([]);
   });
 });
 
@@ -412,6 +479,44 @@ describe("buildTermCalendarTimeline", () => {
     expect(timeline.allRows).toHaveLength(1);
     expect(timeline.allRows[0]?.isGap).toBe(true);
     expect(timeline.todaySignal).toBe("after_term");
+  });
+
+  it("labels inherited and Term-specific calendar provenance", () => {
+    const timeline = buildTermCalendarTimeline({
+      calendarSlots: [
+        { id: "inherited", termId: "term-1", academicCalendarEventId: "event-1", date: "2026-03-01", slotType: "class_day", label: null, source: "academic_calendar", instructionalCapacity: "normal", capacitySource: "baseline", capacityReason: null },
+        { id: "specific", termId: "term-1", academicCalendarEventId: "event-2", date: "2026-03-02", slotType: "class_day", label: null, source: "academic_calendar", instructionalCapacity: "normal", capacitySource: "instructor_override", capacityReason: "Makeup." },
+      ], sessions: [], today: "2026-03-01",
+    });
+
+    expect(timeline.allRows.map((row) => row.provenance)).toEqual(["calendar_inherited", "term_specific"]);
+  });
+
+  it("labels an inherited slot Term-specific once a targeted modify exception exists", () => {
+    const inheritedSlot = { id: "inherited", termId: "term-1", academicCalendarEventId: "event-1", date: "2026-03-01", slotType: "class_day" as const, label: null, source: "academic_calendar", instructionalCapacity: "normal" as const, capacitySource: "baseline" as const, capacityReason: null };
+    const exception = { id: "exception-1", termId: "term-1", action: "modify" as const, activityTypeVersionId: null, calendarSlotId: "inherited", targetDate: null, startsAt: null, endsAt: null, label: "Room change", reason: "Term-specific override.", provenance: null };
+
+    const withException = buildTermCalendarTimeline({
+      calendarSlots: [inheritedSlot], sessions: [], today: "2026-03-01", exceptions: [exception],
+    });
+    expect(withException.allRows[0]?.provenance).toBe("term_specific");
+
+    const dateOnly = buildTermCalendarTimeline({
+      calendarSlots: [inheritedSlot], sessions: [], today: "2026-03-01",
+      exceptions: [{ ...exception, calendarSlotId: null, targetDate: "2026-03-01" }],
+    });
+    expect(dateOnly.allRows[0]?.provenance).toBe("term_specific");
+
+    const cancelOnly = buildTermCalendarTimeline({
+      calendarSlots: [inheritedSlot], sessions: [], today: "2026-03-01",
+      exceptions: [{ ...exception, action: "cancel" as const }],
+    });
+    expect(cancelOnly.allRows[0]?.provenance).toBe("calendar_inherited");
+
+    const withoutException = buildTermCalendarTimeline({
+      calendarSlots: [inheritedSlot], sessions: [], today: "2026-03-01", exceptions: [],
+    });
+    expect(withoutException.allRows[0]?.provenance).toBe("calendar_inherited");
   });
 });
 

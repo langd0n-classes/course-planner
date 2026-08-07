@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   AcademicCalendarDto,
+  AcademicCalendarPeriodDto,
+  AcademicCalendarVersionDto,
   CalendarSlotCandidateDto,
   CalendarMaterializationConflictDto,
   CreateTermPreviewResponse,
@@ -96,6 +98,9 @@ export default function CreateTermPanel({
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
+  const [calendarVersion, setCalendarVersion] = useState<AcademicCalendarVersionDto | null>(null);
+  const [calendarPeriods, setCalendarPeriods] = useState<AcademicCalendarPeriodDto[]>([]);
+  const [applyOutcome, setApplyOutcome] = useState<string | null>(null);
   const [panelState, setPanelState] = useState<PanelState>({ phase: "form", submitting: false, error: null });
 
   const visibleCalendars = useMemo(
@@ -119,8 +124,33 @@ export default function CreateTermPanel({
     );
   }
 
+  const calendarVersionRequestRef = useRef(0);
+
+  async function loadCalendarVersion(calendarId: Id) {
+    // Generation guard: a newer selection invalidates any in-flight load, so a
+    // slow response for a previously selected calendar can never overwrite the
+    // version/periods shown for the current one.
+    const requestId = ++calendarVersionRequestRef.current;
+    setCalendarVersion(null);
+    setCalendarPeriods([]);
+    if (!calendarId) return;
+    try {
+      const versions = await redesignApi.listAcademicCalendarVersions(calendarId);
+      const selectedVersion = [...versions].sort((left, right) => right.version - left.version)[0] ?? null;
+      if (!selectedVersion) return;
+      const detail = await redesignApi.getAcademicCalendarVersion(selectedVersion.id);
+      if (requestId !== calendarVersionRequestRef.current) return;
+      setCalendarVersion(detail.version);
+      setCalendarPeriods(detail.periods);
+    } catch {
+      // Calendar detail is supplementary to the creation contract. The
+      // server still validates and pins the selected calendar on preview/apply.
+    }
+  }
+
   async function handlePreview(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setApplyOutcome(null);
     const formData: FormData = { institutionId, academicCalendarId, code, name, startDate, endDate, selectedDays };
     setPanelState({ phase: "form", submitting: true, error: null });
     try {
@@ -165,6 +195,7 @@ export default function CreateTermPanel({
       setEndDate("");
       setSelectedDays([]);
       setPanelState({ phase: "form", submitting: false, error: null });
+      setApplyOutcome("Term created. Calendar slots remain planning containers until activities are adopted and scheduled separately.");
       onTermCreated();
     } catch (err) {
       setPanelState({
@@ -479,7 +510,11 @@ export default function CreateTermPanel({
           <select
             aria-label="Academic Calendar"
             value={academicCalendarId}
-            onChange={(event) => setAcademicCalendarId(event.target.value)}
+            onChange={(event) => {
+              const nextCalendarId = event.target.value;
+              setAcademicCalendarId(nextCalendarId);
+              void loadCalendarVersion(nextCalendarId);
+            }}
             className="w-full rounded-lg border border-slate-300 px-3 py-2"
             disabled={formDisabled}
           >
@@ -540,6 +575,28 @@ export default function CreateTermPanel({
         </label>
       </div>
 
+      {calendarVersion ? (
+        <section aria-label="Selected calendar version" className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-3">
+          <p className="text-sm font-medium text-slate-900">
+            Calendar version {calendarVersion.version}: {calendarVersion.name}
+          </p>
+          <p className="mt-1 text-xs text-slate-600">
+            This term preview uses this institution calendar version; later calendar changes do not silently rewrite the term.
+          </p>
+          {calendarPeriods.filter((period) => period.kind === "special_schedule").length > 0 ? (
+            <div className="mt-3 rounded-lg border border-violet-200 bg-violet-50 p-3">
+              <p className="text-sm font-medium text-violet-900">Special and finals schedules</p>
+              <p className="mt-1 text-xs text-violet-800">These periods require an explicit alternate/manual schedule; they are not merged into the regular pattern.</p>
+              <ul className="mt-2 space-y-1 text-xs text-violet-900">
+                {calendarPeriods.filter((period) => period.kind === "special_schedule").map((period) => (
+                  <li key={period.id}>{period.label}: {period.startsOn} – {period.endsOn}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
       <fieldset className="mt-4">
         <legend className="text-sm font-medium text-slate-700">Meeting Pattern</legend>
         <p className="mt-1 text-xs text-slate-500">Select the weekdays when lecture sessions meet.</p>
@@ -571,7 +628,8 @@ export default function CreateTermPanel({
       {visibleCalendars.length === 0 ? (
         <p className="mt-4 text-sm text-amber-700">No academic calendars are available for that institution yet.</p>
       ) : null}
-      {error ? <p className="mt-3 text-sm text-rose-700">{error}</p> : null}
+      {error ? <p className="mt-3 text-sm text-rose-700" role="alert">{error}</p> : null}
+      {applyOutcome ? <p className="mt-3 text-sm text-emerald-700" aria-live="polite">{applyOutcome}</p> : null}
 
       <div className="mt-5 flex justify-end">
         <button
