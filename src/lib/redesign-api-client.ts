@@ -681,6 +681,18 @@ const _api = {
       (d) => d.termActivities,
     ),
 
+  listTermActivitiesWithRevisions: (
+    termId: Id,
+  ): Promise<{
+    termActivities: TermActivityDto[];
+    revisionsByTermActivityId: NonNullable<import("@/lib/redesign-contract").ListTermActivitiesResponse["revisionsByTermActivityId"]>;
+  }> => get<import("@/lib/redesign-contract").ListTermActivitiesResponse>(
+    `/api/terms/${termId}/activities?include=revisions`,
+  ).then((d) => ({
+    termActivities: d.termActivities,
+    revisionsByTermActivityId: d.revisionsByTermActivityId ?? {},
+  })),
+
   previewTermActivityAdoption: (
     termId: Id,
     request: TermAdoptionPreviewRequest,

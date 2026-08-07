@@ -548,6 +548,58 @@ export async function listTermActivitiesForTerm(
   });
 }
 
+export async function listTermActivitiesForTermWithRevisions(
+  db: RedesignDb,
+  instructorId: string,
+  termId: string,
+) {
+  return db.$transaction(async (tx) => {
+    await getOwnedTermForInstructor(tx, instructorId, termId);
+    const termActivities = await tx.termActivity.findMany({
+      where: { termId },
+      orderBy: [
+        { termLearningModuleId: "asc" },
+        { ordinal: "asc" },
+        { createdAt: "asc" },
+      ],
+    });
+    const revisionIds = termActivities.flatMap((activity: {
+      plannedRevisionId: string | null;
+      deliveredRevisionId: string | null;
+    }) =>
+      [activity.plannedRevisionId, activity.deliveredRevisionId].filter(
+        (id): id is string => id !== null,
+      ),
+    );
+    const revisions = await tx.termActivityRevision.findMany({
+      where: { id: { in: revisionIds } },
+      include: revisionInclude,
+    });
+    const revisionsById = new Map(revisions.map((revision: { id: string }) => [revision.id, revision]));
+
+    return {
+      termActivities,
+      revisionsByTermActivityId: Object.fromEntries(
+        termActivities.map((activity: {
+          id: string;
+          plannedRevisionId: string | null;
+          deliveredRevisionId: string | null;
+        }) => [
+          activity.id,
+          {
+            planned: activity.plannedRevisionId
+              ? revisionsById.get(activity.plannedRevisionId) ?? null
+              : null,
+            delivered: activity.deliveredRevisionId
+              ? revisionsById.get(activity.deliveredRevisionId) ?? null
+              : null,
+          },
+        ]),
+      ),
+    };
+  });
+}
+
 export async function getTermActivityForInstructor(
   db: RedesignDb,
   instructorId: string,
