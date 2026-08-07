@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { redesignApi } from "@/lib/redesign-api-client";
 import type { ActivityDto, ActivityVersionDto, ActivityVersionLearningModuleScopeDto, Id, TopicDto, TopicVersionDto } from "@/lib/redesign-contract";
 import { buildActivityBoardColumns, buildTopicFlow, moveActivityBoardCard, type ActivityBoardColumn } from "@/lib/redesign-workspace";
@@ -25,6 +25,8 @@ export default function ActivityBoard(props: Props) {
   const [announcement, setAnnouncement] = useState("");
   const detailHeadingRef = useRef<HTMLHeadingElement | null>(null);
   const focusDetailOnSelectRef = useRef(false);
+  const moveControlRefs = useRef(new Map<Id, HTMLSelectElement>());
+  const moveControlToRestoreRef = useRef<Id | null>(null);
 
   async function load() {
     try {
@@ -78,6 +80,12 @@ export default function ActivityBoard(props: Props) {
       columns,
     );
   }, [columns, pendingMoves]);
+  useLayoutEffect(() => {
+    const versionId = moveControlToRestoreRef.current;
+    if (!versionId) return;
+    moveControlRefs.current.get(versionId)?.focus();
+    moveControlToRestoreRef.current = null;
+  }, [displayColumns]);
   const selected = [...versions.values()].find((version) => version?.id === selectedVersionId) ?? null;
   useEffect(() => {
     if (focusDetailOnSelectRef.current && selected) {
@@ -155,7 +163,7 @@ export default function ActivityBoard(props: Props) {
           if (!version) return null;
           return <article key={versionId} draggable onDragStart={() => setDraggedVersionId(versionId)} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm focus-within:ring-2 focus-within:ring-sky-500">
             <button type="button" onClick={() => setSelectedVersionId(versionId)} className="w-full text-left"><span className="block text-sm font-medium text-slate-900">{version.title}</span><span className="block text-xs text-slate-500">{version.detail.behaviorFamily}</span></button>
-            <label className="mt-2 block text-xs text-slate-600">Move to<select aria-label={`Move ${version.title} to`} className="ml-1 rounded border border-slate-300" value={column.key} onChange={(event) => void move(versionId, event.target.value as ActivityBoardColumn["key"])}>{displayColumns.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}</select></label>
+            <label className="mt-2 block text-xs text-slate-600">Move to<select ref={(element) => { if (element) moveControlRefs.current.set(versionId, element); else moveControlRefs.current.delete(versionId); }} aria-label={`Move ${version.title} to`} className="ml-1 rounded border border-slate-300" value={column.key} onChange={(event) => { moveControlToRestoreRef.current = versionId; void move(versionId, event.target.value as ActivityBoardColumn["key"]); }}>{displayColumns.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}</select></label>
           </article>;
         })}</div>
       </div>)}

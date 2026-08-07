@@ -64,7 +64,13 @@ export type TermDailyDriver = {
 
 function calendarDate(value: string) {
   // today arrives as a local date; a value near UTC midnight can fall on a different UTC date.
-  return value.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const instant = new Date(value);
+  if (Number.isNaN(instant.getTime())) return value.slice(0, 10);
+  const year = instant.getFullYear();
+  const month = String(instant.getMonth() + 1).padStart(2, "0");
+  const day = String(instant.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 /** Builds the small, time-oriented active-Term view from immutable revisions. */
@@ -103,7 +109,7 @@ export function buildTermDailyDriver(args: {
       if (revision.detail.behaviorFamily !== "meeting") return false;
       return (
         Boolean(revision.detail.startsAt) &&
-        calendarDate(revision.detail.startsAt!) >= args.today &&
+        calendarDate(revision.detail.startsAt!) >= calendarDate(args.today) &&
         revision.detail.status !== "canceled"
       );
     })
@@ -536,13 +542,14 @@ export function buildTermCalendarTimeline(args: {
       session,
       isClassDay,
       isGap,
-      isToday: slot.date === args.today,
+      isToday: calendarDate(slot.date) === calendarDate(args.today),
       provenance,
     };
   });
 
   const totalClassDays = allRows.filter((row) => row.isClassDay).length;
-  const completedClassDays = allRows.filter((row) => row.isClassDay && row.slot.date <= args.today).length;
+  const today = calendarDate(args.today);
+  const completedClassDays = allRows.filter((row) => row.isClassDay && calendarDate(row.slot.date) <= today).length;
   const progressPercent =
     totalClassDays === 0 ? 0 : Math.round((completedClassDays / totalClassDays) * 100);
 
@@ -551,11 +558,11 @@ export function buildTermCalendarTimeline(args: {
   if (classDayDates.length > 0) {
     const firstClassDay = classDayDates[0]!;
     const lastClassDay = classDayDates[classDayDates.length - 1]!;
-    if (args.today < firstClassDay) {
+    if (today < calendarDate(firstClassDay)) {
       todaySignal = "before_term";
-    } else if (args.today > lastClassDay) {
+    } else if (today > calendarDate(lastClassDay)) {
       todaySignal = "after_term";
-    } else if (classDayDates.includes(args.today)) {
+    } else if (classDayDates.map(calendarDate).includes(today)) {
       todaySignal = "today_class_day";
     } else {
       todaySignal = "between_class_days";
@@ -576,8 +583,8 @@ export function buildTermCalendarTimeline(args: {
   }
 
   const radius = args.windowRadius ?? DEFAULT_WINDOW_RADIUS;
-  const exactIndex = allRows.findIndex((row) => row.slot.date === args.today);
-  const insertionIndex = allRows.findIndex((row) => row.slot.date > args.today);
+  const exactIndex = allRows.findIndex((row) => calendarDate(row.slot.date) === today);
+  const insertionIndex = allRows.findIndex((row) => calendarDate(row.slot.date) > today);
   const anchorIndex =
     exactIndex >= 0
       ? exactIndex

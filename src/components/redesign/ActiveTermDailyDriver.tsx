@@ -111,8 +111,8 @@ export default function ActiveTermDailyDriver(props: Props) {
   const [moveStartsAt, setMoveStartsAt] = useState({ targetId: meetingTargetId, value: toLocalDateTimeInput(meeting?.revision.detail.behaviorFamily === "meeting" ? meeting.revision.detail.startsAt : null) });
   const [moveEndsAt, setMoveEndsAt] = useState({ targetId: meetingTargetId, value: toLocalDateTimeInput(meeting?.revision.detail.behaviorFamily === "meeting" ? meeting.revision.detail.endsAt : null) });
   const [milestoneOccursAt, setMilestoneOccursAt] = useState({ targetId: milestoneTargetId, value: toLocalDateTimeInput(nextMilestone?.occursAt) });
-  if (moveStartsAt.targetId !== meetingTargetId) setMoveStartsAt({ targetId: meetingTargetId, value: "" });
-  if (moveEndsAt.targetId !== meetingTargetId) setMoveEndsAt({ targetId: meetingTargetId, value: "" });
+  if (moveStartsAt.targetId !== meetingTargetId) setMoveStartsAt({ targetId: meetingTargetId, value: toLocalDateTimeInput(meeting?.revision.detail.behaviorFamily === "meeting" ? meeting.revision.detail.startsAt : null) });
+  if (moveEndsAt.targetId !== meetingTargetId) setMoveEndsAt({ targetId: meetingTargetId, value: toLocalDateTimeInput(meeting?.revision.detail.behaviorFamily === "meeting" ? meeting.revision.detail.endsAt : null) });
   if (milestoneOccursAt.targetId !== milestoneTargetId) setMilestoneOccursAt({ targetId: milestoneTargetId, value: "" });
   const [topicAction, setTopicAction] = useState<
     "introduced" | "practiced" | "assessed"

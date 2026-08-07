@@ -253,7 +253,7 @@ export default function TopicBrowser({
               </div>
             </fieldset>
 
-            <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
+            <div role="status" className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
               Current chain:{" "}
               {selected.prerequisiteTopicIds.length === 0
                 ? "No prerequisites"

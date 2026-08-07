@@ -101,4 +101,18 @@ describe("TopicBrowser", () => {
 
     expect(codeInput).toHaveValue("topic-window-functions");
   });
+
+  it("keeps 150 Topics usable at a narrow viewport and exposes the current chain as information, not a button", () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 375 });
+    const topics = Array.from({ length: 150 }, (_, index) => ({
+      topic: { id: `topic-${index}`, courseId: "course-1", learningModuleId: null, stableCode: `T${index}`, currentVersionId: `tv-${index}`, archivedAt: null },
+      currentVersion: { id: `tv-${index}`, topicId: `topic-${index}`, revision: 1, title: `Topic ${index}`, category: "Dense", description: null, changeSummary: null, publishedAt: null },
+      prerequisiteTopicIds: index === 0 ? [] : ["topic-0"],
+    }));
+    render(<TopicBrowser buckets={[{ key: "unassigned", label: "Unassigned Topics", learningModuleId: null, isUnassigned: true, topics }]} topicTitleById={new Map([["topic-0", "Topic 0"]])} onSaveTopic={vi.fn(async () => undefined)} />);
+    expect(document.querySelectorAll("button")).toHaveLength(151);
+    expect(screen.getAllByText("Topic 149")).toHaveLength(2);
+    expect(screen.getByRole("status")).toHaveTextContent("Current chain: No prerequisites");
+    expect(screen.queryByRole("button", { name: /Current chain/ })).not.toBeInTheDocument();
+  });
 });

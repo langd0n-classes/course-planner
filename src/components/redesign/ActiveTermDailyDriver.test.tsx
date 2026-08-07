@@ -192,7 +192,7 @@ describe("ActiveTermDailyDriver", () => {
     expect(screen.getByText(/Delivery correction applied/)).toBeInTheDocument();
   });
 
-  it("clears the move field when the applied correction reloads a different meeting", async () => {
+  it("fills move fields from the newly selected meeting after an applied correction", async () => {
     setMockBackend({
       previewTermActivityRevision: vi.fn(async () => ({
         kind: "preview" as const,
@@ -226,7 +226,17 @@ describe("ActiveTermDailyDriver", () => {
         onApplied={vi.fn(async () => undefined)}
       />,
     );
-    expect(screen.getByLabelText("Move meeting start")).toHaveValue("");
+    const localInput = (value: string) => {
+      const date = new Date(value);
+      const pad = (part: number) => String(part).padStart(2, "0");
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    };
+    expect(screen.getByLabelText("Move meeting start")).toHaveValue(
+      localInput("2026-02-11T14:00:00Z"),
+    );
+    expect(screen.getByLabelText("Move meeting end")).toHaveValue(
+      localInput("2026-02-10T15:00:00Z"),
+    );
   });
 
   it("shows preview and apply failures, read-only gating, and singular delivery delta", async () => {
@@ -266,6 +276,27 @@ describe("ActiveTermDailyDriver", () => {
     expect(
       screen.getByRole("button", { name: "Apply correction" }),
     ).toBeInTheDocument();
+  });
+
+  it("shows a stale preview conflict and lets the instructor discard it and preview again", async () => {
+    const previewTermActivityRevision = vi.fn(async () => ({
+      kind: "preview" as const,
+      previewToken: `token-${previewTermActivityRevision.mock.calls.length}`,
+      expectedCurrentRevisionId: "plan-meeting",
+      proposedRevision: revision("meeting"),
+      impact: { issues: [], topicActionDuplicates: [], calendarConflicts: [] },
+    }));
+    const applyTermActivityRevision = vi.fn(async () => { throw new Error("Preview is stale; refresh and try again."); });
+    setMockBackend({ previewTermActivityRevision, applyTermActivityRevision });
+    renderDriver();
+    fireEvent.click(screen.getByRole("button", { name: "Preview cancellation" }));
+    await screen.findByRole("button", { name: "Apply correction" });
+    fireEvent.click(screen.getByRole("button", { name: "Apply correction" }));
+    expect(await screen.findByText("Preview is stale; refresh and try again.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(screen.queryByRole("button", { name: "Apply correction" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Preview cancellation" }));
+    await waitFor(() => expect(previewTermActivityRevision).toHaveBeenCalledTimes(2));
   });
 
   it("surfaces preview failures without opening a correction panel", async () => {
