@@ -26,6 +26,7 @@ import {
 import AdoptLearningModulePanel from "./AdoptLearningModulePanel";
 import DeliveredRevisionEditor from "./DeliveredRevisionEditor";
 import GapNotice from "./GapNotice";
+import ActiveTermDailyDriver from "./ActiveTermDailyDriver";
 import LifecycleBadge from "./LifecycleBadge";
 import LifecycleConfirmPanel from "./LifecycleConfirmPanel";
 
@@ -111,6 +112,8 @@ export default function TermWorkspacePage({ termId }: Props) {
   const [sessions, setSessions] = useState<Awaited<ReturnType<typeof redesignApi.listTermSessions>>>([]);
   const [calendarSlots, setCalendarSlots] = useState<Awaited<ReturnType<typeof redesignApi.listCalendarSlots>>>([]);
   const [calendarExceptions, setCalendarExceptions] = useState<TermCalendarExceptionDto[]>([]);
+  const [termActivities, setTermActivities] = useState<Awaited<ReturnType<typeof redesignApi.listTermActivitiesWithRevisions>>["termActivities"]>([]);
+  const [activityRevisions, setActivityRevisions] = useState<Awaited<ReturnType<typeof redesignApi.listTermActivitiesWithRevisions>>["revisionsByTermActivityId"]>({});
   const [coverageHealth, setCoverageHealth] = useState<Awaited<ReturnType<typeof redesignApi.computeCoverageHealth>> | null>(null);
   const [assessments, setAssessments] = useState<Awaited<ReturnType<typeof redesignApi.listTermAssessments>>>([]);
   const [availableTopicVersions, setAvailableTopicVersions] = useState<TopicVersionDto[]>([]);
@@ -150,6 +153,7 @@ export default function TermWorkspacePage({ termId }: Props) {
         loadedAssessments,
         loadedLearningModules,
         loadedTopics,
+        loadedActivities,
       ] = await Promise.all([
         redesignApi.getCourse(loadedTerm.courseId),
         redesignApi.listTermLearningModules(termId),
@@ -160,6 +164,7 @@ export default function TermWorkspacePage({ termId }: Props) {
         redesignApi.listTermAssessments(termId),
         redesignApi.listLearningModules(loadedTerm.courseId),
         redesignApi.listTopics(loadedTerm.courseId),
+        redesignApi.listTermActivitiesWithRevisions(termId),
       ]);
 
       const [learningModuleDetails, moduleVersions, diffs, topicDetails] = await Promise.all([
@@ -231,6 +236,8 @@ export default function TermWorkspacePage({ termId }: Props) {
       setSessions(loadedSessions);
       setCalendarSlots(loadedCalendarSlots);
       setCalendarExceptions(loadedCalendarExceptions);
+      setTermActivities(loadedActivities.termActivities);
+      setActivityRevisions(loadedActivities.revisionsByTermActivityId);
       setCoverageHealth(loadedCoverageHealth);
       setAssessments(loadedAssessments);
       setAvailableTopicVersions(
@@ -280,6 +287,20 @@ export default function TermWorkspacePage({ termId }: Props) {
       (maxSequence, workspace) => Math.max(maxSequence, workspace.termLearningModule.sequence),
       0,
     ) + 1;
+  const learningModuleLabels = useMemo(
+    () =>
+      new Map(
+        moduleWorkspaces.map((workspace) => [
+          workspace.termLearningModule.id,
+          workspace.plannedVersion.title,
+        ]),
+      ),
+    [moduleWorkspaces],
+  );
+  const topicLabels = useMemo(
+    () => new Map([...topicVersionsById.entries()].map(([id, topic]) => [id, topic.title])),
+    [topicVersionsById],
+  );
 
   async function handleConfirmTransition() {
     if (!term || !pendingTransition) return;
@@ -495,6 +516,16 @@ export default function TermWorkspacePage({ termId }: Props) {
           </div>
         </div>
       </section>
+
+      <ActiveTermDailyDriver
+        termActivities={termActivities}
+        revisionsByTermActivityId={activityRevisions}
+        today={todayIso}
+        learningModuleLabels={learningModuleLabels}
+        topicLabels={topicLabels}
+        editable={term.status === "active" || term.status === "planned"}
+        onApplied={loadWorkspace}
+      />
 
       <section className="grid gap-6 xl:grid-cols-2">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

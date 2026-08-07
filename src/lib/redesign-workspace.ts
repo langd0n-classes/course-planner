@@ -8,6 +8,8 @@ import type {
   LearningModuleVersionDto,
   SessionDto,
   TermCalendarExceptionDto,
+  TermActivityDto,
+  TermActivityRevisionDto,
   TopicDto,
   TopicPrerequisiteDto,
   TopicVersionDto,
@@ -39,6 +41,101 @@ export function moveActivityBoardCard(args: {
       ? { ...column, activityVersionIds: [...withoutCard, args.activityVersionId] }
       : { ...column, activityVersionIds: withoutCard };
   });
+}
+
+export type TermDailyDriver = {
+  nextMeeting: {
+    activity: TermActivityDto;
+    revision: TermActivityRevisionDto;
+    meetingOrdinal: number;
+  } | null;
+  nextMilestone: {
+    activity: TermActivityDto;
+    revision: TermActivityRevisionDto;
+    label: string;
+    occursAt: string;
+    milestoneIndex: number;
+  } | null;
+  currentLearningModuleId: Id | null;
+  activeTopicVersionIds: Id[];
+  changedActivityIds: Id[];
+  totalMeetings: number;
+};
+
+/** Builds the small, time-oriented active-Term view from immutable revisions. */
+export function buildTermDailyDriver(args: {
+  termActivities: TermActivityDto[];
+  revisionsByTermActivityId: Record<
+    Id,
+    {
+      planned: TermActivityRevisionDto | null;
+      delivered: TermActivityRevisionDto | null;
+    }
+  >;
+  today: string;
+}): TermDailyDriver {
+  const effective = args.termActivities.flatMap((activity) => {
+    const revisions = args.revisionsByTermActivityId[activity.id];
+    const revision = revisions?.delivered ?? revisions?.planned;
+    return revision
+      ? [{ activity, revision, planned: revisions?.planned ?? null }]
+      : [];
+  });
+  const meetings = effective
+    .filter(({ revision }) => revision.detail.behaviorFamily === "meeting")
+    .sort((left, right) => {
+      if (
+        left.revision.detail.behaviorFamily !== "meeting" ||
+        right.revision.detail.behaviorFamily !== "meeting"
+      )
+        return 0;
+      return (left.revision.detail.startsAt ?? "").localeCompare(
+        right.revision.detail.startsAt ?? "",
+      );
+    });
+  const futureMeetings = meetings
+    .filter(({ revision }) => {
+      if (revision.detail.behaviorFamily !== "meeting") return false;
+      return (
+        Boolean(revision.detail.startsAt) &&
+        revision.detail.startsAt!.slice(0, 10) >= args.today &&
+        revision.detail.status !== "canceled"
+      );
+    })
+    .map((meeting) => ({
+      ...meeting,
+      meetingOrdinal: meetings.indexOf(meeting) + 1,
+    }));
+  const milestones = effective
+    .flatMap(({ activity, revision }) =>
+      revision.milestones
+        .map((milestone, milestoneIndex) => ({ milestone, milestoneIndex }))
+        .filter(
+          ({ milestone }) =>
+            milestone.occursAt && milestone.occursAt.slice(0, 10) >= args.today,
+        )
+        .map(({ milestone, milestoneIndex }) => ({
+          activity,
+          revision,
+          label: milestone.label,
+          occursAt: milestone.occursAt!,
+          milestoneIndex,
+        })),
+    )
+    .sort((left, right) => left.occursAt.localeCompare(right.occursAt));
+  const current = futureMeetings[0] ?? null;
+  const activeTopicVersionIds =
+    current?.revision.topicActions.map((action) => action.topicVersionId) ?? [];
+  return {
+    nextMeeting: current,
+    nextMilestone: milestones[0] ?? null,
+    currentLearningModuleId: current?.activity.termLearningModuleId ?? null,
+    activeTopicVersionIds,
+    changedActivityIds: effective
+      .filter(({ revision, planned }) => planned && planned.id !== revision.id)
+      .map(({ activity }) => activity.id),
+    totalMeetings: meetings.length,
+  };
 }
 
 export type ActivityMovePlanStep = {
