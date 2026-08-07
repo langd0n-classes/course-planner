@@ -357,6 +357,16 @@ describe("deriveTermPlanningGaps", () => {
     expect(gaps.unplannedSpecialScheduleSlots).toEqual([]);
     expect(gaps.unplannedClassDays).toEqual([]);
   });
+
+  it("treats a targeted Term calendar modification as an explicit alternate schedule", () => {
+    const gaps = deriveTermPlanningGaps({
+      calendarSlots: [{ id: "slot-finals", termId: "term-1", academicCalendarEventId: "event-finals", date: "2026-05-12", slotType: "finals", label: "Final examination period", source: "academic_calendar", instructionalCapacity: "assessment_period", capacitySource: "heuristic", capacityReason: "Finals are an alternate schedule." }],
+      sessions: [],
+      exceptions: [{ id: "exception-1", termId: "term-1", action: "modify", activityTypeVersionId: null, calendarSlotId: "slot-finals", targetDate: "2026-05-12", startsAt: null, endsAt: null, label: "Alternate final", reason: "Instructor-approved alternate schedule.", provenance: null }],
+    });
+
+    expect(gaps.unplannedSpecialScheduleSlots).toEqual([]);
+  });
 });
 
 describe("buildTermCalendarTimeline", () => {
@@ -469,6 +479,17 @@ describe("buildTermCalendarTimeline", () => {
     expect(timeline.allRows).toHaveLength(1);
     expect(timeline.allRows[0]?.isGap).toBe(true);
     expect(timeline.todaySignal).toBe("after_term");
+  });
+
+  it("labels inherited and Term-specific calendar provenance", () => {
+    const timeline = buildTermCalendarTimeline({
+      calendarSlots: [
+        { id: "inherited", termId: "term-1", academicCalendarEventId: "event-1", date: "2026-03-01", slotType: "class_day", label: null, source: "academic_calendar", instructionalCapacity: "normal", capacitySource: "baseline", capacityReason: null },
+        { id: "specific", termId: "term-1", academicCalendarEventId: "event-2", date: "2026-03-02", slotType: "class_day", label: null, source: "academic_calendar", instructionalCapacity: "normal", capacitySource: "instructor_override", capacityReason: "Makeup." },
+      ], sessions: [], today: "2026-03-01",
+    });
+
+    expect(timeline.allRows.map((row) => row.provenance)).toEqual(["calendar_inherited", "term_specific"]);
   });
 });
 

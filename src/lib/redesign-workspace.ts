@@ -7,6 +7,7 @@ import type {
   LearningModuleDto,
   LearningModuleVersionDto,
   SessionDto,
+  TermCalendarExceptionDto,
   TopicDto,
   TopicPrerequisiteDto,
   TopicVersionDto,
@@ -187,6 +188,7 @@ export type CalendarTimelineRow = {
   isClassDay: boolean;
   isGap: boolean;
   isToday: boolean;
+  provenance: "calendar_inherited" | "term_specific";
 };
 
 export type TermCalendarTimeline = {
@@ -338,11 +340,25 @@ export function compareLearningModuleVersions(args: {
 export function deriveTermPlanningGaps(args: {
   calendarSlots: CalendarSlotDto[];
   sessions: SessionDto[];
+  exceptions?: TermCalendarExceptionDto[];
 }): TermPlanningGaps {
   const activeSessionDates = new Set(
     args.sessions
       .filter((session) => session.status !== "canceled" && session.date)
       .map((session) => session.date as string),
+  );
+
+  const resolvedSlotIds = new Set(
+    (args.exceptions ?? [])
+      .filter((exception) => exception.action === "modify" || exception.action === "replace")
+      .map((exception) => exception.calendarSlotId)
+      .filter((slotId): slotId is string => slotId !== null),
+  );
+  const resolvedDates = new Set(
+    (args.exceptions ?? [])
+      .filter((exception) => exception.action === "modify" || exception.action === "replace")
+      .map((exception) => exception.targetDate)
+      .filter((date): date is string => date !== null),
   );
 
   return {
@@ -354,7 +370,11 @@ export function deriveTermPlanningGaps(args: {
     // gaps. They need an explicit alternate/manual decision, so keep them in a
     // separate signal rather than folding them into ordinary class-day coverage.
     unplannedSpecialScheduleSlots: args.calendarSlots.filter(
-      (slot) => slot.slotType === "finals" && !activeSessionDates.has(slot.date),
+      (slot) =>
+        slot.slotType === "finals" &&
+        !activeSessionDates.has(slot.date) &&
+        !resolvedSlotIds.has(slot.id) &&
+        !resolvedDates.has(slot.date),
     ),
     canceledSessions: args.sessions.filter((session) => session.status === "canceled"),
   };
@@ -389,12 +409,19 @@ export function buildTermCalendarTimeline(args: {
     const session = sessionsBySlotId.get(slot.id) ?? sessionsByDate.get(slot.date) ?? null;
     const isClassDay = slot.slotType === "class_day";
     const isGap = isClassDay && (!session || session.status === "canceled");
+    const provenance: CalendarTimelineRow["provenance"] =
+      session?.scheduleOverrideLabel ||
+      slot.capacitySource === "instructor_override" ||
+      !slot.academicCalendarEventId
+        ? "term_specific"
+        : "calendar_inherited";
     return {
       slot,
       session,
       isClassDay,
       isGap,
       isToday: slot.date === args.today,
+      provenance,
     };
   });
 

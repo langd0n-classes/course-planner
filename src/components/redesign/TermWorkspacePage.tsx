@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useEffectEvent, useMemo, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useState, type FormEvent } from "react";
 import { redesignApi } from "@/lib/redesign-api-client";
 import type {
   CalendarSlotDto,
@@ -11,6 +11,8 @@ import type {
   LearningModuleVersionDto,
   PlannedDeliveredDiffResponse,
   SessionDto,
+  TermCalendarExceptionAction,
+  TermCalendarExceptionDto,
   TermLifecycleTransition,
   TopicVersionDto,
 } from "@/lib/redesign-contract";
@@ -108,6 +110,7 @@ export default function TermWorkspacePage({ termId }: Props) {
   const [moduleWorkspaces, setModuleWorkspaces] = useState<ModuleWorkspace[]>([]);
   const [sessions, setSessions] = useState<Awaited<ReturnType<typeof redesignApi.listTermSessions>>>([]);
   const [calendarSlots, setCalendarSlots] = useState<Awaited<ReturnType<typeof redesignApi.listCalendarSlots>>>([]);
+  const [calendarExceptions, setCalendarExceptions] = useState<TermCalendarExceptionDto[]>([]);
   const [coverageHealth, setCoverageHealth] = useState<Awaited<ReturnType<typeof redesignApi.computeCoverageHealth>> | null>(null);
   const [assessments, setAssessments] = useState<Awaited<ReturnType<typeof redesignApi.listTermAssessments>>>([]);
   const [availableTopicVersions, setAvailableTopicVersions] = useState<TopicVersionDto[]>([]);
@@ -118,6 +121,18 @@ export default function TermWorkspacePage({ termId }: Props) {
   const [transitionBusy, setTransitionBusy] = useState(false);
   const [transitionError, setTransitionError] = useState<string | null>(null);
   const [showAllCalendarRows, setShowAllCalendarRows] = useState(false);
+  const [exceptionAction, setExceptionAction] = useState<TermCalendarExceptionAction>("modify");
+  const [exceptionCalendarSlotId, setExceptionCalendarSlotId] = useState("");
+  const [exceptionTargetDate, setExceptionTargetDate] = useState("");
+  const [exceptionActivityTypeVersionId, setExceptionActivityTypeVersionId] = useState("");
+  const [exceptionStartsAt, setExceptionStartsAt] = useState("");
+  const [exceptionEndsAt, setExceptionEndsAt] = useState("");
+  const [exceptionLabel, setExceptionLabel] = useState("");
+  const [exceptionReason, setExceptionReason] = useState("");
+  const [editingExceptionId, setEditingExceptionId] = useState<Id | null>(null);
+  const [exceptionBusy, setExceptionBusy] = useState(false);
+  const [exceptionError, setExceptionError] = useState<string | null>(null);
+  const [calendarAnnouncement, setCalendarAnnouncement] = useState("");
   const todayIso = useMemo(() => getTodayIsoDate(), []);
 
   async function loadWorkspace() {
@@ -130,6 +145,7 @@ export default function TermWorkspacePage({ termId }: Props) {
         loadedTermLearningModules,
         loadedSessions,
         loadedCalendarSlots,
+        loadedCalendarExceptions,
         loadedCoverageHealth,
         loadedAssessments,
         loadedLearningModules,
@@ -139,6 +155,7 @@ export default function TermWorkspacePage({ termId }: Props) {
         redesignApi.listTermLearningModules(termId),
         redesignApi.listTermSessions(termId),
         redesignApi.listCalendarSlots(termId),
+        redesignApi.listTermCalendarExceptions(termId),
         redesignApi.computeCoverageHealth(termId),
         redesignApi.listTermAssessments(termId),
         redesignApi.listLearningModules(loadedTerm.courseId),
@@ -213,6 +230,7 @@ export default function TermWorkspacePage({ termId }: Props) {
       setModuleWorkspaces(workspaceRows);
       setSessions(loadedSessions);
       setCalendarSlots(loadedCalendarSlots);
+      setCalendarExceptions(loadedCalendarExceptions);
       setCoverageHealth(loadedCoverageHealth);
       setAssessments(loadedAssessments);
       setAvailableTopicVersions(
@@ -239,8 +257,8 @@ export default function TermWorkspacePage({ termId }: Props) {
   }, [termId]);
 
   const planningGaps = useMemo(
-    () => deriveTermPlanningGaps({ calendarSlots, sessions }),
-    [calendarSlots, sessions],
+    () => deriveTermPlanningGaps({ calendarSlots, sessions, exceptions: calendarExceptions }),
+    [calendarSlots, calendarExceptions, sessions],
   );
 
   const calendarTimeline = useMemo(
@@ -285,6 +303,99 @@ export default function TermWorkspacePage({ termId }: Props) {
     await redesignApi.createDeliveredRevision(termLearningModuleId, request);
     setEditingTermLearningModuleId(null);
     await loadWorkspace();
+  }
+
+  function resetExceptionForm() {
+    setExceptionAction("modify");
+    setExceptionCalendarSlotId("");
+    setExceptionTargetDate("");
+    setExceptionActivityTypeVersionId("");
+    setExceptionStartsAt("");
+    setExceptionEndsAt("");
+    setExceptionLabel("");
+    setExceptionReason("");
+    setEditingExceptionId(null);
+    setExceptionError(null);
+  }
+
+  function beginEditingException(exception: TermCalendarExceptionDto) {
+    setExceptionAction(exception.action);
+    setExceptionCalendarSlotId(exception.calendarSlotId ?? "");
+    setExceptionTargetDate(exception.targetDate ?? "");
+    setExceptionActivityTypeVersionId(exception.activityTypeVersionId ?? "");
+    setExceptionStartsAt(exception.startsAt ?? "");
+    setExceptionEndsAt(exception.endsAt ?? "");
+    setExceptionLabel(exception.label ?? "");
+    setExceptionReason(exception.reason ?? "");
+    setEditingExceptionId(exception.id);
+    setExceptionError(null);
+  }
+
+  async function handleSaveCalendarException(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setExceptionBusy(true);
+    setExceptionError(null);
+    const input = {
+      action: exceptionAction,
+      activityTypeVersionId: exceptionActivityTypeVersionId || null,
+      calendarSlotId: exceptionCalendarSlotId || null,
+      targetDate: exceptionTargetDate || null,
+      startsAt: exceptionStartsAt || null,
+      endsAt: exceptionEndsAt || null,
+      label: exceptionLabel || null,
+      reason: exceptionReason || null,
+    };
+    try {
+      const saved = editingExceptionId
+        ? await redesignApi.updateTermCalendarException(termId, editingExceptionId, input)
+        : await redesignApi.createTermCalendarException(termId, input);
+      setCalendarExceptions((current) =>
+        editingExceptionId
+          ? current.map((exception) => exception.id === saved.id ? saved : exception)
+          : [...current, saved],
+      );
+      setCalendarAnnouncement(editingExceptionId ? "Calendar exception updated." : "Calendar exception created.");
+      resetExceptionForm();
+    } catch (caught) {
+      setExceptionError(caught instanceof Error ? caught.message : "Unable to save calendar exception.");
+    } finally {
+      setExceptionBusy(false);
+    }
+  }
+
+  async function handleDeleteCalendarException(exceptionId: Id) {
+    setExceptionBusy(true);
+    setExceptionError(null);
+    try {
+      await redesignApi.deleteTermCalendarException(termId, exceptionId);
+      setCalendarExceptions((current) => current.filter((exception) => exception.id !== exceptionId));
+      if (editingExceptionId === exceptionId) resetExceptionForm();
+      setCalendarAnnouncement("Calendar exception deleted.");
+    } catch (caught) {
+      setExceptionError(caught instanceof Error ? caught.message : "Unable to delete calendar exception.");
+    } finally {
+      setExceptionBusy(false);
+    }
+  }
+
+  async function handleResolveSpecialSlot(slot: CalendarSlotDto) {
+    setExceptionBusy(true);
+    setExceptionError(null);
+    try {
+      const exception = await redesignApi.createTermCalendarException(termId, {
+        action: "modify",
+        calendarSlotId: slot.id,
+        targetDate: slot.date,
+        label: `Alternate schedule: ${slot.label ?? slot.date}`,
+        reason: "Instructor-approved alternate schedule.",
+      });
+      setCalendarExceptions((current) => [...current, exception]);
+      setCalendarAnnouncement(`${slot.label ?? slot.date} marked with an explicit alternate schedule.`);
+    } catch (caught) {
+      setExceptionError(caught instanceof Error ? caught.message : "Unable to resolve alternate schedule.");
+    } finally {
+      setExceptionBusy(false);
+    }
   }
 
   if (loading) {
@@ -406,8 +517,17 @@ export default function TermWorkspacePage({ termId }: Props) {
             ) : null}
             {planningGaps.unplannedSpecialScheduleSlots.length > 0 ? (
               <GapNotice title={`${planningGaps.unplannedSpecialScheduleSlots.length} special/finals slot(s) need an explicit alternate schedule.`}>
-                {planningGaps.unplannedSpecialScheduleSlots.slice(0, 5).map((slot) => slot.label ?? slot.date).join(", ")}
-                {planningGaps.unplannedSpecialScheduleSlots.length > 5 ? ` +${planningGaps.unplannedSpecialScheduleSlots.length - 5} more` : ""}
+                <div className="space-y-2">
+                  {planningGaps.unplannedSpecialScheduleSlots.slice(0, 5).map((slot) => (
+                    <div key={slot.id} className="flex flex-wrap items-center gap-2">
+                      <span>{slot.label ?? slot.date}</span>
+                      <button type="button" onClick={() => void handleResolveSpecialSlot(slot)} disabled={exceptionBusy} className="rounded-md border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-800 disabled:opacity-60">
+                        Record alternate schedule
+                      </button>
+                    </div>
+                  ))}
+                  {planningGaps.unplannedSpecialScheduleSlots.length > 5 ? <span>+{planningGaps.unplannedSpecialScheduleSlots.length - 5} more</span> : null}
+                </div>
               </GapNotice>
             ) : null}
             {canceledSessions.length > 0 ? (
@@ -446,6 +566,32 @@ export default function TermWorkspacePage({ termId }: Props) {
             <p className="mt-4 text-sm text-slate-500">Coverage data not available.</p>
           )}
         </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-900">Calendar exceptions</h2>
+        <p className="mt-1 text-sm text-slate-600">Record Term-specific cancel, add, replace, or modify decisions without changing the institution calendar.</p>
+        <p aria-live="polite" className="sr-only">{calendarAnnouncement}</p>
+        {exceptionError ? <p className="mt-3 text-sm text-rose-700">{exceptionError}</p> : null}
+        <div className="mt-4 space-y-2">
+          {calendarExceptions.length === 0 ? <p className="text-sm text-slate-500">No Term calendar exceptions recorded.</p> : calendarExceptions.map((exception) => (
+            <div key={exception.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 text-sm">
+              <span><span className="font-medium capitalize text-slate-900">{exception.action}</span>{exception.label ? ` · ${exception.label}` : ""}{exception.targetDate ? ` · ${exception.targetDate}` : ""}{exception.reason ? ` · ${exception.reason}` : ""}</span>
+              <span className="flex gap-2"><button type="button" onClick={() => beginEditingException(exception)} className="text-sky-700">Edit</button><button type="button" onClick={() => void handleDeleteCalendarException(exception.id)} disabled={exceptionBusy} className="text-rose-700 disabled:opacity-60">Delete</button></span>
+            </div>
+          ))}
+        </div>
+        <form className="mt-4 grid gap-3 rounded-xl border border-slate-200 p-3 sm:grid-cols-2" onSubmit={(event) => void handleSaveCalendarException(event)}>
+          <label className="text-sm text-slate-700">Action<select aria-label="Exception action" value={exceptionAction} onChange={(event) => setExceptionAction(event.target.value as TermCalendarExceptionAction)} className="mt-1 block w-full rounded-md border border-slate-300 p-2"><option value="cancel">Cancel</option><option value="add">Add</option><option value="replace">Replace</option><option value="modify">Modify</option></select></label>
+          <label className="text-sm text-slate-700">Calendar slot<select aria-label="Exception calendar slot" value={exceptionCalendarSlotId} onChange={(event) => { setExceptionCalendarSlotId(event.target.value); const slot = calendarSlots.find((candidate) => candidate.id === event.target.value); if (slot) setExceptionTargetDate(slot.date); }} className="mt-1 block w-full rounded-md border border-slate-300 p-2"><option value="">Date-only target</option>{calendarSlots.map((slot) => <option key={slot.id} value={slot.id}>{slot.date} · {slot.label ?? formatSlotTypeLabel(slot.slotType)}</option>)}</select></label>
+          <label className="text-sm text-slate-700">Target date<input aria-label="Exception target date" type="date" value={exceptionTargetDate} onChange={(event) => setExceptionTargetDate(event.target.value)} className="mt-1 block w-full rounded-md border border-slate-300 p-2" /></label>
+          <label className="text-sm text-slate-700">Label<input aria-label="Exception label" value={exceptionLabel} onChange={(event) => setExceptionLabel(event.target.value)} className="mt-1 block w-full rounded-md border border-slate-300 p-2" /></label>
+          <label className="text-sm text-slate-700">Reason<input aria-label="Exception reason" value={exceptionReason} onChange={(event) => setExceptionReason(event.target.value)} className="mt-1 block w-full rounded-md border border-slate-300 p-2" /></label>
+          <label className="text-sm text-slate-700">Activity type version ID (required for add)<input aria-label="Exception activity type version ID" value={exceptionActivityTypeVersionId} onChange={(event) => setExceptionActivityTypeVersionId(event.target.value)} className="mt-1 block w-full rounded-md border border-slate-300 p-2" /></label>
+          <label className="text-sm text-slate-700">Starts at (ISO date-time)<input aria-label="Exception starts at" value={exceptionStartsAt} onChange={(event) => setExceptionStartsAt(event.target.value)} className="mt-1 block w-full rounded-md border border-slate-300 p-2" /></label>
+          <label className="text-sm text-slate-700">Ends at (ISO date-time)<input aria-label="Exception ends at" value={exceptionEndsAt} onChange={(event) => setExceptionEndsAt(event.target.value)} className="mt-1 block w-full rounded-md border border-slate-300 p-2" /></label>
+          <div className="flex items-end gap-2"><button type="submit" disabled={exceptionBusy} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">{editingExceptionId ? "Save exception" : "Create exception"}</button>{editingExceptionId ? <button type="button" onClick={resetExceptionForm} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">Cancel edit</button> : null}</div>
+        </form>
       </section>
 
       {calendarSlots.length > 0 ? (
@@ -505,7 +651,7 @@ export default function TermWorkspacePage({ termId }: Props) {
 
           <div id="term-calendar-timeline" className="mt-4 divide-y divide-slate-100">
             {visibleCalendarRows.map((row) => {
-              const { slot, session, isClassDay, isGap, isToday } = row;
+              const { slot, session, isClassDay, isGap, isToday, provenance } = row;
 
               return (
                 <div
@@ -530,6 +676,9 @@ export default function TermWorkspacePage({ termId }: Props) {
                   </span>
                   <div className="min-w-0 flex-1 space-y-2">
                     <div className="flex flex-wrap items-start gap-2">
+                      <span className={`rounded-full border px-2 py-1 text-xs font-medium ${provenance === "calendar_inherited" ? "border-sky-200 bg-sky-50 text-sky-800" : "border-violet-200 bg-violet-50 text-violet-800"}`}>
+                        {provenance === "calendar_inherited" ? "Institution calendar" : "Term-specific"}
+                      </span>
                       <span
                         className={`rounded-full border px-2 py-1 text-xs font-medium ${capacityBadgeClass(slot.instructionalCapacity)}`}
                         aria-label={`Instructional capacity: ${formatInstructionalCapacityLabel(slot.instructionalCapacity)}`}
