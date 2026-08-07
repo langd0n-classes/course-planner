@@ -252,6 +252,18 @@ describe("deriveTermPlanningGaps", () => {
           capacitySource: "baseline",
           capacityReason: null,
         },
+        {
+          id: "slot-finals",
+          termId: "term-1",
+          academicCalendarEventId: "event-finals",
+          date: "2026-05-12",
+          slotType: "finals",
+          label: "Final examination period",
+          source: "academic_calendar",
+          instructionalCapacity: "assessment_period",
+          capacitySource: "heuristic",
+          capacityReason: "Finals are an alternate schedule.",
+        },
       ],
       sessions: [
         {
@@ -299,6 +311,7 @@ describe("deriveTermPlanningGaps", () => {
 
     expect(gaps.unplannedClassDays.map((slot) => slot.id)).toEqual(["slot-2"]);
     expect(gaps.unscheduledSessions.map((session) => session.id)).toEqual(["sess-2"]);
+    expect(gaps.unplannedSpecialScheduleSlots.map((slot) => slot.id)).toEqual(["slot-finals"]);
   });
 });
 

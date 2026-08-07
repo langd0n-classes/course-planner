@@ -141,9 +141,17 @@ describe("CreateTermPanel", () => {
     calendarSlotCount: 2,
     warnings: [],
   });
+  const listAcademicCalendarVersions = vi.fn().mockResolvedValue([
+    { id: "cal-version-2", academicCalendarId: "cal-2", version: 2, name: "Extension calendar 2026", academicYear: "2026", sourceUri: null, publishedAt: "2026-01-01T00:00:00Z", archivedAt: null },
+  ]);
+  const getAcademicCalendarVersion = vi.fn().mockResolvedValue({
+    version: { id: "cal-version-2", academicCalendarId: "cal-2", version: 2, name: "Extension calendar 2026", academicYear: "2026", sourceUri: null, publishedAt: "2026-01-01T00:00:00Z", archivedAt: null },
+    events: [],
+    periods: [{ id: "period-finals", academicCalendarVersionId: "cal-version-2", kind: "special_schedule", label: "Final examinations", startsOn: "2027-05-10", endsOn: "2027-05-14" }],
+  });
 
   beforeEach(() => {
-    setMockBackend({ previewTermCreation, applyTermCreation });
+    setMockBackend({ previewTermCreation, applyTermCreation, listAcademicCalendarVersions, getAcademicCalendarVersion });
   });
 
   afterEach(() => {
@@ -260,5 +268,20 @@ describe("CreateTermPanel", () => {
     });
 
     expect(screen.getByRole("button", { name: "Confirm and create term" })).toBeDisabled();
+  });
+
+  it("presents the selected calendar version and special periods separately from regular meetings", async () => {
+    render(<CreateTermPanel courseId="course-1" institutions={institutions} calendars={calendars} onTermCreated={onTermCreated} />);
+
+    fireEvent.change(screen.getByLabelText("Institution"), { target: { value: "inst-2" } });
+    await waitFor(() => expect(screen.getByLabelText("Academic Calendar")).toHaveValue("cal-2"));
+    fireEvent.change(screen.getByLabelText("Academic Calendar"), { target: { value: "cal-2" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Calendar version 2: Extension calendar 2026")).toBeInTheDocument();
+      expect(screen.getByText("Special and finals schedules")).toBeInTheDocument();
+      expect(screen.getByText(/Final examinations: 2027-05-10/)).toBeInTheDocument();
+    });
+    expect(getAcademicCalendarVersion).toHaveBeenCalledWith("cal-version-2");
   });
 });

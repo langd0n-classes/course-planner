@@ -177,6 +177,7 @@ export type LearningModuleVersionComparison = {
 export type TermPlanningGaps = {
   unscheduledSessions: SessionDto[];
   unplannedClassDays: CalendarSlotDto[];
+  unplannedSpecialScheduleSlots: CalendarSlotDto[];
   canceledSessions: SessionDto[];
 };
 
@@ -348,6 +349,12 @@ export function deriveTermPlanningGaps(args: {
     unscheduledSessions: args.sessions.filter((session) => session.date === null && session.status !== "canceled"),
     unplannedClassDays: args.calendarSlots.filter(
       (slot) => slot.slotType === "class_day" && !activeSessionDates.has(slot.date),
+    ),
+    // Finals and other special slots are deliberately not regular meeting-pattern
+    // gaps. They need an explicit alternate/manual decision, so keep them in a
+    // separate signal rather than folding them into ordinary class-day coverage.
+    unplannedSpecialScheduleSlots: args.calendarSlots.filter(
+      (slot) => slot.slotType === "finals" && !activeSessionDates.has(slot.date),
     ),
     canceledSessions: args.sessions.filter((session) => session.status === "canceled"),
   };

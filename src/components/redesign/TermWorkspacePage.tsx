@@ -389,7 +389,7 @@ export default function TermWorkspacePage({ termId }: Props) {
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900">Planning gaps</h2>
           <div className="mt-4 space-y-3">
-            {planningGaps.unplannedClassDays.length === 0 && planningGaps.unscheduledSessions.length === 0 ? (
+            {planningGaps.unplannedClassDays.length === 0 && planningGaps.unscheduledSessions.length === 0 && planningGaps.unplannedSpecialScheduleSlots.length === 0 ? (
               <p className="text-sm text-slate-500">No date gaps visible right now.</p>
             ) : null}
             {planningGaps.unplannedClassDays.length > 0 ? (
@@ -402,6 +402,12 @@ export default function TermWorkspacePage({ termId }: Props) {
               <GapNotice title={`${planningGaps.unscheduledSessions.length} session(s) have no date.`}>
                 {planningGaps.unscheduledSessions.slice(0, 5).map((session) => session.code).join(", ")}
                 {planningGaps.unscheduledSessions.length > 5 ? ` +${planningGaps.unscheduledSessions.length - 5} more` : ""}
+              </GapNotice>
+            ) : null}
+            {planningGaps.unplannedSpecialScheduleSlots.length > 0 ? (
+              <GapNotice title={`${planningGaps.unplannedSpecialScheduleSlots.length} special/finals slot(s) need an explicit alternate schedule.`}>
+                {planningGaps.unplannedSpecialScheduleSlots.slice(0, 5).map((slot) => slot.label ?? slot.date).join(", ")}
+                {planningGaps.unplannedSpecialScheduleSlots.length > 5 ? ` +${planningGaps.unplannedSpecialScheduleSlots.length - 5} more` : ""}
               </GapNotice>
             ) : null}
             {canceledSessions.length > 0 ? (
