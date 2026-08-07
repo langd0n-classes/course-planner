@@ -491,6 +491,33 @@ describe("buildTermCalendarTimeline", () => {
 
     expect(timeline.allRows.map((row) => row.provenance)).toEqual(["calendar_inherited", "term_specific"]);
   });
+
+  it("labels an inherited slot Term-specific once a targeted modify exception exists", () => {
+    const inheritedSlot = { id: "inherited", termId: "term-1", academicCalendarEventId: "event-1", date: "2026-03-01", slotType: "class_day" as const, label: null, source: "academic_calendar", instructionalCapacity: "normal" as const, capacitySource: "baseline" as const, capacityReason: null };
+    const exception = { id: "exception-1", termId: "term-1", action: "modify" as const, activityTypeVersionId: null, calendarSlotId: "inherited", targetDate: null, startsAt: null, endsAt: null, label: "Room change", reason: "Term-specific override.", provenance: null };
+
+    const withException = buildTermCalendarTimeline({
+      calendarSlots: [inheritedSlot], sessions: [], today: "2026-03-01", exceptions: [exception],
+    });
+    expect(withException.allRows[0]?.provenance).toBe("term_specific");
+
+    const dateOnly = buildTermCalendarTimeline({
+      calendarSlots: [inheritedSlot], sessions: [], today: "2026-03-01",
+      exceptions: [{ ...exception, calendarSlotId: null, targetDate: "2026-03-01" }],
+    });
+    expect(dateOnly.allRows[0]?.provenance).toBe("term_specific");
+
+    const cancelOnly = buildTermCalendarTimeline({
+      calendarSlots: [inheritedSlot], sessions: [], today: "2026-03-01",
+      exceptions: [{ ...exception, action: "cancel" as const }],
+    });
+    expect(cancelOnly.allRows[0]?.provenance).toBe("calendar_inherited");
+
+    const withoutException = buildTermCalendarTimeline({
+      calendarSlots: [inheritedSlot], sessions: [], today: "2026-03-01", exceptions: [],
+    });
+    expect(withoutException.allRows[0]?.provenance).toBe("calendar_inherited");
+  });
 });
 
 describe("suggestTopicStableCode", () => {

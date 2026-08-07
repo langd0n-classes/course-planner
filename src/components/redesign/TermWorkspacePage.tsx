@@ -262,8 +262,8 @@ export default function TermWorkspacePage({ termId }: Props) {
   );
 
   const calendarTimeline = useMemo(
-    () => buildTermCalendarTimeline({ calendarSlots, sessions, today: todayIso }),
-    [calendarSlots, sessions, todayIso],
+    () => buildTermCalendarTimeline({ calendarSlots, sessions, today: todayIso, exceptions: calendarExceptions }),
+    [calendarSlots, calendarExceptions, sessions, todayIso],
   );
 
   const visibleCalendarRows = showAllCalendarRows ? calendarTimeline.allRows : calendarTimeline.windowRows;

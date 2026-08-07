@@ -391,10 +391,22 @@ export function buildTermCalendarTimeline(args: {
   sessions: SessionDto[];
   today: string;
   windowRadius?: number;
+  exceptions?: TermCalendarExceptionDto[];
 }): TermCalendarTimeline {
   const orderedSlots = [...args.calendarSlots].sort((left, right) => left.date.localeCompare(right.date));
   const sessionsBySlotId = new Map<string, SessionDto>();
   const sessionsByDate = new Map<string, SessionDto>();
+  // Mirrors deriveTermPlanningGaps: a targeted modify/replace exception is a
+  // Term-specific decision about that slot/date, whatever the slot inherited.
+  const overridingExceptions = (args.exceptions ?? []).filter(
+    (exception) => exception.action === "modify" || exception.action === "replace",
+  );
+  const exceptionSlotIds = new Set(
+    overridingExceptions.map((exception) => exception.calendarSlotId).filter((slotId): slotId is string => slotId !== null),
+  );
+  const exceptionDates = new Set(
+    overridingExceptions.map((exception) => exception.targetDate).filter((date): date is string => date !== null),
+  );
 
   for (const session of args.sessions) {
     if (session.calendarSlotId && !sessionsBySlotId.has(session.calendarSlotId)) {
@@ -412,7 +424,9 @@ export function buildTermCalendarTimeline(args: {
     const provenance: CalendarTimelineRow["provenance"] =
       session?.scheduleOverrideLabel ||
       slot.capacitySource === "instructor_override" ||
-      !slot.academicCalendarEventId
+      !slot.academicCalendarEventId ||
+      exceptionSlotIds.has(slot.id) ||
+      exceptionDates.has(slot.date)
         ? "term_specific"
         : "calendar_inherited";
     return {
