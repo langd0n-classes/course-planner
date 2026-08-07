@@ -3,6 +3,7 @@ import {
   buildActivityBoardColumns,
   buildTopicFlow,
   buildTermCalendarTimeline,
+  buildTermDailyDriver,
   buildTopicBrowserBuckets,
   compareLearningModuleVersions,
   deriveTermPlanningGaps,
@@ -221,6 +222,245 @@ describe("compareLearningModuleVersions", () => {
       { kind: "reordered", title: "Random variables", baseSequence: 2, compareSequence: 1 },
       { kind: "reordered", title: "Sample spaces", baseSequence: 1, compareSequence: 2 },
     ]);
+  });
+});
+
+describe("buildTermDailyDriver", () => {
+  it("keys both functions on the UTC calendar date", () => {
+    const meeting = {
+      id: "ta-midnight",
+      termId: "term",
+      courseId: "course",
+      activityId: "activity",
+      plannedActivityVersionId: "av",
+      activityTypeVersionId: "type",
+      adoptedLabel: "Lecture",
+      termLearningModuleId: null,
+      ordinal: null,
+      lifecycleState: null,
+      plannedRevisionId: "revision-midnight",
+      deliveredRevisionId: null,
+      archivedAt: null,
+    };
+    const revision = {
+      id: "revision-midnight",
+      termActivityId: meeting.id,
+      revision: 1,
+      baseActivityVersionId: "av",
+      title: "Late meeting",
+      summary: null,
+      changeReason: null,
+      createdByInstructorId: null,
+      createdAt: "2026-02-01T00:00:00Z",
+      detail: {
+        behaviorFamily: "meeting" as const,
+        calendarSlotId: "slot-midnight",
+        startsAt: "2026-02-10T23:30:00Z",
+        endsAt: null,
+        status: "scheduled",
+        modality: null,
+        overrideReason: null,
+        overrideEvidence: null,
+      },
+      topicActions: [],
+      milestones: [],
+    };
+    const driver = buildTermDailyDriver({
+      termActivities: [meeting],
+      revisionsByTermActivityId: { [meeting.id]: { planned: revision, delivered: null } },
+      today: "2026-02-10",
+    });
+    const timeline = buildTermCalendarTimeline({
+      calendarSlots: [{
+        id: "slot-midnight",
+        termId: "term",
+        academicCalendarEventId: null,
+        date: "2026-02-10",
+        slotType: "class_day",
+        label: null,
+        source: null,
+        instructionalCapacity: "normal",
+        capacitySource: "baseline",
+        capacityReason: null,
+      }],
+      sessions: [],
+      today: "2026-02-10",
+    });
+    expect(driver.nextMeeting?.activity.id).toBe(meeting.id);
+    expect(timeline.windowRows[0]?.isToday).toBe(true);
+  });
+
+  it("leads with the next active meeting, its topics, milestone, and delivery delta", () => {
+    const meeting = {
+      id: "ta-1",
+      termId: "term",
+      courseId: "course",
+      activityId: "activity",
+      plannedActivityVersionId: "av",
+      activityTypeVersionId: "type",
+      adoptedLabel: "Lecture",
+      termLearningModuleId: "tlm-1",
+      ordinal: 7,
+      lifecycleState: null,
+      plannedRevisionId: "plan-1",
+      deliveredRevisionId: "del-2",
+      archivedAt: null,
+    };
+    const planned = {
+      id: "plan-1",
+      termActivityId: "ta-1",
+      revision: 1,
+      baseActivityVersionId: "av",
+      title: "Probability",
+      summary: null,
+      changeReason: null,
+      createdByInstructorId: null,
+      createdAt: "2026-02-01T00:00:00Z",
+      detail: {
+        behaviorFamily: "meeting" as const,
+        calendarSlotId: "slot",
+        startsAt: "2026-02-10T14:00:00Z",
+        endsAt: null,
+        status: "scheduled",
+        modality: null,
+        overrideReason: null,
+        overrideEvidence: null,
+      },
+      topicActions: [],
+      milestones: [],
+    };
+    const delivered = {
+      ...planned,
+      id: "del-2",
+      revision: 2,
+      topicActions: [
+        {
+          id: "action",
+          termActivityRevisionId: "del-2",
+          topicVersionId: "topic-1",
+          action: "practiced" as const,
+          notes: null,
+          provenance: null,
+        },
+      ],
+      milestones: [
+        {
+          id: "milestone",
+          termActivityRevisionId: "del-2",
+          sourceTemplateId: null,
+          role: "due" as const,
+          label: "Problem set due",
+          linkedTermActivityId: "ta-1",
+          occursAt: "2026-02-11T23:00:00Z",
+          timeZone: "UTC",
+          anchorPolicy: "fixed_instant" as const,
+          notes: null,
+          provenance: null,
+        },
+        {
+          id: "milestone-duplicate",
+          termActivityRevisionId: "del-2",
+          sourceTemplateId: null,
+          role: "due" as const,
+          label: "Problem set due",
+          linkedTermActivityId: "ta-1",
+          occursAt: "2026-02-11T23:00:00Z",
+          timeZone: "UTC",
+          anchorPolicy: "fixed_instant" as const,
+          notes: null,
+          provenance: null,
+        },
+      ],
+    };
+    const driver = buildTermDailyDriver({
+      termActivities: [meeting],
+      revisionsByTermActivityId: { "ta-1": { planned, delivered } },
+      today: "2026-02-09",
+    });
+    expect(driver.nextMeeting?.activity.ordinal).toBe(7);
+    expect(driver.nextMilestone?.label).toBe("Problem set due");
+    expect(driver.nextMilestone?.milestoneIndex).toBe(0);
+    expect(driver.activeTopicVersionIds).toEqual(["topic-1"]);
+    expect(driver.changedActivityIds).toEqual(["ta-1"]);
+  });
+
+  it("numbers meetings chronologically, independently of nullable placement ordinals and interleaved activity kinds", () => {
+    const meeting = (
+      id: string,
+      startsAt: string,
+      ordinal: number | null,
+      behaviorFamily: "meeting" | "coursework" = "meeting",
+    ) => ({
+      id,
+      termId: "term",
+      courseId: "course",
+      activityId: id,
+      plannedActivityVersionId: "av",
+      activityTypeVersionId: "type",
+      adoptedLabel: id,
+      termLearningModuleId: null,
+      ordinal,
+      lifecycleState: null,
+      plannedRevisionId: `revision-${id}`,
+      deliveredRevisionId: null,
+      archivedAt: null,
+      revision: {
+        id: `revision-${id}`,
+        termActivityId: id,
+        revision: 1,
+        baseActivityVersionId: "av",
+        title: id,
+        summary: null,
+        changeReason: null,
+        createdByInstructorId: null,
+        createdAt: "2026-02-01T00:00:00Z",
+        detail:
+          behaviorFamily === "meeting"
+            ? {
+                behaviorFamily,
+                calendarSlotId: null,
+                startsAt,
+                endsAt: null,
+                status: "scheduled",
+                modality: null,
+                overrideReason: null,
+                overrideEvidence: null,
+              }
+            : { behaviorFamily, lifecycleState: null, deliveryNotes: null },
+        topicActions: [],
+        milestones: [],
+      },
+    });
+    const first = meeting("first", "2026-02-10T09:00:00Z", null);
+    const coursework = meeting("coursework", "", 0, "coursework");
+    const second = meeting("second", "2026-02-11T09:00:00Z", 99);
+    const driver = buildTermDailyDriver({
+      termActivities: [second, coursework, first].map((candidate) => ({
+        id: candidate.id,
+        termId: candidate.termId,
+        courseId: candidate.courseId,
+        activityId: candidate.activityId,
+        plannedActivityVersionId: candidate.plannedActivityVersionId,
+        activityTypeVersionId: candidate.activityTypeVersionId,
+        adoptedLabel: candidate.adoptedLabel,
+        termLearningModuleId: candidate.termLearningModuleId,
+        ordinal: candidate.ordinal,
+        lifecycleState: candidate.lifecycleState,
+        plannedRevisionId: candidate.plannedRevisionId,
+        deliveredRevisionId: candidate.deliveredRevisionId,
+        archivedAt: candidate.archivedAt,
+      })),
+      revisionsByTermActivityId: Object.fromEntries(
+        [first, coursework, second].map(({ id, revision }) => [
+          id,
+          { planned: revision, delivered: null },
+        ]),
+      ),
+      today: "2026-02-11",
+    });
+    expect(driver.nextMeeting?.activity.id).toBe("second");
+    expect(driver.nextMeeting?.meetingOrdinal).toBe(2);
+    expect(driver.totalMeetings).toBe(2);
   });
 });
 

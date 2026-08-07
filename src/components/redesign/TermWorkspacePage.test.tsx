@@ -205,6 +205,7 @@ function buildTermWorkspaceBackend() {
         archivedAt: null,
       },
     ]),
+    listTermActivitiesWithRevisions: vi.fn(async () => ({ termActivities: [], revisionsByTermActivityId: {} })),
     listCalendarSlots: vi.fn(async () => calendarSlots),
     listTermCalendarExceptions: vi.fn(async () => calendarExceptions),
     createTermCalendarException,
