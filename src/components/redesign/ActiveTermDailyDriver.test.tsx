@@ -29,7 +29,7 @@ const activity = (
 });
 const revision = (
   id: string,
-  startsAt = "2026-02-10T14:00:00Z",
+  startsAt: string | null = "2026-02-10T14:00:00Z",
 ): TermActivityRevisionDto => ({
   id: `plan-${id}`,
   termActivityId: id,
@@ -192,6 +192,43 @@ describe("ActiveTermDailyDriver", () => {
     expect(screen.getByText(/Delivery correction applied/)).toBeInTheDocument();
   });
 
+  it("clears the move field when the applied correction reloads a different meeting", async () => {
+    setMockBackend({
+      previewTermActivityRevision: vi.fn(async () => ({
+        kind: "preview" as const,
+        previewToken: "token",
+        expectedCurrentRevisionId: "plan-meeting",
+        proposedRevision: revision("meeting"),
+        impact: { issues: [], topicActionDuplicates: [], calendarConflicts: [] },
+      })),
+      applyTermActivityRevision: vi.fn(async () => ({
+        kind: "applied" as const,
+        termActivity: activity("meeting"),
+        revision: revision("meeting"),
+      })),
+    });
+    const view = renderDriver();
+    fireEvent.change(screen.getByLabelText("Move meeting start"), {
+      target: { value: "2026-02-10T16:00" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Preview cancellation" }));
+    await screen.findByRole("button", { name: "Apply correction" });
+    fireEvent.click(screen.getByRole("button", { name: "Apply correction" }));
+    await waitFor(() => expect(screen.getByLabelText("Move meeting start")).toHaveValue("2026-02-10T16:00"));
+    view.rerender(
+      <ActiveTermDailyDriver
+        termActivities={[activity("next-meeting")]}
+        revisionsByTermActivityId={{ "next-meeting": { planned: revision("next-meeting", "2026-02-11T14:00:00Z"), delivered: null } }}
+        today="2026-02-09"
+        learningModuleLabels={new Map()}
+        topicLabels={new Map()}
+        editable
+        onApplied={vi.fn(async () => undefined)}
+      />,
+    );
+    expect(screen.getByLabelText("Move meeting start")).toHaveValue("");
+  });
+
   it("shows preview and apply failures, read-only gating, and singular delivery delta", async () => {
     const previewTermActivityRevision = vi.fn(async () => {
       throw new Error("Preview failed");
@@ -301,7 +338,7 @@ describe("ActiveTermDailyDriver", () => {
     setMockBackend({ previewTermActivityRevision });
     renderDriver({ duplicateTopics: true });
     fireEvent.change(screen.getByLabelText("Current Topic action"), {
-      target: { value: "topic:practiced" },
+      target: { value: "action-practiced" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Preview remove Topic action" }));
     await waitFor(() => expect(previewTermActivityRevision).toHaveBeenCalled());

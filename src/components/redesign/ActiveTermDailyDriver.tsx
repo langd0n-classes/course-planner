@@ -106,21 +106,21 @@ export default function ActiveTermDailyDriver(props: Props) {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [moveStartsAt, setMoveStartsAt] = useState(() => toLocalDateTimeInput(meeting?.revision.detail.behaviorFamily === "meeting" ? meeting.revision.detail.startsAt : null));
-  const [moveEndsAt, setMoveEndsAt] = useState(() => toLocalDateTimeInput(meeting?.revision.detail.behaviorFamily === "meeting" ? meeting.revision.detail.endsAt : null));
-  const [milestoneOccursAt, setMilestoneOccursAt] = useState(() => toLocalDateTimeInput(nextMilestone?.occursAt));
+  const meetingTargetId = meeting?.activity.id ?? null;
+  const milestoneTargetId = nextMilestone ? `${nextMilestone.activity.id}:${nextMilestone.milestoneIndex}` : null;
+  const [moveStartsAt, setMoveStartsAt] = useState({ targetId: meetingTargetId, value: toLocalDateTimeInput(meeting?.revision.detail.behaviorFamily === "meeting" ? meeting.revision.detail.startsAt : null) });
+  const [moveEndsAt, setMoveEndsAt] = useState({ targetId: meetingTargetId, value: toLocalDateTimeInput(meeting?.revision.detail.behaviorFamily === "meeting" ? meeting.revision.detail.endsAt : null) });
+  const [milestoneOccursAt, setMilestoneOccursAt] = useState({ targetId: milestoneTargetId, value: toLocalDateTimeInput(nextMilestone?.occursAt) });
+  if (moveStartsAt.targetId !== meetingTargetId) setMoveStartsAt({ targetId: meetingTargetId, value: "" });
+  if (moveEndsAt.targetId !== meetingTargetId) setMoveEndsAt({ targetId: meetingTargetId, value: "" });
+  if (milestoneOccursAt.targetId !== milestoneTargetId) setMilestoneOccursAt({ targetId: milestoneTargetId, value: "" });
   const [topicAction, setTopicAction] = useState<
     "introduced" | "practiced" | "assessed"
   >("practiced");
-  const [selectedTopicActionVersionId, setSelectedTopicActionVersionId] =
-    useState("");
+  const [selectedTopicActionVersionId, setSelectedTopicActionVersionId] = useState(meeting?.revision.topicActions[0]?.topicVersionId ?? "");
+  const [selectedTopicAction, setSelectedTopicAction] = useState<"introduced" | "practiced" | "assessed">(meeting?.revision.topicActions[0]?.action ?? "practiced");
   const [topicVersionId, setTopicVersionId] = useState("");
-  const selectedTopicActionKey =
-    selectedTopicActionVersionId ||
-    (meeting?.revision.topicActions[0]
-      ? `${meeting.revision.topicActions[0].topicVersionId}:${meeting.revision.topicActions[0].action}`
-      : "") ||
-    "";
+  const selectedTopicActionEntry = meeting?.revision.topicActions.find((action) => action.topicVersionId === selectedTopicActionVersionId && action.action === selectedTopicAction);
 
   async function previewCorrection(
     activity: TermActivityDto,
@@ -190,15 +190,15 @@ export default function ActiveTermDailyDriver(props: Props) {
     if (
       !meeting ||
       meeting.revision.detail.behaviorFamily !== "meeting" ||
-      !moveStartsAt
+      !moveStartsAt.value
     )
       return;
     const request = requestFromRevision(
       meeting.revision,
       "Meeting moved during delivery.",
     );
-    const startsAt = toUtcIso(moveStartsAt);
-    const endsAt = toUtcIso(moveEndsAt || toLocalDateTimeInput(meeting.revision.detail.endsAt));
+    const startsAt = toUtcIso(moveStartsAt.value);
+    const endsAt = toUtcIso(moveEndsAt.value || toLocalDateTimeInput(meeting.revision.detail.endsAt));
     if (!startsAt || !endsAt) {
       setError("Enter valid meeting start and end times.");
       return;
@@ -216,12 +216,12 @@ export default function ActiveTermDailyDriver(props: Props) {
   }
 
   function previewMilestoneChange() {
-    if (!nextMilestone || !milestoneOccursAt) return;
+    if (!nextMilestone || !milestoneOccursAt.value) return;
     const request = requestFromRevision(
       nextMilestone.revision,
       "Milestone anchor changed during delivery.",
     );
-    const occursAt = toUtcIso(milestoneOccursAt);
+    const occursAt = toUtcIso(milestoneOccursAt.value);
     if (!occursAt) {
       setError("Enter a valid milestone time.");
       return;
@@ -244,18 +244,16 @@ export default function ActiveTermDailyDriver(props: Props) {
       meeting.revision,
       "Delivered Topic action changed.",
     );
-    if (!selectedTopicActionKey) return;
-    const [selectedTopicVersionId, selectedAction] = selectedTopicActionKey.split(":");
     const existing = request.topicActions?.find(
-      (action) => action.topicVersionId === selectedTopicVersionId && action.action === selectedAction,
+      (action) => action.topicVersionId === selectedTopicActionEntry?.topicVersionId && action.action === selectedTopicActionEntry?.action,
     );
     if (existing && remove)
       request.topicActions = request.topicActions?.filter(
-        (action) => !(action.topicVersionId === selectedTopicVersionId && action.action === selectedAction),
+        (action) => !(action.topicVersionId === selectedTopicActionEntry?.topicVersionId && action.action === selectedTopicActionEntry?.action),
       );
     else if (existing)
       request.topicActions = request.topicActions?.map((action) =>
-          action.topicVersionId === selectedTopicVersionId && action.action === selectedAction
+          action.topicVersionId === selectedTopicActionEntry?.topicVersionId && action.action === selectedTopicActionEntry?.action
           ? { ...action, action: topicAction }
           : action,
       );
@@ -341,14 +339,18 @@ export default function ActiveTermDailyDriver(props: Props) {
                     Current Topic action
                     <select
                       aria-label="Current Topic action"
-                      value={selectedTopicActionKey}
-                      onChange={(event) =>
-                        setSelectedTopicActionVersionId(event.target.value)
-                      }
+                      value={selectedTopicActionEntry?.id ?? ""}
+                      onChange={(event) => {
+                        const selected = meeting.revision.topicActions.find((action) => action.id === event.target.value);
+                        if (selected) {
+                          setSelectedTopicActionVersionId(selected.topicVersionId);
+                          setSelectedTopicAction(selected.action);
+                        }
+                      }}
                       className="ml-2 rounded border border-slate-300 p-1"
                     >
                       {meeting.revision.topicActions.map((action) => (
-                        <option key={`${action.topicVersionId}:${action.action}`} value={`${action.topicVersionId}:${action.action}`}>
+                        <option key={action.id} value={action.id}>
                           {props.topicLabels.get(action.topicVersionId) ?? action.topicVersionId} ({action.action})
                         </option>
                       ))}
@@ -359,8 +361,8 @@ export default function ActiveTermDailyDriver(props: Props) {
                     <input
                       aria-label="Move meeting start"
                       type="datetime-local"
-                      value={moveStartsAt}
-                      onChange={(event) => setMoveStartsAt(event.target.value)}
+                      value={moveStartsAt.value}
+                      onChange={(event) => setMoveStartsAt({ targetId: meetingTargetId, value: event.target.value })}
                       className="ml-2 rounded border border-slate-300 p-1"
                     />
                   </label>
@@ -369,8 +371,8 @@ export default function ActiveTermDailyDriver(props: Props) {
                     <input
                       aria-label="Move meeting end"
                       type="datetime-local"
-                      value={moveEndsAt}
-                      onChange={(event) => setMoveEndsAt(event.target.value)}
+                      value={moveEndsAt.value}
+                      onChange={(event) => setMoveEndsAt({ targetId: meetingTargetId, value: event.target.value })}
                       className="ml-2 rounded border border-slate-300 p-1"
                     />
                   </label>
@@ -463,10 +465,8 @@ export default function ActiveTermDailyDriver(props: Props) {
                     <input
                       aria-label="Milestone time"
                       type="datetime-local"
-                      value={milestoneOccursAt}
-                      onChange={(event) =>
-                        setMilestoneOccursAt(event.target.value)
-                      }
+                      value={milestoneOccursAt.value}
+                      onChange={(event) => setMilestoneOccursAt({ targetId: milestoneTargetId, value: event.target.value })}
                       className="ml-2 rounded border border-slate-300 p-1"
                     />
                   </label>

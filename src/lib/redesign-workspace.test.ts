@@ -226,7 +226,7 @@ describe("compareLearningModuleVersions", () => {
 });
 
 describe("buildTermDailyDriver", () => {
-  it("uses the same UTC calendar date at midnight boundaries as the calendar timeline", () => {
+  it("keys both functions on the UTC calendar date", () => {
     const meeting = {
       id: "ta-midnight",
       termId: "term",

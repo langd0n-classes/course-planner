@@ -63,6 +63,7 @@ export type TermDailyDriver = {
 };
 
 function calendarDate(value: string) {
+  // today arrives as a local date; a value near UTC midnight can fall on a different UTC date.
   return value.slice(0, 10);
 }
 
