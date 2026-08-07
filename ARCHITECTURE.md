@@ -240,6 +240,23 @@ Pure functions for matrix assembly:
 - `computeHealthBar()` — count fully/partially/uncovered skills
 - `filterMatrixRows()` — filter by "all", "gaps", or "at_risk"
 
+## External-System Exports (Phase 2C)
+
+Export builders live in `src/lib/exporters.ts` and stay pure: they accept already-shaped data and return either text or a packaged document. The current export surface is intentionally narrow per design principle #2:
+
+- `buildTermSummaryMarkdown()` — instructor reference copy (`.md`)
+- `buildModuleOverviewDocx()` / `buildModuleOverviewDocxDocument()` — generic LMS-friendly module overview (`.docx`)
+- `buildSessionPromptText()` — external GenAI prompt (`.txt`)
+- `exportFilename()` — sanitized attachment filename helper for export routes
+
+API routes follow the same pattern as the term summary export: Prisma query, builder call, and `NextResponse` with explicit content headers.
+
+- `GET /api/terms/[id]/export/summary`
+- `GET /api/modules/[id]/export-overview`
+- `GET /api/sessions/[id]/export-prompt`
+
+Client pages do not call `fetch()` directly for exports. `src/lib/api-client.ts` owns download requests and attachment handling, and the small shared `ExportButton` component keeps export actions secondary on the term, module, and session detail pages.
+
 ## E2E Testing
 
 Playwright E2E tests live in `e2e/`. Config: `playwright.config.ts`. Run with `npm run e2e`.

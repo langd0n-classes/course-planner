@@ -17,11 +17,14 @@ import {
 } from "@/domain/coverage-matrix";
 import WhatIfPanel from "@/components/WhatIfPanel";
 import Breadcrumbs from "@/components/Breadcrumbs";
+import ExportButton from "@/components/ExportButton";
 import { AssessmentTypeBadge } from "@/components/StatusBadge";
 import { CardSkeleton } from "@/components/LoadingSkeleton";
+import { useToast } from "@/components/Toast";
 
 export default function TermDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { showToast } = useToast();
   const [term, setTerm] = useState<Term | null>(null);
   const [allSessions, setAllSessions] = useState<Session[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -71,8 +74,32 @@ export default function TermDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    let cancelled = false;
+
+    async function initialLoad() {
+      setLoading(true);
+      const [t, sessions, sk, covs, assess] = await Promise.all([
+        api.getTerm(id),
+        api.getSessions({ termId: id }),
+        api.getSkills(id),
+        api.getCoverages({ termId: id }),
+        api.getAssessments(id),
+      ]);
+      if (cancelled) return;
+      setTerm(t);
+      setAllSessions(sessions);
+      setSkills(sk);
+      setCoverages(covs);
+      setAssessments(assess);
+      setLoading(false);
+    }
+
+    void initialLoad();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   const handleApplyCancel = useCallback(
     async (
@@ -85,10 +112,10 @@ export default function TermDetailPage() {
         await api.cancelSession(sessionId, { reason, redistributions, force });
         load();
       } catch (err) {
-        console.error("Cancel error:", err);
+        showToast((err as Error).message, "error");
       }
     },
-    [load],
+    [load, showToast],
   );
 
   async function addModule(e: React.FormEvent) {
@@ -266,6 +293,11 @@ export default function TermDetailPage() {
           >
             Import
           </Link>
+          <ExportButton
+            label="Download summary"
+            pendingLabel="Downloading..."
+            onExport={() => api.downloadTermSummary(id)}
+          />
         </div>
       </div>
 

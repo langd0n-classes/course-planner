@@ -6,12 +6,12 @@ import { useParams } from "next/navigation";
 import {
   api,
   type Session,
-  type Coverage,
   type Assessment,
 } from "@/lib/api-client";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import EditableText from "@/components/EditableText";
 import CoverageBadge, { CoverageLevelLabel } from "@/components/CoverageBadge";
+import ExportButton from "@/components/ExportButton";
 import { SessionTypeBadge, SessionStatusBadge } from "@/components/StatusBadge";
 import { CardSkeleton } from "@/components/LoadingSkeleton";
 import { useToast } from "@/components/Toast";
@@ -41,8 +41,28 @@ export default function SessionDetailPage() {
   }, [sessionId, termId]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    let cancelled = false;
+
+    async function initialLoad() {
+      setLoading(true);
+      const [s, term, sessions] = await Promise.all([
+        api.getSession(sessionId),
+        api.getTerm(termId),
+        api.getSessions({ termId }),
+      ]);
+      if (cancelled) return;
+      setSession(s);
+      setTermName(term.name);
+      setAllSessions(sessions);
+      setLoading(false);
+    }
+
+    void initialLoad();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, termId]);
 
   async function updateField(field: string, value: unknown) {
     try {
@@ -65,10 +85,10 @@ export default function SessionDetailPage() {
         await api.cancelSession(sid, { reason, redistributions, force });
         load();
       } catch (err) {
-        console.error("Cancel error:", err);
+        showToast((err as Error).message, "error");
       }
     },
-    [load],
+    [load, showToast],
   );
 
   if (loading) {
@@ -244,16 +264,21 @@ export default function SessionDetailPage() {
       </section>
 
       {/* Actions */}
-      {session.status === "scheduled" && (
-        <div className="mb-6">
+      <div className="mb-6 flex flex-wrap gap-2">
+        <ExportButton
+          label="Download prompt"
+          pendingLabel="Downloading..."
+          onExport={() => api.downloadSessionPrompt(sessionId)}
+        />
+        {session.status === "scheduled" && (
           <button
             onClick={() => setShowWhatIf(true)}
-            className="bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded text-sm hover:bg-red-100"
+            className="rounded border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600 hover:bg-red-100"
           >
             What if I cancel this session?
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* What-If Panel */}
       {showWhatIf && (
