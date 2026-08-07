@@ -7,9 +7,9 @@ import ActivityBoard from "./ActivityBoard";
 
 const activity = { id: "a-1", courseId: "course-1", stableCode: "W1", currentVersionId: "av-1", archivedAt: null };
 const version = { id: "av-1", activityId: "a-1", revision: 1, title: "Probability workshop", summary: null, activityTypeVersionId: "type-1", changeSummary: null, publishedAt: null, detail: { behaviorFamily: "meeting" as const, defaultDurationMinutes: null, modality: null, preparationNotes: null, authoringNotes: null }, milestoneTemplates: [] };
-function renderBoard(onMove = vi.fn(async () => {}), initialScopes: ActivityVersionLearningModuleScopeDto[] = [], replaceActivityLmScope: (id: string, scopes: Array<{ learningModuleId: string; emphasis?: string | null; notes?: string | null }>) => Promise<ActivityVersionLearningModuleScopeDto[]> = async (_id, scopes) => scopes.map((scope, index) => ({ id: `scope-${index}`, activityVersionId: "av-1", learningModuleId: scope.learningModuleId, emphasis: scope.emphasis ?? null, notes: scope.notes ?? null })) ) {
+function renderBoard(onMove = vi.fn(async () => {}), initialScopes: ActivityVersionLearningModuleScopeDto[] = [], replaceActivityLmScope: (id: string, scopes: Array<{ learningModuleId: string; emphasis?: string | null; notes?: string | null }>) => Promise<ActivityVersionLearningModuleScopeDto[]> = async (_id, scopes) => scopes.map((scope, index) => ({ id: `scope-${index}`, activityVersionId: "av-1", learningModuleId: scope.learningModuleId, emphasis: scope.emphasis ?? null, notes: scope.notes ?? null })), learningModules = [{ id: "lm-1", courseId: "course-1", stableCode: "PROB", currentVersionId: "lmv-1", archivedAt: null }] ) {
   setMockBackend({ listCourseActivities: vi.fn(async () => [activity]), getActivity: vi.fn(async () => ({ activity, currentVersion: version })), listActivityTopicActions: vi.fn(async () => [{ id: "ta-1", activityVersionId: "av-1", topicVersionId: "tv-1", action: "introduced" as const, notes: null, provenance: null, siblings: [{ activityVersionId: "av-2", activityId: "a-2", activityStableCode: "W2", action: "introduced" as const }] }]), listActivityLmScope: vi.fn(async () => initialScopes), replaceActivityLmScope, replaceActivityTopicActions: vi.fn(async () => []) });
-  render(<ActivityBoard courseId="course-1" learningModules={[{ id: "lm-1", courseId: "course-1", stableCode: "PROB", currentVersionId: "lmv-1", archivedAt: null }]} currentVersionsByLearningModuleId={new Map([["lm-1", { id: "lmv-1", learningModuleId: "lm-1", revision: 1, title: "Probability", description: null, studentDescription: null, learningObjectives: [], notes: null, defaultSequence: 1, changeSummary: null, publishedAt: null, topics: [] }]])} topics={[{ id: "topic-1", courseId: "course-1", learningModuleId: null, stableCode: "P1", currentVersionId: "tv-1", archivedAt: null }]} currentVersionsByTopicId={new Map([["topic-1", { id: "tv-1", topicId: "topic-1", revision: 1, title: "Random variables", category: null, description: null, changeSummary: null, publishedAt: null }]])} onMove={onMove} />);
+  render(<ActivityBoard courseId="course-1" learningModules={learningModules} currentVersionsByLearningModuleId={new Map(learningModules.map((module, index) => [module.id, { id: module.currentVersionId!, learningModuleId: module.id, revision: 1, title: module.id === "lm-1" ? "Probability" : "Statistics", description: null, studentDescription: null, learningObjectives: [], notes: null, defaultSequence: index + 1, changeSummary: null, publishedAt: null, topics: [] }]))} topics={[{ id: "topic-1", courseId: "course-1", learningModuleId: null, stableCode: "P1", currentVersionId: "tv-1", archivedAt: null }]} currentVersionsByTopicId={new Map([["topic-1", { id: "tv-1", topicId: "topic-1", revision: 1, title: "Random variables", category: null, description: null, changeSummary: null, publishedAt: null }]])} onMove={onMove} />);
   return onMove;
 }
 
@@ -52,6 +52,28 @@ describe("ActivityBoard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add scope" }));
     await waitFor(() => expect(replace).toHaveBeenCalledWith("av-1", [{ learningModuleId: "lm-1", emphasis: "Practice", notes: "Use examples" }]));
     expect(screen.getAllByText("Cross-cutting").length).toBeGreaterThan(0);
+  });
+
+  it("keeps existing scopes in the payload when adding another", async () => {
+    const replace = vi.fn(async (_id: string, scopes: Array<{ learningModuleId: string; emphasis?: string | null; notes?: string | null }>) => scopes.map((scope, index) => ({ id: `saved-${index}`, activityVersionId: "av-1", learningModuleId: scope.learningModuleId, emphasis: scope.emphasis ?? null, notes: scope.notes ?? null })));
+    renderBoard(
+      vi.fn(async () => {}),
+      [{ id: "scope-1", activityVersionId: "av-1", learningModuleId: "lm-1", emphasis: "Keep", notes: "Existing" }],
+      replace,
+      [
+        { id: "lm-1", courseId: "course-1", stableCode: "PROB", currentVersionId: "lmv-1", archivedAt: null },
+        { id: "lm-2", courseId: "course-1", stableCode: "STAT", currentVersionId: "lmv-2", archivedAt: null },
+      ],
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Probability workshop/ }));
+    fireEvent.change(screen.getByLabelText("Add learning-module scope"), { target: { value: "lm-2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add scope" }));
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("av-1", [
+        { learningModuleId: "lm-1", emphasis: "Keep", notes: "Existing" },
+        { learningModuleId: "lm-2", emphasis: null, notes: null },
+      ]),
+    );
   });
 
   it("removes the last scope and leaves Cross-cutting", async () => {
