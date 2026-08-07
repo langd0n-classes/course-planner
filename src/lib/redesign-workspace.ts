@@ -536,7 +536,7 @@ export function buildTermCalendarTimeline(args: {
       session,
       isClassDay,
       isGap,
-      isToday: calendarDate(slot.date) === calendarDate(args.today),
+      isToday: slot.date === args.today,
       provenance,
     };
   });
