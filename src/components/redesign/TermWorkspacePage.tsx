@@ -523,7 +523,7 @@ export default function TermWorkspacePage({ termId }: Props) {
         today={todayIso}
         learningModuleLabels={learningModuleLabels}
         topicLabels={topicLabels}
-        editable={term.status === "active" || term.status === "planned"}
+        editable={term.status === "active"}
         onApplied={loadWorkspace}
       />
 

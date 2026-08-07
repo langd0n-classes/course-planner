@@ -35,6 +35,19 @@ type Preview = {
   label: string;
 };
 
+function toLocalDateTimeInput(value: string | null | undefined) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function toUtcIso(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
 function requestFromRevision(
   revision: TermActivityRevisionDto,
   changeReason: string,
@@ -88,23 +101,25 @@ export default function ActiveTermDailyDriver(props: Props) {
       }),
     [props.termActivities, props.revisionsByTermActivityId, props.today],
   );
+  const meeting = driver.nextMeeting;
+  const nextMilestone = driver.nextMilestone;
   const [preview, setPreview] = useState<Preview | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [moveStartsAt, setMoveStartsAt] = useState("");
-  const [moveEndsAt, setMoveEndsAt] = useState("");
-  const [milestoneOccursAt, setMilestoneOccursAt] = useState("");
+  const [moveStartsAt, setMoveStartsAt] = useState(() => toLocalDateTimeInput(meeting?.revision.detail.behaviorFamily === "meeting" ? meeting.revision.detail.startsAt : null));
+  const [moveEndsAt, setMoveEndsAt] = useState(() => toLocalDateTimeInput(meeting?.revision.detail.behaviorFamily === "meeting" ? meeting.revision.detail.endsAt : null));
+  const [milestoneOccursAt, setMilestoneOccursAt] = useState(() => toLocalDateTimeInput(nextMilestone?.occursAt));
   const [topicAction, setTopicAction] = useState<
     "introduced" | "practiced" | "assessed"
   >("practiced");
   const [selectedTopicActionVersionId, setSelectedTopicActionVersionId] =
     useState("");
   const [topicVersionId, setTopicVersionId] = useState("");
-  const meeting = driver.nextMeeting;
-  const nextMilestone = driver.nextMilestone;
-  const selectedTopicActionId =
+  const selectedTopicActionKey =
     selectedTopicActionVersionId ||
-    meeting?.revision.topicActions[0]?.topicVersionId ||
+    (meeting?.revision.topicActions[0]
+      ? `${meeting.revision.topicActions[0].topicVersionId}:${meeting.revision.topicActions[0].action}`
+      : "") ||
     "";
 
   async function previewCorrection(
@@ -182,12 +197,18 @@ export default function ActiveTermDailyDriver(props: Props) {
       meeting.revision,
       "Meeting moved during delivery.",
     );
+    const startsAt = toUtcIso(moveStartsAt);
+    const endsAt = toUtcIso(moveEndsAt || toLocalDateTimeInput(meeting.revision.detail.endsAt));
+    if (!startsAt || !endsAt) {
+      setError("Enter valid meeting start and end times.");
+      return;
+    }
     request.detail = {
       ...meeting.revision.detail,
-      startsAt: moveStartsAt,
-      endsAt: moveEndsAt || meeting.revision.detail.endsAt,
+      startsAt,
+      endsAt,
     };
-    if (request.detail.endsAt && request.detail.endsAt <= moveStartsAt) {
+    if (new Date(endsAt).getTime() <= new Date(startsAt).getTime()) {
       setError("The moved meeting must end after it starts.");
       return;
     }
@@ -200,9 +221,14 @@ export default function ActiveTermDailyDriver(props: Props) {
       nextMilestone.revision,
       "Milestone anchor changed during delivery.",
     );
+    const occursAt = toUtcIso(milestoneOccursAt);
+    if (!occursAt) {
+      setError("Enter a valid milestone time.");
+      return;
+    }
     request.milestones = request.milestones?.map((milestone, milestoneIndex) =>
       milestoneIndex === nextMilestone.milestoneIndex
-        ? { ...milestone, occursAt: milestoneOccursAt }
+        ? { ...milestone, occursAt }
         : milestone,
     );
     void previewCorrection(
@@ -218,17 +244,18 @@ export default function ActiveTermDailyDriver(props: Props) {
       meeting.revision,
       "Delivered Topic action changed.",
     );
-    if (!selectedTopicActionId) return;
+    if (!selectedTopicActionKey) return;
+    const [selectedTopicVersionId, selectedAction] = selectedTopicActionKey.split(":");
     const existing = request.topicActions?.find(
-      (action) => action.topicVersionId === selectedTopicActionId,
+      (action) => action.topicVersionId === selectedTopicVersionId && action.action === selectedAction,
     );
     if (existing && remove)
       request.topicActions = request.topicActions?.filter(
-        (action) => action.topicVersionId !== selectedTopicActionId,
+        (action) => !(action.topicVersionId === selectedTopicVersionId && action.action === selectedAction),
       );
     else if (existing)
       request.topicActions = request.topicActions?.map((action) =>
-        action.topicVersionId === selectedTopicActionId
+          action.topicVersionId === selectedTopicVersionId && action.action === selectedAction
           ? { ...action, action: topicAction }
           : action,
       );
@@ -314,14 +341,14 @@ export default function ActiveTermDailyDriver(props: Props) {
                     Current Topic action
                     <select
                       aria-label="Current Topic action"
-                      value={selectedTopicActionId}
+                      value={selectedTopicActionKey}
                       onChange={(event) =>
                         setSelectedTopicActionVersionId(event.target.value)
                       }
                       className="ml-2 rounded border border-slate-300 p-1"
                     >
                       {meeting.revision.topicActions.map((action) => (
-                        <option key={action.topicVersionId} value={action.topicVersionId}>
+                        <option key={`${action.topicVersionId}:${action.action}`} value={`${action.topicVersionId}:${action.action}`}>
                           {props.topicLabels.get(action.topicVersionId) ?? action.topicVersionId} ({action.action})
                         </option>
                       ))}

@@ -62,6 +62,10 @@ export type TermDailyDriver = {
   totalMeetings: number;
 };
 
+function calendarDate(value: string) {
+  return value.slice(0, 10);
+}
+
 /** Builds the small, time-oriented active-Term view from immutable revisions. */
 export function buildTermDailyDriver(args: {
   termActivities: TermActivityDto[];
@@ -98,7 +102,7 @@ export function buildTermDailyDriver(args: {
       if (revision.detail.behaviorFamily !== "meeting") return false;
       return (
         Boolean(revision.detail.startsAt) &&
-        revision.detail.startsAt!.slice(0, 10) >= args.today &&
+        calendarDate(revision.detail.startsAt!) >= args.today &&
         revision.detail.status !== "canceled"
       );
     })
@@ -531,7 +535,7 @@ export function buildTermCalendarTimeline(args: {
       session,
       isClassDay,
       isGap,
-      isToday: slot.date === args.today,
+      isToday: calendarDate(slot.date) === calendarDate(args.today),
       provenance,
     };
   });

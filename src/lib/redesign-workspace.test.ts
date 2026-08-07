@@ -226,6 +226,70 @@ describe("compareLearningModuleVersions", () => {
 });
 
 describe("buildTermDailyDriver", () => {
+  it("uses the same UTC calendar date at midnight boundaries as the calendar timeline", () => {
+    const meeting = {
+      id: "ta-midnight",
+      termId: "term",
+      courseId: "course",
+      activityId: "activity",
+      plannedActivityVersionId: "av",
+      activityTypeVersionId: "type",
+      adoptedLabel: "Lecture",
+      termLearningModuleId: null,
+      ordinal: null,
+      lifecycleState: null,
+      plannedRevisionId: "revision-midnight",
+      deliveredRevisionId: null,
+      archivedAt: null,
+    };
+    const revision = {
+      id: "revision-midnight",
+      termActivityId: meeting.id,
+      revision: 1,
+      baseActivityVersionId: "av",
+      title: "Late meeting",
+      summary: null,
+      changeReason: null,
+      createdByInstructorId: null,
+      createdAt: "2026-02-01T00:00:00Z",
+      detail: {
+        behaviorFamily: "meeting" as const,
+        calendarSlotId: "slot-midnight",
+        startsAt: "2026-02-10T23:30:00Z",
+        endsAt: null,
+        status: "scheduled",
+        modality: null,
+        overrideReason: null,
+        overrideEvidence: null,
+      },
+      topicActions: [],
+      milestones: [],
+    };
+    const driver = buildTermDailyDriver({
+      termActivities: [meeting],
+      revisionsByTermActivityId: { [meeting.id]: { planned: revision, delivered: null } },
+      today: "2026-02-10",
+    });
+    const timeline = buildTermCalendarTimeline({
+      calendarSlots: [{
+        id: "slot-midnight",
+        termId: "term",
+        academicCalendarEventId: null,
+        date: "2026-02-10",
+        slotType: "class_day",
+        label: null,
+        source: null,
+        instructionalCapacity: "normal",
+        capacitySource: "baseline",
+        capacityReason: null,
+      }],
+      sessions: [],
+      today: "2026-02-10",
+    });
+    expect(driver.nextMeeting?.activity.id).toBe(meeting.id);
+    expect(timeline.windowRows[0]?.isToday).toBe(true);
+  });
+
   it("leads with the next active meeting, its topics, milestone, and delivery delta", () => {
     const meeting = {
       id: "ta-1",

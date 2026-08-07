@@ -5,6 +5,7 @@ import { setMockBackend } from "@/lib/redesign-api-client";
 import type {
   TermActivityDto,
   TermActivityRevisionDto,
+  TermActivityRevisionPreviewRequest,
 } from "@/lib/redesign-contract";
 import ActiveTermDailyDriver from "./ActiveTermDailyDriver";
 
@@ -77,10 +78,17 @@ const revision = (
 });
 
 function renderDriver(
-  options: { editable?: boolean; empty?: boolean; changed?: boolean } = {},
+  options: { editable?: boolean; empty?: boolean; changed?: boolean; duplicateTopics?: boolean } = {},
 ) {
   const meeting = activity("meeting", null);
   const planned = revision("meeting");
+  if (options.duplicateTopics) {
+    planned.topicActions.push({
+      ...planned.topicActions[0],
+      id: "action-practiced",
+      action: "practiced",
+    });
+  }
   const delivered = options.changed
     ? { ...planned, id: "delivered", revision: 2 }
     : null;
@@ -251,5 +259,55 @@ describe("ActiveTermDailyDriver", () => {
       await screen.findByText("The moved meeting must end after it starts."),
     ).toBeInTheDocument();
     expect(previewTermActivityRevision).not.toHaveBeenCalled();
+  });
+
+  it("sends moved local wall times as UTC ISO instants", async () => {
+    const previewTermActivityRevision = vi.fn(async () => ({
+      kind: "preview" as const,
+      previewToken: "token",
+      expectedCurrentRevisionId: "plan-meeting",
+      proposedRevision: revision("meeting"),
+      impact: { issues: [], topicActionDuplicates: [], calendarConflicts: [] },
+    }));
+    setMockBackend({ previewTermActivityRevision });
+    renderDriver();
+    fireEvent.change(screen.getByLabelText("Move meeting start"), {
+      target: { value: "2026-02-10T16:00" },
+    });
+    fireEvent.change(screen.getByLabelText("Move meeting end"), {
+      target: { value: "2026-02-10T17:00" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Preview move" }));
+    await waitFor(() => expect(previewTermActivityRevision).toHaveBeenCalled());
+    const payload = (previewTermActivityRevision.mock.calls as unknown as Array<[string, TermActivityRevisionPreviewRequest]>)[0]?.[1];
+    expect(payload).toEqual(
+      expect.objectContaining({
+        detail: expect.objectContaining({
+          startsAt: new Date("2026-02-10T16:00").toISOString(),
+          endsAt: new Date("2026-02-10T17:00").toISOString(),
+        }),
+      }),
+    );
+  });
+
+  it("changes only the selected Topic action when a version has duplicate actions", async () => {
+    const previewTermActivityRevision = vi.fn(async () => ({
+      kind: "preview" as const,
+      previewToken: "token",
+      expectedCurrentRevisionId: "plan-meeting",
+      proposedRevision: revision("meeting"),
+      impact: { issues: [], topicActionDuplicates: [], calendarConflicts: [] },
+    }));
+    setMockBackend({ previewTermActivityRevision });
+    renderDriver({ duplicateTopics: true });
+    fireEvent.change(screen.getByLabelText("Current Topic action"), {
+      target: { value: "topic:practiced" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Preview remove Topic action" }));
+    await waitFor(() => expect(previewTermActivityRevision).toHaveBeenCalled());
+    const payload = (previewTermActivityRevision.mock.calls as unknown as Array<[string, TermActivityRevisionPreviewRequest]>)[0]?.[1];
+    expect(payload.topicActions).toEqual([
+      expect.objectContaining({ topicVersionId: "topic", action: "introduced" }),
+    ]);
   });
 });
