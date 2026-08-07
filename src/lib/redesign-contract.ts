@@ -984,7 +984,13 @@ export type TermAdoptionApplyResponse = {
   termActivities: TermActivityDto[];
 };
 
-export type ListTermActivitiesResponse = { termActivities: TermActivityDto[] };
+export type ListTermActivitiesResponse = {
+  termActivities: TermActivityDto[];
+  revisionsByTermActivityId?: Record<
+    Id,
+    { planned: TermActivityRevisionDto | null; delivered: TermActivityRevisionDto | null }
+  >;
+};
 export type GetTermActivityResponse = { termActivity: TermActivityDto };
 
 // ─── Term Activity revision preview/apply ──────────────────────────────────
