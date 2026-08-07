@@ -42,6 +42,31 @@ Read these files before doing any work in this repo:
   `db:generate`) all shell out to `npx prisma`, so run **those** inside the
   container too, not on the host.
 
+  Still true as of 2026-08-07: `npx prisma -v` and `npx prisma generate` both
+  exit 139 (SIGSEGV) on the host.
+
+  **Generating the client in a worktree** — this exact command works; the
+  `--security-opt label=disable` flag is required, not optional:
+
+  ```bash
+  podman run --rm --security-opt label=disable \
+    -v "$PWD":/app -w /app node:22-bookworm npx prisma generate
+  ```
+
+  Without `--security-opt label=disable`, SELinux denies the bind mount and the
+  run fails with `EACCES` on the repo files. That failure looks like a
+  permissions bug in the repo; it is not. Generating the client is a required
+  setup step in every fresh worktree — without it, `tsc` reports errors against
+  `@prisma/client` that read as pre-existing breakage in the branch.
+
+  **Never check prisma through a pipe.** `npx prisma generate | tail` reports
+  the exit code of `tail`, so a segfault shows up as `0` and the run looks
+  healthy. Redirect to a file and check `$?`, or read `${PIPESTATUS[0]}`:
+
+  ```bash
+  npx prisma generate > /tmp/prisma.out 2>&1; echo "exit=$?"
+  ```
+
 ## Key rules
 
 - **Generic app.** This is a course planning tool for any
