@@ -107,6 +107,25 @@ describe("redesignApi Topic methods", () => {
   });
 });
 
+describe("redesignApi term activity list methods", () => {
+  beforeEach(() => { vi.restoreAllMocks(); });
+
+  it("sends the revisions query and unwraps the response", async () => {
+    const response = { termActivities: [{ id: "ta-1" }], revisionsByTermActivityId: { "ta-1": { planned: null, delivered: null } } };
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => response });
+    vi.stubGlobal("fetch", mockFetch);
+    await expect(redesignApi.listTermActivitiesWithRevisions("term-1")).resolves.toEqual(response);
+    expect(mockFetch).toHaveBeenCalledWith("/api/terms/term-1/activities?include=revisions", { credentials: "include" });
+  });
+
+  it("keeps listTermActivities on the plain URL", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ termActivities: [{ id: "ta-1" }] }) });
+    vi.stubGlobal("fetch", mockFetch);
+    await expect(redesignApi.listTermActivities("term-1")).resolves.toEqual([{ id: "ta-1" }]);
+    expect(mockFetch).toHaveBeenCalledWith("/api/terms/term-1/activities", { credentials: "include" });
+  });
+});
+
 describe("Topic request schemas ignore learningModuleId (ADR-0002)", () => {
   it("updateTopicSchema strips a supplied learningModuleId", () => {
     const parsed = updateTopicSchema.parse({
