@@ -284,4 +284,69 @@ describe("CreateTermPanel", () => {
     });
     expect(getAcademicCalendarVersion).toHaveBeenCalledWith("cal-version-2");
   });
+
+  it("ignores a stale calendar-version response after a newer selection", async () => {
+    let resolveStaleList: (value: unknown) => void = () => {};
+    const staleList = new Promise((resolve) => { resolveStaleList = resolve; });
+    listAcademicCalendarVersions.mockImplementation(async (calendarId: string) =>
+      calendarId === "cal-1"
+        ? staleList
+        : [{ id: "cal-version-2", academicCalendarId: "cal-2", version: 2, name: "Extension calendar 2026", academicYear: "2026", sourceUri: null, publishedAt: "2026-01-01T00:00:00Z", archivedAt: null }],
+    );
+    getAcademicCalendarVersion.mockImplementation(async (versionId: string) =>
+      versionId === "cal-version-1"
+        ? {
+            version: { id: "cal-version-1", academicCalendarId: "cal-1", version: 1, name: "Stale calendar", academicYear: "2026-27", sourceUri: null, publishedAt: null, archivedAt: null },
+            events: [],
+            periods: [],
+          }
+        : {
+            version: { id: "cal-version-2", academicCalendarId: "cal-2", version: 2, name: "Extension calendar 2026", academicYear: "2026", sourceUri: null, publishedAt: "2026-01-01T00:00:00Z", archivedAt: null },
+            events: [],
+            periods: [],
+          },
+    );
+
+    render(<CreateTermPanel courseId="course-1" institutions={institutions} calendars={calendars} onTermCreated={onTermCreated} />);
+
+    fireEvent.change(screen.getByLabelText("Academic Calendar"), { target: { value: "cal-1" } });
+    fireEvent.change(screen.getByLabelText("Institution"), { target: { value: "inst-2" } });
+    fireEvent.change(screen.getByLabelText("Academic Calendar"), { target: { value: "cal-2" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Calendar version 2: Extension calendar 2026")).toBeInTheDocument();
+    });
+
+    resolveStaleList([
+      { id: "cal-version-1", academicCalendarId: "cal-1", version: 1, name: "Stale calendar", academicYear: "2026-27", sourceUri: null, publishedAt: null, archivedAt: null },
+    ]);
+    await waitFor(() => expect(getAcademicCalendarVersion).toHaveBeenCalledWith("cal-version-1"));
+
+    expect(screen.getByText("Calendar version 2: Extension calendar 2026")).toBeInTheDocument();
+    expect(screen.queryByText(/Stale calendar/)).not.toBeInTheDocument();
+
+    listAcademicCalendarVersions.mockResolvedValue([
+      { id: "cal-version-2", academicCalendarId: "cal-2", version: 2, name: "Extension calendar 2026", academicYear: "2026", sourceUri: null, publishedAt: "2026-01-01T00:00:00Z", archivedAt: null },
+    ]);
+    getAcademicCalendarVersion.mockResolvedValue({
+      version: { id: "cal-version-2", academicCalendarId: "cal-2", version: 2, name: "Extension calendar 2026", academicYear: "2026", sourceUri: null, publishedAt: "2026-01-01T00:00:00Z", archivedAt: null },
+      events: [],
+      periods: [{ id: "period-finals", academicCalendarVersionId: "cal-version-2", kind: "special_schedule", label: "Final examinations", startsOn: "2027-05-10", endsOn: "2027-05-14" }],
+    });
+  });
+
+  it("keeps the form usable when calendar-version detail fails to load", async () => {
+    listAcademicCalendarVersions.mockRejectedValueOnce(new Error("calendar service down"));
+
+    render(<CreateTermPanel courseId="course-1" institutions={institutions} calendars={calendars} onTermCreated={onTermCreated} />);
+
+    fireEvent.change(screen.getByLabelText("Institution"), { target: { value: "inst-2" } });
+    fireEvent.change(screen.getByLabelText("Academic Calendar"), { target: { value: "cal-2" } });
+
+    await waitFor(() => expect(listAcademicCalendarVersions).toHaveBeenCalled());
+    expect(screen.queryByText(/Calendar version/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Academic Calendar")).toHaveValue("cal-2");
+    fireEvent.change(screen.getByLabelText("Term Code"), { target: { value: "SP27" } });
+    expect(screen.getByLabelText("Term Code")).toHaveValue("SP27");
+  });
 });

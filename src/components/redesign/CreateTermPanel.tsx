@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   AcademicCalendarDto,
   AcademicCalendarPeriodDto,
@@ -124,14 +124,22 @@ export default function CreateTermPanel({
     );
   }
 
+  const calendarVersionRequestRef = useRef(0);
+
   async function loadCalendarVersion(calendarId: Id) {
+    // Generation guard: a newer selection invalidates any in-flight load, so a
+    // slow response for a previously selected calendar can never overwrite the
+    // version/periods shown for the current one.
+    const requestId = ++calendarVersionRequestRef.current;
     setCalendarVersion(null);
     setCalendarPeriods([]);
+    if (!calendarId) return;
     try {
       const versions = await redesignApi.listAcademicCalendarVersions(calendarId);
       const selectedVersion = [...versions].sort((left, right) => right.version - left.version)[0] ?? null;
       if (!selectedVersion) return;
       const detail = await redesignApi.getAcademicCalendarVersion(selectedVersion.id);
+      if (requestId !== calendarVersionRequestRef.current) return;
       setCalendarVersion(detail.version);
       setCalendarPeriods(detail.periods);
     } catch {

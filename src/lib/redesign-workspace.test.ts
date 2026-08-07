@@ -313,6 +313,50 @@ describe("deriveTermPlanningGaps", () => {
     expect(gaps.unscheduledSessions.map((session) => session.id)).toEqual(["sess-2"]);
     expect(gaps.unplannedSpecialScheduleSlots.map((slot) => slot.id)).toEqual(["slot-finals"]);
   });
+
+  it("does not report a finals slot as unplanned once an active session covers its date", () => {
+    const gaps = deriveTermPlanningGaps({
+      calendarSlots: [
+        {
+          id: "slot-finals",
+          termId: "term-1",
+          academicCalendarEventId: "event-finals",
+          date: "2026-05-12",
+          slotType: "finals",
+          label: "Final examination period",
+          source: "academic_calendar",
+          instructionalCapacity: "assessment_period",
+          capacitySource: "heuristic",
+          capacityReason: "Finals are an alternate schedule.",
+        },
+      ],
+      sessions: [
+        {
+          id: "sess-final",
+          termId: "term-1",
+          termLearningModuleId: "tlm-1",
+          calendarSlotId: "slot-finals",
+          sequence: 1,
+          sessionType: "lecture",
+          code: "F01",
+          title: "Final exam",
+          date: "2026-05-12",
+          scheduleOverrideLabel: "Alternate finals schedule",
+          description: null,
+          format: null,
+          notes: null,
+          status: "scheduled",
+          instructionalMode: "standard",
+          canceledAt: null,
+          canceledReason: null,
+          archivedAt: null,
+        },
+      ],
+    });
+
+    expect(gaps.unplannedSpecialScheduleSlots).toEqual([]);
+    expect(gaps.unplannedClassDays).toEqual([]);
+  });
 });
 
 describe("buildTermCalendarTimeline", () => {
