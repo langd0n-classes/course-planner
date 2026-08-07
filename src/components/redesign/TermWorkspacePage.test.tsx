@@ -286,6 +286,19 @@ describe("TermWorkspacePage", () => {
     await screen.findByRole("button", { name: "Close term" });
   });
 
+  it("restores focus to the lifecycle control when its review panel closes", async () => {
+    const { backend } = buildTermWorkspaceBackend();
+    setMockBackend(backend);
+    render(<TermWorkspacePage termId="term-1" />);
+
+    const activate = await screen.findByRole("button", { name: "Activate term" });
+    activate.focus();
+    fireEvent.click(activate);
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+    expect(screen.queryByText("Activate this term?")).not.toBeInTheDocument();
+    expect(activate).toHaveFocus();
+  });
+
   it("adopts a course learning module into the term workspace", async () => {
     const { backend, adoptTermLearningModule } = buildTermWorkspaceBackend();
     setMockBackend(backend);
@@ -331,6 +344,19 @@ describe("TermWorkspacePage", () => {
     }));
     expect(await screen.findByText("Final examination period marked with an explicit alternate schedule.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Record alternate schedule" })).not.toBeInTheDocument();
+  });
+
+  it("takes an instructor from a special-schedule warning to an explicit recovery action", async () => {
+    const { backend, createTermCalendarException } = buildTermWorkspaceBackend();
+    backend.listCalendarSlots = vi.fn(async () => [{
+      id: "warning-slot", termId: "term-1", academicCalendarEventId: "event-warning", date: "2026-05-13",
+      slotType: "finals", label: "Finals makeup", source: "academic_calendar", instructionalCapacity: "assessment_period", capacitySource: "heuristic", capacityReason: "Finals.",
+    }]);
+    setMockBackend(backend);
+    render(<TermWorkspacePage termId="term-1" />);
+    expect(await screen.findByText(/special\/finals slot\(s\) need an explicit alternate schedule/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Record alternate schedule" }));
+    await waitFor(() => expect(createTermCalendarException).toHaveBeenCalledWith("term-1", expect.objectContaining({ calendarSlotId: "warning-slot" })));
   });
 
   it("creates, edits, and deletes Term calendar exceptions", async () => {

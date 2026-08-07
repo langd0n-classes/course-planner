@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useEffectEvent, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState, type FormEvent } from "react";
 import { redesignApi } from "@/lib/redesign-api-client";
 import type {
   CalendarSlotDto,
@@ -136,6 +136,7 @@ export default function TermWorkspacePage({ termId }: Props) {
   const [exceptionBusy, setExceptionBusy] = useState(false);
   const [exceptionError, setExceptionError] = useState<string | null>(null);
   const [calendarAnnouncement, setCalendarAnnouncement] = useState("");
+  const transitionButtonRef = useRef<HTMLButtonElement | null>(null);
   const todayIso = useMemo(() => getTodayIsoDate(), []);
 
   async function loadWorkspace() {
@@ -467,6 +468,7 @@ export default function TermWorkspacePage({ termId }: Props) {
               <button
                 type="button"
                 onClick={() => setPendingTransition(transition.transition)}
+                ref={transitionButtonRef}
                 disabled={transitionBusy}
                 className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-60"
               >
@@ -487,6 +489,7 @@ export default function TermWorkspacePage({ termId }: Props) {
                 if (transitionBusy) return;
                 setPendingTransition(null);
                 setTransitionError(null);
+                transitionButtonRef.current?.focus();
               }}
             />
             {transitionError ? <p className="mt-3 text-sm text-rose-700">{transitionError}</p> : null}

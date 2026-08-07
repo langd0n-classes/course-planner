@@ -349,4 +349,12 @@ describe("CreateTermPanel", () => {
     fireEvent.change(screen.getByLabelText("Term Code"), { target: { value: "SP27" } });
     expect(screen.getByLabelText("Term Code")).toHaveValue("SP27");
   });
+
+  it("names the missing institution prerequisite and takes the instructor to its setup action", () => {
+    const resolveInstitution = vi.fn();
+    render(<CreateTermPanel courseId="course-1" institutions={[]} calendars={[]} onTermCreated={onTermCreated} onResolveMissingInstitution={resolveInstitution} />);
+    expect(screen.getByText("Terms are blocked until this course is linked to an institution.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Link institution to create a term" }));
+    expect(resolveInstitution).toHaveBeenCalledOnce();
+  });
 });

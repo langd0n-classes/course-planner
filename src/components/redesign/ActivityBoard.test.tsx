@@ -22,6 +22,16 @@ describe("ActivityBoard", () => {
     expect(screen.getByText("Moved activity to Probability.")).toBeInTheDocument();
   });
 
+  it("keeps the pointer move control reachable and operable from the keyboard", async () => {
+    const onMove = renderBoard();
+    const control = await screen.findByLabelText("Move Probability workshop to");
+    control.focus();
+    fireEvent.keyDown(control, { key: "ArrowDown" });
+    fireEvent.change(control, { target: { value: "lm-1" } });
+    await waitFor(() => expect(onMove).toHaveBeenCalledWith("av-1", "lm-1"));
+    expect(screen.getByLabelText("Move Probability workshop to")).toHaveFocus();
+  });
+
   it("uses the same move action for pointer drop and exposes topic-action duplicate navigation", async () => {
     const onMove = renderBoard();
     const card = await screen.findByText("Probability workshop");

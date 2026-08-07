@@ -226,7 +226,10 @@ describe("compareLearningModuleVersions", () => {
 });
 
 describe("buildTermDailyDriver", () => {
-  it("keys both functions on the UTC calendar date", () => {
+  it("treats a meeting already past locally as past even when its UTC date is today", () => {
+    const previousTimeZone = process.env.TZ;
+    process.env.TZ = "America/New_York";
+    try {
     const meeting = {
       id: "ta-midnight",
       termId: "term",
@@ -255,7 +258,7 @@ describe("buildTermDailyDriver", () => {
       detail: {
         behaviorFamily: "meeting" as const,
         calendarSlotId: "slot-midnight",
-        startsAt: "2026-02-10T23:30:00Z",
+        startsAt: "2026-02-10T00:30:00Z",
         endsAt: null,
         status: "scheduled",
         modality: null,
@@ -275,7 +278,7 @@ describe("buildTermDailyDriver", () => {
         id: "slot-midnight",
         termId: "term",
         academicCalendarEventId: null,
-        date: "2026-02-10",
+        date: "2026-02-09",
         slotType: "class_day",
         label: null,
         source: null,
@@ -284,10 +287,14 @@ describe("buildTermDailyDriver", () => {
         capacityReason: null,
       }],
       sessions: [],
-      today: "2026-02-10",
+      today: "2026-02-09",
     });
-    expect(driver.nextMeeting?.activity.id).toBe(meeting.id);
+    expect(driver.nextMeeting).toBeNull();
     expect(timeline.windowRows[0]?.isToday).toBe(true);
+    } finally {
+      if (previousTimeZone === undefined) delete process.env.TZ;
+      else process.env.TZ = previousTimeZone;
+    }
   });
 
   it("leads with the next active meeting, its topics, milestone, and delivery delta", () => {

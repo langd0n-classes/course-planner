@@ -285,6 +285,17 @@ describe("CourseWorkspacePage", () => {
     vi.clearAllMocks();
   });
 
+  it("shows loading, then offers a retry after a workspace load failure", async () => {
+    const { backend } = buildCourseWorkspaceBackend();
+    backend.getCourse.mockRejectedValueOnce(new Error("Workspace service unavailable"));
+    setMockBackend(backend);
+    render(<CourseWorkspacePage courseId="course-1" />);
+    expect(document.querySelector(".animate-pulse")).not.toBeNull();
+    expect(await screen.findByText("Workspace service unavailable")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await screen.findByRole("heading", { name: "Learning modules" });
+  });
+
   it("bootstraps an institution and academic calendar from the workspace", async () => {
     const { backend, createInstitution, replaceCourseInstitutions, createAcademicCalendar } = buildCourseWorkspaceBackend();
     setMockBackend(backend);

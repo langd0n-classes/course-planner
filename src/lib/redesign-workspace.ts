@@ -64,7 +64,13 @@ export type TermDailyDriver = {
 
 function calendarDate(value: string) {
   // today arrives as a local date; a value near UTC midnight can fall on a different UTC date.
-  return value.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const instant = new Date(value);
+  if (Number.isNaN(instant.getTime())) return value.slice(0, 10);
+  const year = instant.getFullYear();
+  const month = String(instant.getMonth() + 1).padStart(2, "0");
+  const day = String(instant.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 /** Builds the small, time-oriented active-Term view from immutable revisions. */
@@ -103,7 +109,7 @@ export function buildTermDailyDriver(args: {
       if (revision.detail.behaviorFamily !== "meeting") return false;
       return (
         Boolean(revision.detail.startsAt) &&
-        calendarDate(revision.detail.startsAt!) >= args.today &&
+        calendarDate(revision.detail.startsAt!) >= calendarDate(args.today) &&
         revision.detail.status !== "canceled"
       );
     })
