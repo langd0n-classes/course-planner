@@ -53,6 +53,21 @@ Read these files before doing any work in this repo:
     -v "$PWD":/app -w /app node:22-bookworm npx prisma generate
   ```
 
+  **Migrations need `DATABASE_URL_UNPOOLED` as well as `DATABASE_URL`.** The
+  datasource sets `directUrl = env("DATABASE_URL_UNPOOLED")`, because migrations
+  must not run through a connection pooler. Vercel and Neon supply both. Against
+  a plain local Postgres there is no pooler, so set both to the same value:
+
+  ```bash
+  podman run --rm --security-opt label=disable --network host \
+    -v "$PWD":/app -w /app \
+    -e DATABASE_URL="$LOCAL_PG_URL" -e DATABASE_URL_UNPOOLED="$LOCAL_PG_URL" \
+    node:22-bookworm npx prisma migrate deploy
+  ```
+
+  `npx prisma generate` does not need `DATABASE_URL_UNPOOLED`. `migrate` does,
+  and fails with `P1012 Environment variable not found` when it is missing.
+
   Without `--security-opt label=disable`, SELinux denies the bind mount and the
   run fails with `EACCES` on the repo files. That failure looks like a
   permissions bug in the repo; it is not. Generating the client is a required

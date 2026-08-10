@@ -4,7 +4,11 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // Runtime queries use the pooled connection.
+  url       = env("DATABASE_URL")
+  // Migrations must not run through a connection pooler. Neon and the Vercel
+  // integration expose the direct connection as DATABASE_URL_UNPOOLED.
+  directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
 enum MembershipStatus {
