@@ -21,6 +21,14 @@ Read these files before doing any work in this repo:
    were underspecified. Append to this file when making
    new assumptions; do not overwrite prior entries.
 
+Shared, cross-project conventions (basic-memory usage, path conventions,
+GitHub ops, the epic/initiative pattern, the secrets-handling rules) live in
+`~/loc-areas/meta/ai-control-plane/meta-claude.md` — read it once per
+session if you haven't already. This file covers only what's specific to
+course-planner. In particular: a live correction mid-session (who someone
+is, what a task actually means, a dated fact) is a trigger to write it to
+basic-memory in the same turn — see meta-claude.md's b-m section.
+
 ## Local environment & known issues
 
 - **Containers: use `podman`, not `docker`.** The operator's machines run
