@@ -58,10 +58,16 @@ async function main() {
     await tx.instructor.deleteMany();
   });
 
+  // The signed-in account must match an Instructor row: getAuthenticatedInstructor
+  // looks the instructor up by the session email. Set SEED_INSTRUCTOR_EMAIL to the
+  // address you sign in with when seeding a deployed environment.
+  const instructorEmail = process.env.SEED_INSTRUCTOR_EMAIL?.trim() || "instructor-a";
+  const instructorName = process.env.SEED_INSTRUCTOR_NAME?.trim() || "Instructor A";
+
   const instructor = await db.instructor.create({
     data: {
-      name: "Instructor A",
-      email: "instructor-a",
+      name: instructorName,
+      email: instructorEmail,
     },
   });
 
