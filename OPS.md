@@ -38,9 +38,9 @@ Read these files before doing any work in this repo:
   `prisma format`, tests that touch the DB) **inside a container** with a stable
   base image (e.g. `node:22-bookworm`, glibc 2.36) — repo bind-mounted, networked
   to the Postgres container. Do not spend turns retrying prisma on the host.
-  The repo's `db:*` npm scripts (`npm run db:migrate`, `db:seed`, `db:reset`,
-  `db:generate`) all shell out to `npx prisma`, so run **those** inside the
-  container too, not on the host.
+  The repo's `db:*` npm scripts run the prisma CLI (`db:migrate`, `db:reset`,
+  `db:push`, `db:generate`) or `tsx prisma/seed.ts` (`db:seed`, which loads the
+  Prisma client). Run **all** of them inside the container, not on the host.
 
   Still true as of 2026-08-07: `npx prisma -v` and `npx prisma generate` both
   exit 139 (SIGSEGV) on the host.
@@ -65,8 +65,20 @@ Read these files before doing any work in this repo:
     node:22-bookworm npx prisma migrate deploy
   ```
 
-  `npx prisma generate` does not need `DATABASE_URL_UNPOOLED`. `migrate` does,
-  and fails with `P1012 Environment variable not found` when it is missing.
+  Which commands need `DATABASE_URL_UNPOOLED`, all checked in a container:
+
+  | Command | Needs it |
+  |---|---|
+  | `npm run db:migrate`, `db:reset`, `prisma migrate deploy` | **Yes** — fails `P1012` without it |
+  | `npm run db:generate`, `db:seed`, `db:push` | No — `DATABASE_URL` is enough |
+  | `scripts/vercel-build.sh` on production | **Yes** — it runs `migrate deploy` |
+  | `scripts/vercel-build.sh` on preview | No — it skips migrations |
+
+  Seeding a deployed environment needs an Instructor row matching the address you
+  sign in with, because `getAuthenticatedInstructor` looks the instructor up by
+  session email. Pass `SEED_INSTRUCTOR_EMAIL` (and optionally
+  `SEED_INSTRUCTOR_NAME`). **The seed deletes existing instructors, courses, and
+  Term data before it writes.** Never point it at data you want to keep.
 
   Without `--security-opt label=disable`, SELinux denies the bind mount and the
   run fails with `EACCES` on the repo files. That failure looks like a
