@@ -1,0 +1,3174 @@
+{
+  "snapshotId": "ds100-snapshot-v1",
+  "course": {
+    "title": "Data Science 100",
+    "number": "DS-100",
+    "description": "DS-100 exemplar snapshot generated from course source markdown."
+  },
+  "activityTypes": [
+    {
+      "key": "Lab",
+      "behaviorFamily": "meeting",
+      "label": "Lab"
+    },
+    {
+      "key": "Lec",
+      "behaviorFamily": "meeting",
+      "label": "Lec"
+    }
+  ],
+  "learningModules": [
+    {
+      "stableCode": "LM00",
+      "title": "Onboarding and Course Practices"
+    },
+    {
+      "stableCode": "LM01",
+      "title": "Programming Foundations"
+    },
+    {
+      "stableCode": "LM02",
+      "title": "Data as Evidence"
+    },
+    {
+      "stableCode": "LM03",
+      "title": "Finding Patterns"
+    },
+    {
+      "stableCode": "LM04",
+      "title": "Variation"
+    },
+    {
+      "stableCode": "LM05",
+      "title": "Uncertainty"
+    },
+    {
+      "stableCode": "LM06",
+      "title": "Testing Ideas"
+    },
+    {
+      "stableCode": "LM07",
+      "title": "Modeling"
+    },
+    {
+      "stableCode": "LM08",
+      "title": "Communication and Independent Analysis"
+    }
+  ],
+  "topics": [
+    {
+      "stableCode": "LM00-C01",
+      "learningModuleCode": "LM00",
+      "title": "Course workflow, weekly learning rhythm, and due-date habits.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM00-C02",
+      "learningModuleCode": "LM00",
+      "title": "Academic integrity, AI-use expectations, and responsible AI collaboration.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM00-C03",
+      "learningModuleCode": "LM00",
+      "title": "Course platforms, assignment workflow, and support channels.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM00-C04",
+      "learningModuleCode": "LM00",
+      "title": "Notebook setup and basic notebook execution.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM00-C05",
+      "learningModuleCode": "LM00",
+      "title": "Notebook operations: running cells, restarting kernels, and reading notebook state.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM00-C06",
+      "learningModuleCode": "LM00",
+      "title": "Troubleshooting common setup, environment, and access errors.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM00-C07",
+      "learningModuleCode": "LM00",
+      "title": "GitHub Classroom credentials and common access recovery steps.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM00-C08",
+      "learningModuleCode": "LM00",
+      "title": "Learning by asking and answering questions.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM00-C09",
+      "learningModuleCode": "LM00",
+      "title": "AI collaboration through follow-up questions, requested reasoning, and checks on first responses.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM00-X01",
+      "learningModuleCode": "LM00",
+      "title": "Local development environments beyond the standard course setup.",
+      "category": "extension"
+    },
+    {
+      "stableCode": "LM01-C01",
+      "learningModuleCode": "LM01",
+      "title": "Variables and assignment.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM01-C02",
+      "learningModuleCode": "LM01",
+      "title": "Basic data types: integers, floats, strings, and booleans.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM01-C03",
+      "learningModuleCode": "LM01",
+      "title": "Type conversion and type mismatch debugging.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM01-C04",
+      "learningModuleCode": "LM01",
+      "title": "Basic number-system intuition.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM01-C05",
+      "learningModuleCode": "LM01",
+      "title": "Lists as a way to collect related values together, with indexed access.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM01-C06",
+      "learningModuleCode": "LM01",
+      "title": "Functions with parameters and return values.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM01-C07",
+      "learningModuleCode": "LM01",
+      "title": "Conditional logic with `if`, `elif`, and `else`.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM01-C08",
+      "learningModuleCode": "LM01",
+      "title": "Iteration with `for` loops.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM01-C09",
+      "learningModuleCode": "LM01",
+      "title": "Basic debugging habits in notebooks.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM01-C10",
+      "learningModuleCode": "LM01",
+      "title": "Importing libraries and using standard aliases.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM01-C11",
+      "learningModuleCode": "LM01",
+      "title": "DataFrames as tables: data organized in labeled rows and columns.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM01-C12",
+      "learningModuleCode": "LM01",
+      "title": "Creating DataFrames from dictionaries and CSV files.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM01-C13",
+      "learningModuleCode": "LM01",
+      "title": "Basic DataFrame exploration with `.head`, `.shape`, `.info`, and `.describe`.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM01-C14",
+      "learningModuleCode": "LM01",
+      "title": "Selecting rows and columns with column selection, `.loc`, and `.iloc` — including what each name is short for (`.loc` = label-/location-based selection, `.iloc` = integer-location-based selection) and when to reach for which.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM01-X01",
+      "learningModuleCode": "LM01",
+      "title": "List slicing, kept as advanced programming because it appears in real notebooks but is not part of the intro core.",
+      "category": "extension"
+    },
+    {
+      "stableCode": "LM01-X02",
+      "learningModuleCode": "LM01",
+      "title": "Advanced list methods such as `.index` and `.count`.",
+      "category": "extension"
+    },
+    {
+      "stableCode": "LM01-X03",
+      "learningModuleCode": "LM01",
+      "title": "`while` loops and loop control.",
+      "category": "extension"
+    },
+    {
+      "stableCode": "LM01-X04",
+      "learningModuleCode": "LM01",
+      "title": "Function documentation with docstrings.",
+      "category": "extension"
+    },
+    {
+      "stableCode": "LM01-X05",
+      "learningModuleCode": "LM01",
+      "title": "Number systems: binary, octal, decimal, and hexadecimal — place value, base conversion, and why computers use them (extends LM01-C04).",
+      "category": "extension"
+    },
+    {
+      "stableCode": "LM02-C01",
+      "learningModuleCode": "LM02",
+      "title": "Using tables and tabular data structures to organize evidence.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM02-C02",
+      "learningModuleCode": "LM02",
+      "title": "Observations, variables, rows, and columns.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM02-C03",
+      "learningModuleCode": "LM02",
+      "title": "Data science workflow: ask a question, prepare data, analyze patterns, and communicate findings.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM02-C04",
+      "learningModuleCode": "LM02",
+      "title": "Recognizing categorical, numerical, and coded variables.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM02-C05",
+      "learningModuleCode": "LM02",
+      "title": "Finding missing values.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM02-C06",
+      "learningModuleCode": "LM02",
+      "title": "Basic cleaning with `.dropna`, `.fillna`, `.astype`, and `pd.to_numeric`.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM02-C07",
+      "learningModuleCode": "LM02",
+      "title": "Duplicate detection and removal.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM02-C08",
+      "learningModuleCode": "LM02",
+      "title": "Finding bad values, impossible values, and suspicious ranges.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM02-C09",
+      "learningModuleCode": "LM02",
+      "title": "Claims, evidence, uncertainty, and limitations.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM02-C10",
+      "learningModuleCode": "LM02",
+      "title": "Association, causation, confounding, and why randomized comparisons matter.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM02-C11",
+      "learningModuleCode": "LM02",
+      "title": "Public data sources, including civic, census, survey, and administrative data.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM02-C12",
+      "learningModuleCode": "LM02",
+      "title": "Basic text cleaning and filtering with `.str` methods such as `.str.lower`, `.str.strip`, and `.str.contains`.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM02-X01",
+      "learningModuleCode": "LM02",
+      "title": "Data dictionaries and metadata quality.",
+      "category": "extension"
+    },
+    {
+      "stableCode": "LM02-X02",
+      "learningModuleCode": "LM02",
+      "title": "Reproducible cleaning notes and audit trails.",
+      "category": "extension"
+    },
+    {
+      "stableCode": "LM02-X03",
+      "learningModuleCode": "LM02",
+      "title": "Advanced text processing: regular expressions, `.str.extract`, and multi-step text pipelines.",
+      "category": "extension"
+    },
+    {
+      "stableCode": "LM03-C01",
+      "learningModuleCode": "LM03",
+      "title": "Boolean filtering and column selection for analysis questions.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM03-C02",
+      "learningModuleCode": "LM03",
+      "title": "Sorting with `.sort_values`.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM03-C03",
+      "learningModuleCode": "LM03",
+      "title": "Summary statistics: mean, median, sum, count, mode, and `value_counts`.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM03-C04",
+      "learningModuleCode": "LM03",
+      "title": "Grouping and aggregation with `.groupby`.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM03-C05",
+      "learningModuleCode": "LM03",
+      "title": "Multi-column grouping and tidy summary tables.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM03-C06",
+      "learningModuleCode": "LM03",
+      "title": "Resetting indexes after grouped summaries.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM03-C07",
+      "learningModuleCode": "LM03",
+      "title": "Basic charts: bar charts, line charts, scatter plots, and histograms.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM03-C08",
+      "learningModuleCode": "LM03",
+      "title": "Chart choice as an analytical decision.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM03-C09",
+      "learningModuleCode": "LM03",
+      "title": "Interpreting charts precisely and connecting patterns to claims.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM03-C10",
+      "learningModuleCode": "LM03",
+      "title": "Reading two-way summary tables.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM03-C11",
+      "learningModuleCode": "LM03",
+      "title": "Joining tables using matching columns.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM03-C12",
+      "learningModuleCode": "LM03",
+      "title": "Checking joins by choosing keys and checking row counts.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM03-X01",
+      "learningModuleCode": "LM03",
+      "title": "Box plots, subplots, and chart customization.",
+      "category": "extension"
+    },
+    {
+      "stableCode": "LM03-X03",
+      "learningModuleCode": "LM03",
+      "title": "Pivot tables and reshaping data.",
+      "category": "extension"
+    },
+    {
+      "stableCode": "LM03-X04",
+      "learningModuleCode": "LM03",
+      "title": "Concatenating compatible tables.",
+      "category": "extension"
+    },
+    {
+      "stableCode": "LM03-X05",
+      "learningModuleCode": "LM03",
+      "title": "Systematic exploratory data analysis walkthroughs.",
+      "category": "extension"
+    },
+    {
+      "stableCode": "LM04-C01",
+      "learningModuleCode": "LM04",
+      "title": "Histograms, bins, density, and distribution shape.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM04-C02",
+      "learningModuleCode": "LM04",
+      "title": "Center and spread using appropriate measures.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM04-C03",
+      "learningModuleCode": "LM04",
+      "title": "Comparing distributions.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM04-C04",
+      "learningModuleCode": "LM04",
+      "title": "Outliers and their effects on summaries.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM04-C05",
+      "learningModuleCode": "LM04",
+      "title": "Histogram area as percent and height as density.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM04-C06",
+      "learningModuleCode": "LM04",
+      "title": "Choosing summaries that match a distribution.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM04-C07",
+      "learningModuleCode": "LM04",
+      "title": "Describing variation in context.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM04-C08",
+      "learningModuleCode": "LM04",
+      "title": "Standard deviation as a typical distance from the average.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM04-C09",
+      "learningModuleCode": "LM04",
+      "title": "Standard units as distance from average.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM04-C10",
+      "learningModuleCode": "LM04",
+      "title": "Chebyshev's inequality: for any distribution, the proportion of values within a given number of SDs of the average is at least 1 − 1/z².",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM04-C11",
+      "learningModuleCode": "LM04",
+      "title": "Normal (bell-shaped) distributions and normal proportions: the 68-95-99.7 rule as a description of how values cluster around the average when a data distribution is bell-shaped (distinct from the sampling-distribution normal approximation / CLT, which is LM05-C16).",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM04-X01",
+      "learningModuleCode": "LM04",
+      "title": "Variance and formal spread calculations.",
+      "category": "extension"
+    },
+    {
+      "stableCode": "LM04-X02",
+      "learningModuleCode": "LM04",
+      "title": "Box plots and other compact distribution summaries.",
+      "category": "extension"
+    },
+    {
+      "stableCode": "LM05-C01",
+      "learningModuleCode": "LM05",
+      "title": "Sampling with chance, sampling without chance, and convenience samples.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM05-C02",
+      "learningModuleCode": "LM05",
+      "title": "Sampling bias and limits of generalization.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM05-C03",
+      "learningModuleCode": "LM05",
+      "title": "Basic probability ideas for repeated random processes.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM05-C04",
+      "learningModuleCode": "LM05",
+      "title": "Simulation with random choice.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM05-C05",
+      "learningModuleCode": "LM05",
+      "title": "Probability distributions and empirical distributions.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM05-C06",
+      "learningModuleCode": "LM05",
+      "title": "Long-run behavior and simulation stability.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM05-C07",
+      "learningModuleCode": "LM05",
+      "title": "Lists or arrays of simulation results.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM05-C08",
+      "learningModuleCode": "LM05",
+      "title": "Parameters and statistics.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM05-C09",
+      "learningModuleCode": "LM05",
+      "title": "Sampling distributions: how sample results vary.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM05-C10",
+      "learningModuleCode": "LM05",
+      "title": "Resampling from one sample to estimate uncertainty.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM05-C11",
+      "learningModuleCode": "LM05",
+      "title": "Bootstrap distributions: simulated variation from resampling.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM05-C12",
+      "learningModuleCode": "LM05",
+      "title": "Percentiles.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM05-C13",
+      "learningModuleCode": "LM05",
+      "title": "Confidence intervals.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM05-C14",
+      "learningModuleCode": "LM05",
+      "title": "Interpreting confidence intervals and recognizing common misinterpretations.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM05-C15",
+      "learningModuleCode": "LM05",
+      "title": "Cases where bootstrap methods are inappropriate or fragile.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM05-C16",
+      "learningModuleCode": "LM05",
+      "title": "The Central Limit Theorem, stated not derived: for a large random sample drawn with replacement, the distribution of the sample average is approximately bell-shaped regardless of the population shape, centered at the population mean, with spread equal to the population SD over the square root of the sample size.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM05-C17",
+      "learningModuleCode": "LM05",
+      "title": "Normal-based confidence interval for a mean, used as a shortcut of about the mean plus or minus 2 SDs of the sample-average distribution, with the bootstrap kept as the general method for any other statistic.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM05-C18",
+      "learningModuleCode": "LM05",
+      "title": "Sample-size effects: larger samples give less variable estimates and narrower intervals, following the square-root-of-n rule.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM06-C01",
+      "learningModuleCode": "LM06",
+      "title": "Checking whether the data fit a proposed explanation.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM06-C02",
+      "learningModuleCode": "LM06",
+      "title": "Null and alternative hypotheses.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM06-C03",
+      "learningModuleCode": "LM06",
+      "title": "Test statistics.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM06-C04",
+      "learningModuleCode": "LM06",
+      "title": "Simulating outcomes under a null model.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM06-C05",
+      "learningModuleCode": "LM06",
+      "title": "P-values as tail probabilities under a null model.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM06-C06",
+      "learningModuleCode": "LM06",
+      "title": "Statistical significance and practical significance.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM06-C07",
+      "learningModuleCode": "LM06",
+      "title": "Type I and Type II errors by example.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM06-C08",
+      "learningModuleCode": "LM06",
+      "title": "A/B testing design and critique.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM06-C09",
+      "learningModuleCode": "LM06",
+      "title": "Shuffling group labels to simulate no treatment effect.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM06-C10",
+      "learningModuleCode": "LM06",
+      "title": "Random assignment as the basis for stronger causal claims.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM06-C11",
+      "learningModuleCode": "LM06",
+      "title": "Causal caution when data are observational or groups were not randomly assigned.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM06-C12",
+      "learningModuleCode": "LM06",
+      "title": "Bias, confounding, missingness, and measurement problems that can make a test untrustworthy.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM06-X01",
+      "learningModuleCode": "LM06",
+      "title": "Total variation distance for comparing categorical distributions.",
+      "category": "extension"
+    },
+    {
+      "stableCode": "LM06-X02",
+      "learningModuleCode": "LM06",
+      "title": "Multiple testing and false discovery.",
+      "category": "extension"
+    },
+    {
+      "stableCode": "LM06-X03",
+      "learningModuleCode": "LM06",
+      "title": "Testing examples involving digit distributions or other unusual null models.",
+      "category": "extension"
+    },
+    {
+      "stableCode": "LM07-C01",
+      "learningModuleCode": "LM07",
+      "title": "Association between numerical variables.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM07-C02",
+      "learningModuleCode": "LM07",
+      "title": "Correlation.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM07-C03",
+      "learningModuleCode": "LM07",
+      "title": "Standard units: values measured by distance from average.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM07-C04",
+      "learningModuleCode": "LM07",
+      "title": "Prediction as an analytical task.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM07-C05",
+      "learningModuleCode": "LM07",
+      "title": "Linear regression model fitting.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM07-C06",
+      "learningModuleCode": "LM07",
+      "title": "Interpreting regression slope and intercept.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM07-C07",
+      "learningModuleCode": "LM07",
+      "title": "Prediction error and residuals.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM07-C08",
+      "learningModuleCode": "LM07",
+      "title": "Root mean squared error as \"how far off predictions usually are.\"",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM07-C09",
+      "learningModuleCode": "LM07",
+      "title": "Residual plots, model limitations, and checking whether a linear model is appropriate.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM07-C10",
+      "learningModuleCode": "LM07",
+      "title": "Nearest-neighbor prediction.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM07-C11",
+      "learningModuleCode": "LM07",
+      "title": "Classification concepts and tradeoffs.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM07-C12",
+      "learningModuleCode": "LM07",
+      "title": "Nearest-neighbor classification.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM07-C13",
+      "learningModuleCode": "LM07",
+      "title": "Training data, validation data, and checking predictions on data not used to build the model.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM07-C14",
+      "learningModuleCode": "LM07",
+      "title": "Ethics, bias, and harms in modeling.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM07-C15",
+      "learningModuleCode": "LM07",
+      "title": "Least squares as the idea that the regression line is the one that makes the prediction errors as small as possible, taught as a concept rather than a formal minimization or derivation.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM07-X01",
+      "learningModuleCode": "LM07",
+      "title": "Feature engineering.",
+      "category": "extension"
+    },
+    {
+      "stableCode": "LM07-X02",
+      "learningModuleCode": "LM07",
+      "title": "More than one predictor.",
+      "category": "extension"
+    },
+    {
+      "stableCode": "LM07-X03",
+      "learningModuleCode": "LM07",
+      "title": "Classification metrics beyond accuracy.",
+      "category": "extension"
+    },
+    {
+      "stableCode": "LM08-C01",
+      "learningModuleCode": "LM08",
+      "title": "Communicating results to nontechnical audiences.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM08-C02",
+      "learningModuleCode": "LM08",
+      "title": "Matching claims to evidence and limitations.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM08-C03",
+      "learningModuleCode": "LM08",
+      "title": "Explaining uncertainty in plain language.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM08-C04",
+      "learningModuleCode": "LM08",
+      "title": "Presenting an independent analysis.",
+      "category": "core"
+    },
+    {
+      "stableCode": "LM08-X01",
+      "learningModuleCode": "LM08",
+      "title": "Reproducible project packaging.",
+      "category": "extension"
+    },
+    {
+      "stableCode": "LM08-X02",
+      "learningModuleCode": "LM08",
+      "title": "Slide or poster design for data communication.",
+      "category": "extension"
+    }
+  ],
+  "activities": [
+    {
+      "stableCode": "LEC01",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM00",
+      "title": "Lec 01: Onboard",
+      "topicActions": [
+        {
+          "topicRef": "LM00-C01",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM00-C02",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM00-C03",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM00-C04",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM00-C05",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM00-C06",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM00-C07",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM00-C08",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM00-C09",
+          "action": "introduced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LEC02",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM00",
+      "title": "Lec 02: Workflow",
+      "topicActions": [
+        {
+          "topicRef": "LM00-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM00-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM00-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM00-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM00-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM00-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM00-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM00-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM00-C09",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LAB01",
+      "typeKey": "Lab",
+      "learningModuleCode": "LM00",
+      "title": "Lab 01: Setup",
+      "topicActions": [
+        {
+          "topicRef": "LM00-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM00-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM00-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM00-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM00-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM00-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM00-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM00-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM00-C09",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LAB02",
+      "typeKey": "Lab",
+      "learningModuleCode": "LM01",
+      "title": "Lab 02: Practice",
+      "topicActions": [
+        {
+          "topicRef": "LM01-C01",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM01-C02",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM01-C03",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM01-C04",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM01-C05",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM01-C06",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM01-C07",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM01-C08",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM01-C09",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM01-C10",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM01-C11",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM01-C12",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM01-C13",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM01-C14",
+          "action": "introduced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LEC05",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM01",
+      "title": "Lec 05: Catch-up",
+      "topicActions": [
+        {
+          "topicRef": "LM01-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM01-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM01-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM01-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM01-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM01-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM01-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM01-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM01-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM01-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM01-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM01-C12",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM01-C13",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM01-C14",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LEC06",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM02",
+      "title": "Lec 06: Tables+claims",
+      "topicActions": [
+        {
+          "topicRef": "LM02-C01",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM02-C02",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM02-C03",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM02-C04",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM02-C05",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM02-C06",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM02-C07",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM02-C08",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM02-C09",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM02-C10",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM02-C11",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM02-C12",
+          "action": "introduced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LAB03",
+      "typeKey": "Lab",
+      "learningModuleCode": "LM02",
+      "title": "Lab 03: Practice",
+      "topicActions": [
+        {
+          "topicRef": "LM02-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM02-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM02-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM02-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM02-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM02-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM02-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM02-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM02-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM02-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM02-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM02-C12",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LEC07",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM03",
+      "title": "Lec 07: Manip",
+      "topicActions": [
+        {
+          "topicRef": "LM03-C01",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM03-C02",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM03-C03",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM03-C04",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM03-C05",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM03-C06",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM03-C07",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM03-C08",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM03-C09",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM03-C10",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM03-C11",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM03-C12",
+          "action": "introduced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LEC08",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM03",
+      "title": "Lec 08: Viz",
+      "topicActions": [
+        {
+          "topicRef": "LM03-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM03-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM03-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM03-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM03-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM03-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM03-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM03-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM03-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM03-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM03-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM03-C12",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LAB04",
+      "typeKey": "Lab",
+      "learningModuleCode": "LM03",
+      "title": "Lab 04: Practice",
+      "topicActions": [
+        {
+          "topicRef": "LM03-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM03-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM03-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM03-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM03-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM03-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM03-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM03-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM03-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM03-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM03-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM03-C12",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LEC09",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM04",
+      "title": "Lec 09: Variation",
+      "topicActions": [
+        {
+          "topicRef": "LM04-C01",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM04-C02",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM04-C03",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM04-C04",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM04-C05",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM04-C06",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM04-C07",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM04-C08",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM04-C09",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM04-C10",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM04-C11",
+          "action": "introduced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LAB05",
+      "typeKey": "Lab",
+      "learningModuleCode": "LM04",
+      "title": "Lab 05: Histogram",
+      "topicActions": [
+        {
+          "topicRef": "LM04-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM04-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM04-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM04-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM04-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM04-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM04-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM04-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM04-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM04-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM04-C11",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LEC11",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM05",
+      "title": "Lec 11: Prob+Sim",
+      "topicActions": [
+        {
+          "topicRef": "LM05-C01",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM05-C02",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM05-C03",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM05-C04",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM05-C05",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM05-C06",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM05-C07",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM05-C08",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM05-C09",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM05-C10",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM05-C11",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM05-C12",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM05-C13",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM05-C14",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM05-C15",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM05-C16",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM05-C17",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM05-C18",
+          "action": "introduced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LAB06",
+      "typeKey": "Lab",
+      "learningModuleCode": "LM05",
+      "title": "Lab 06: Lab",
+      "topicActions": [
+        {
+          "topicRef": "LM05-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C12",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C13",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C14",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C15",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C16",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C17",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C18",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LEC12",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM05",
+      "title": "Lec 12: Sampling",
+      "topicActions": [
+        {
+          "topicRef": "LM05-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C12",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C13",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C14",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C15",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C16",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C17",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C18",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LEC13",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM05",
+      "title": "Lec 13: Bootstrap",
+      "topicActions": [
+        {
+          "topicRef": "LM05-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C12",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C13",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C14",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C15",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C16",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C17",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C18",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LAB07",
+      "typeKey": "Lab",
+      "learningModuleCode": "LM05",
+      "title": "Lab 07: Sampling+MP plan",
+      "topicActions": [
+        {
+          "topicRef": "LM05-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C12",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C13",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C14",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C15",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C16",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C17",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM05-C18",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LEC14",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM06",
+      "title": "Lec 14: Testing",
+      "topicActions": [
+        {
+          "topicRef": "LM06-C01",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM06-C02",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM06-C03",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM06-C04",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM06-C05",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM06-C06",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM06-C07",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM06-C08",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM06-C09",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM06-C10",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM06-C11",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM06-C12",
+          "action": "introduced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LEC15",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM06",
+      "title": "Lec 15: A/B",
+      "topicActions": [
+        {
+          "topicRef": "LM06-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C12",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LAB08",
+      "typeKey": "Lab",
+      "learningModuleCode": "LM06",
+      "title": "Lab 08: Lab",
+      "topicActions": [
+        {
+          "topicRef": "LM06-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C12",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LEC16",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM06",
+      "title": "Lec 16: Buffer",
+      "topicActions": [
+        {
+          "topicRef": "LM06-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C12",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LEC17",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM06",
+      "title": "Lec 17: Review",
+      "topicActions": [
+        {
+          "topicRef": "LM06-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C12",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LAB09",
+      "typeKey": "Lab",
+      "learningModuleCode": "LM06",
+      "title": "Lab 09: Lab",
+      "topicActions": [
+        {
+          "topicRef": "LM06-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM06-C12",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LEC18",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM07",
+      "title": "Lec 18: Regression",
+      "topicActions": [
+        {
+          "topicRef": "LM07-C01",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM07-C02",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM07-C03",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM07-C04",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM07-C05",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM07-C06",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM07-C07",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM07-C08",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM07-C09",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM07-C10",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM07-C11",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM07-C12",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM07-C13",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM07-C14",
+          "action": "introduced"
+        },
+        {
+          "topicRef": "LM07-C15",
+          "action": "introduced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LEC19",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM07",
+      "title": "Lec 19: Reg prac",
+      "topicActions": [
+        {
+          "topicRef": "LM07-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C12",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C13",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C14",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C15",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LAB10",
+      "typeKey": "Lab",
+      "learningModuleCode": "LM07",
+      "title": "Lab 10: Showdown",
+      "topicActions": [
+        {
+          "topicRef": "LM07-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C12",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C13",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C14",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C15",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LEC20",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM07",
+      "title": "Lec 20: Classify",
+      "topicActions": [
+        {
+          "topicRef": "LM07-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C12",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C13",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C14",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C15",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LEC21",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM07",
+      "title": "Lec 21: Evaluation",
+      "topicActions": [
+        {
+          "topicRef": "LM07-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C12",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C13",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C14",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C15",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LAB11",
+      "typeKey": "Lab",
+      "learningModuleCode": "LM07",
+      "title": "Lab 11: Clinic",
+      "topicActions": [
+        {
+          "topicRef": "LM07-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C12",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C13",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C14",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C15",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LEC22",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM07",
+      "title": "Lec 22: Ethics",
+      "topicActions": [
+        {
+          "topicRef": "LM07-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C12",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C13",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C14",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C15",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LEC23",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM07",
+      "title": "Lec 23: In Practice",
+      "topicActions": [
+        {
+          "topicRef": "LM07-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C12",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C13",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C14",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C15",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LAB12",
+      "typeKey": "Lab",
+      "learningModuleCode": "LM07",
+      "title": "Lab 12: Newsroom",
+      "topicActions": [
+        {
+          "topicRef": "LM07-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C12",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C13",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C14",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C15",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LEC24",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM07",
+      "title": "Lec 24: Synthesis",
+      "topicActions": [
+        {
+          "topicRef": "LM07-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C12",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C13",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C14",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C15",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LEC25",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM07",
+      "title": "Lec 25: Story",
+      "topicActions": [
+        {
+          "topicRef": "LM07-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C12",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C13",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C14",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C15",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LAB13",
+      "typeKey": "Lab",
+      "learningModuleCode": "LM07",
+      "title": "Lab 13: Defense",
+      "topicActions": [
+        {
+          "topicRef": "LM07-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C12",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C13",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C14",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C15",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LEC26",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM07",
+      "title": "Lec 26: Project",
+      "topicActions": [
+        {
+          "topicRef": "LM07-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C12",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C13",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C14",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C15",
+          "action": "practiced"
+        }
+      ]
+    },
+    {
+      "stableCode": "LEC27",
+      "typeKey": "Lec",
+      "learningModuleCode": "LM07",
+      "title": "Lec 27: Wrap",
+      "topicActions": [
+        {
+          "topicRef": "LM07-C01",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C02",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C03",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C04",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C05",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C06",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C07",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C08",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C09",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C10",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C11",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C12",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C13",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C14",
+          "action": "practiced"
+        },
+        {
+          "topicRef": "LM07-C15",
+          "action": "practiced"
+        }
+      ]
+    }
+  ]
+}
