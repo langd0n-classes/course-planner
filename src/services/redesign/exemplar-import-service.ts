@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-assign-module-variable -- imported snapshot uses module as a domain name */
 
 import { createHash } from "node:crypto";
 import { createActivity } from "./activity-service";

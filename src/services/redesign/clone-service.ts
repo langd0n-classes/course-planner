@@ -358,7 +358,8 @@ export async function previewTermClone(db: RedesignDb, input: CloneRequest) {
 }
 
 export async function applyTermClone(db: RedesignDb, input: CloneRequest) {
-  return db.$transaction(async (tx) => {
+  return db.$transaction(
+    async (tx) => {
     const sourceTerm = await loadSourceTerm(tx, input.instructorId, input.sourceTermId);
     await assertCloneTarget(tx, sourceTerm, input);
     const targetCalendar = await previewCalendarMaterialization(tx, {
@@ -537,5 +538,11 @@ export async function applyTermClone(db: RedesignDb, input: CloneRequest) {
     }
 
     return { kind: "applied" as const, term };
-  });
+    },
+    // Cloning a Term writes calendar slots, offerings, sessions, prior art, and
+    // coverages one item at a time, so the transaction grows with the size of
+    // the source Term. Prisma's default 5s interactive-transaction timeout is
+    // ample against a local database and not against a remote one.
+    { timeout: 120_000, maxWait: 15_000 },
+  );
 }
