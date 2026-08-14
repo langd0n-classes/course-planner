@@ -543,6 +543,6 @@ export async function applyTermClone(db: RedesignDb, input: CloneRequest) {
     // coverages one item at a time, so the transaction grows with the size of
     // the source Term. Prisma's default 5s interactive-transaction timeout is
     // ample against a local database and not against a remote one.
-    { timeout: 120_000, maxWait: 15_000 },
+    { timeout: 300_000, maxWait: 30_000 },
   );
 }

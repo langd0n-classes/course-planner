@@ -734,7 +734,7 @@ export async function applyTermActivityAdoption(
     // sequential loop, so the transaction grows with the size of the Learning
     // Module. Prisma's default 5s interactive-transaction timeout is ample
     // against a local database and not against a remote one.
-    { timeout: 120_000, maxWait: 15_000 },
+    { timeout: 300_000, maxWait: 30_000 },
   );
 }
 
