@@ -34,6 +34,24 @@ function createTransactionalDb(tx: Record<string, any>) {
   };
 }
 
+// Wraps a test db so a test can assert what options a service passes to
+// $transaction — a bulk write must be given room to finish against a remote
+// database. Delegates to the wrapped db so behavior is otherwise unchanged.
+function withCapturedOptions(
+  db: { $transaction: (fn: (tx: Record<string, any>) => Promise<any>) => Promise<any> },
+  captured: { options?: Record<string, number> },
+) {
+  return {
+    $transaction: async <T>(
+      fn: (tx: Record<string, any>) => Promise<T>,
+      options?: Record<string, number>,
+    ): Promise<T> => {
+      captured.options = options;
+      return db.$transaction(fn) as Promise<T>;
+    },
+  };
+}
+
 describe("term lifecycle concurrency", () => {
   it("changes status with an atomic expected-status predicate", async () => {
     let updateWhere: Record<string, unknown> | null = null;
@@ -1583,7 +1601,8 @@ describe("term clone preview", () => {
       },
     });
 
-    const applied = await applyTermClone(db, {
+    const cloneCaptured: { options?: Record<string, number> } = {};
+    const applied = await applyTermClone(withCapturedOptions(db, cloneCaptured), {
       instructorId: "instructor-1",
       sourceTermId: "term-1",
       code: "SP27",
@@ -1599,6 +1618,12 @@ describe("term clone preview", () => {
         ],
       },
     });
+
+    // Cloning writes calendar slots, offerings, sessions, prior art, and
+    // coverages one item at a time, so the transaction must outlive Prisma's
+    // 5s default against a remote database.
+    expect(cloneCaptured.options?.timeout).toBeGreaterThanOrEqual(60_000);
+    expect(cloneCaptured.options?.maxWait).toBeGreaterThanOrEqual(5_000);
 
     expect(applied.kind).toBe("applied");
     expect(createdLearningModules).toEqual([

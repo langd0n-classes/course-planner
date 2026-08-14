@@ -1,3 +1,4 @@
+
 import { createHash } from "node:crypto";
 import { createActivity } from "./activity-service";
 import { createActivityType } from "./activity-type-service";
@@ -284,7 +285,8 @@ export class ExemplarImportService {
 
     const counts = zeroCounts();
 
-    await db.$transaction(async (tx) => {
+    await db.$transaction(
+      async (tx) => {
       const course = await tx.course.findUnique({
         where: { id_instructorId: { id: input.courseId, instructorId: input.instructorId } },
       });
@@ -485,7 +487,12 @@ export class ExemplarImportService {
         });
         moduleVersionIds.set(module.stableCode, revised.id);
       }
-    });
+      // The exemplar import writes the whole course structure in one
+      // transaction. Prisma's default interactive-transaction timeout is 5s,
+      // which is ample against a local database and not against a remote one.
+      },
+      { timeout: 120_000, maxWait: 15_000 },
+    );
 
     return {
       courseId: input.courseId,

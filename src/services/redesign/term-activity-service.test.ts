@@ -14,6 +14,20 @@ function createTransactionalDb(tx: Record<string, any>) {
   };
 }
 
+// Captures the options a service passes to $transaction, so a test can assert
+// the transaction is given room to finish against a remote database.
+function createOptionCapturingDb(tx: Record<string, any>, captured: { options?: Record<string, number> }) {
+  return {
+    $transaction: async <T>(
+      fn: (nestedTx: Record<string, any>) => Promise<T>,
+      options?: Record<string, number>,
+    ) => {
+      captured.options = options;
+      return fn(tx);
+    },
+  };
+}
+
 function revisionPreviewToken(termActivityId: string, expectedCurrentRevisionId: string | null, draft: unknown) {
   return createHash("sha256")
     .update(JSON.stringify({ termActivityId, expectedCurrentRevisionId, draft }))
@@ -200,7 +214,8 @@ describe("Term Activity adoption", () => {
       learningModuleVersionSelections: [{ termLearningModuleId: "tlm-1", learningModuleVersionId: "lmv-1" }],
       crossCuttingSelections: [],
     });
-    const applied = await applyTermActivityAdoption(createTransactionalDb(tx), {
+    const captured: { options?: Record<string, number> } = {};
+    const applied = await applyTermActivityAdoption(createOptionCapturingDb(tx, captured), {
       instructorId: "instructor-1",
       termId: "term-1",
       learningModuleVersionSelections: [{ termLearningModuleId: "tlm-1", learningModuleVersionId: "lmv-1" }],
@@ -208,6 +223,11 @@ describe("Term Activity adoption", () => {
       previewToken: preview.previewToken,
       expectedCurrentActivityCount: preview.expectedCurrentActivityCount,
     });
+
+    // Adoption writes one Term Activity and one revision per candidate, so the
+    // transaction must outlive Prisma's 5s default against a remote database.
+    expect(captured.options?.timeout).toBeGreaterThanOrEqual(60_000);
+    expect(captured.options?.maxWait).toBeGreaterThanOrEqual(5_000);
 
     expect(termActivityCreates[0]).toEqual(expect.objectContaining({
       plannedActivityVersionId: "av-1",
