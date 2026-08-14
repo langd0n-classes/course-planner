@@ -262,6 +262,31 @@ describe("ExemplarImportService", () => {
     expect(JSON.stringify(tx.__state)).not.toMatch(/excluded|studentScores|answerKey|Student A/);
   });
 
+  it("uses a long enough interactive transaction timeout for remote imports", async () => {
+    const service = new ExemplarImportService();
+    const tx = createMemoryTx();
+    let transactionOptions: any;
+    const db = {
+      $transaction: async <T>(fn: (innerTx: Record<string, any>) => Promise<T>, options?: any) => {
+        transactionOptions = options;
+        return fn(tx);
+      },
+    };
+
+    await service.apply(db, {
+      instructorId: "instructor-1",
+      courseId: "course-1",
+      snapshot: genericDemoExemplarSnapshot,
+    });
+
+    expect(transactionOptions).toEqual(expect.objectContaining({
+      timeout: expect.any(Number),
+      maxWait: expect.any(Number),
+    }));
+    expect(transactionOptions.timeout).toBeGreaterThanOrEqual(60_000);
+    expect(transactionOptions.maxWait).toBeGreaterThanOrEqual(5_000);
+  });
+
   it("reports ambiguous references instead of guessing", () => {
     const service = new ExemplarImportService();
     const snapshot: any = structuredClone(genericDemoExemplarSnapshot);

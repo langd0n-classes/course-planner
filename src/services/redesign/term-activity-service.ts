@@ -656,7 +656,8 @@ export async function applyTermActivityAdoption(
     expectedCurrentActivityCount: number;
   },
 ) {
-  return db.$transaction(async (tx) => {
+  return db.$transaction(
+    async (tx) => {
     const preview = await previewTermActivityAdoption(
       { $transaction: async <T>(fn: (nestedTx: RedesignTx) => Promise<T>) => fn(tx) },
       input,
@@ -728,7 +729,13 @@ export async function applyTermActivityAdoption(
         orderBy: [{ termLearningModuleId: "asc" }, { ordinal: "asc" }, { createdAt: "asc" }],
       }),
     };
-  });
+    },
+    // Adoption creates one Term Activity and one revision per candidate in a
+    // sequential loop, so the transaction grows with the size of the Learning
+    // Module. Prisma's default 5s interactive-transaction timeout is ample
+    // against a local database and not against a remote one.
+    { timeout: 120_000, maxWait: 15_000 },
+  );
 }
 
 export async function previewTermActivityRevision(
