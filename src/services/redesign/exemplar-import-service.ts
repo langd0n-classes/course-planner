@@ -487,11 +487,14 @@ export class ExemplarImportService {
         });
         moduleVersionIds.set(module.stableCode, revised.id);
       }
-      // The exemplar import writes the whole course structure in one
-      // transaction. Prisma's default interactive-transaction timeout is 5s,
-      // which is ample against a local database and not against a remote one.
       },
-      { timeout: 120_000, maxWait: 15_000 },
+      // The exemplar import writes the whole course structure in one
+      // transaction, one row at a time. Prisma's default interactive-transaction
+      // timeout is 5s, which is ample against a local database and not against a
+      // remote one: importing the 130-Topic DS-100 snapshot into a Neon database
+      // measured 125 seconds, because each write is a separate round trip.
+      // Batching those writes would make this far shorter — see issue #63.
+      { timeout: 300_000, maxWait: 30_000 },
     );
 
     return {
