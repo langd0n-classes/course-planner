@@ -6,10 +6,95 @@ Sections marked TODO need something only he can supply.
 
 ---
 
+## Operator narrative pass — write this next
+
+This document is the product rationale and the source material for a later blog
+essay. Write the operator evidence here first. Do not try to make this section
+publish-ready while answering the questions; concrete history is more valuable
+than polished prose at this stage.
+
+### 1. Open with the course moving underneath the plan
+
+Start with one real incident, not the market landscape.
+
+- What changed while the course was running: a canceled meeting, a concept that
+  did not land, a schedule compression, a redesigned assessment, or something
+  else?
+- What did you need to decide immediately?
+- Which documents or systems held pieces of the answer?
+- What could none of them tell you about the consequences of the change?
+- What did you track mentally or repair by hand?
+
+The incident should establish the core problem: the instructor needs to revise
+the plan without erasing the difference between what was intended, what
+happened, and what must happen next.
+
+### 2. Explain the workaround that proved the need
+
+- What did you build in markdown and git?
+- Which parts represented the course design, the term plan, and the delivered
+  reality?
+- How did you clone or adapt one term into another?
+- What questions could the workaround answer that Blackboard or a spreadsheet
+  could not?
+- What remained expensive, fragile, or dependent on knowledge in your head?
+- How long did you keep using it, and why did you tolerate the maintenance cost?
+
+The existence of a durable workaround matters more than the number of products
+considered. It shows that the need survived after the novelty wore off.
+
+### 3. Use the tool categories to define the missing layer
+
+Keep the categories below. For each one, answer the same two questions:
+
+1. What job is this category actually designed to do?
+2. What happens when it is asked to preserve and revise a live course plan?
+
+Identify one near-miss if possible. Which tool came closest, and what exact
+boundary made you stop using it? A near-miss defines the product gap more clearly
+than a long inventory of distant alternatives.
+
+### 4. Explain why GenAI did not remove the problem
+
+- What plans or redesigns did you generate with AI?
+- Where did the generated plan live after the conversation ended?
+- What happened when the calendar, topic map, or assessment strategy changed?
+- Could the model distinguish canonical course design from one term's delivery?
+- Did replanning preserve prior decisions and their reasons, or begin again from
+  a plausible-looking snapshot?
+
+The claim to test is: GenAI can generate a plan, but generation without durable
+structure turns every revision into another first draft.
+
+### 5. Name the product boundary precisely
+
+Course Planner does not run enrollment, deliver content, keep a gradebook, or
+become the student system of record. It runs the **plan** while the course is in
+motion.
+
+- What state must Course Planner own?
+- What content should remain in GitHub, Drive, or the LMS?
+- Why must intended design and actual delivery remain separately visible?
+- What should an instructor be able to simulate before committing a change?
+- What question should this product answer in five minutes that currently takes
+  an hour?
+
+### 6. Close on the operating principle
+
+End with the smallest durable claim, not the entire roadmap:
+
+> A course plan has to survive contact with the course.
+
+The product exists to preserve intended structure, record what actually
+happened, and show the consequences of the next change before the instructor
+commits it.
+
+---
+
 ## The thesis
 
-Existing tools help you **design** a course. Nothing helps you **run** one while it is moving and
-you are inside it.
+Existing tools help you **design** a course or **deliver** one. Nothing the operator found helps
+an instructor run the **plan** while the course is moving and the instructor is inside it.
 
 > "live fire course running"
 
@@ -18,8 +103,8 @@ design-time and review-time. "Probability didn't land, redo it in week 9" is liv
 
 ## The search
 
-The operator evaluated roughly 87 tools, spreadsheets, and approaches — before and after generative
-AI — trying to solve course planning and design. None fit. He then built a bespoke system in
+The operator evaluated many tools, spreadsheets, and approaches — before and after generative AI —
+trying to solve course planning and design. None fit. He then built a bespoke system in
 markdown and git and has run his course on it since.
 
 That last fact matters more than the count. A costly workaround maintained for years is stronger
