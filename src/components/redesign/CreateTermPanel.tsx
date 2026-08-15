@@ -215,46 +215,9 @@ export default function CreateTermPanel({
     visibleCalendars.length === 0 ||
     selectedDays.length === 0 ||
     (panelState.phase === "form" && panelState.submitting);
-
-  if (institutions.length === 0) {
-    return (
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Create a term</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Terms are blocked until this course is linked to an institution.
-        </p>
-        {onResolveMissingInstitution ? (
-          <button
-            type="button"
-            onClick={onResolveMissingInstitution}
-            className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
-          >
-            Link institution to create a term
-          </button>
-        ) : null}
-      </div>
-    );
-  }
-
-  if (visibleCalendars.length === 0) {
-    return (
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Create a term</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Terms need an academic calendar before dates and meeting patterns can be previewed.
-        </p>
-        {onResolveMissingCalendar ? (
-          <button
-            type="button"
-            onClick={onResolveMissingCalendar}
-            className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
-          >
-            Create calendar to continue
-          </button>
-        ) : null}
-      </div>
-    );
-  }
+  const missingInstitution = institutions.length === 0;
+  const missingCalendar = visibleCalendars.length === 0;
+  const missingDays = selectedDays.length === 0;
 
   if (panelState.phase === "preview") {
     const { preview, applying, error } = panelState;
@@ -489,7 +452,7 @@ export default function CreateTermPanel({
 
       <div className="grid gap-4 md:grid-cols-2">
         <label className="text-sm text-slate-700">
-          <span className="mb-1 block font-medium">Institution</span>
+          <span className="mb-1 block font-medium">Institution <span className="text-rose-700">(required)</span></span>
           <select
             aria-label="Institution"
             value={institutionId}
@@ -506,7 +469,7 @@ export default function CreateTermPanel({
         </label>
 
         <label className="text-sm text-slate-700">
-          <span className="mb-1 block font-medium">Academic Calendar</span>
+          <span className="mb-1 block font-medium">Academic Calendar <span className="text-rose-700">(required)</span></span>
           <select
             aria-label="Academic Calendar"
             value={academicCalendarId}
@@ -527,7 +490,7 @@ export default function CreateTermPanel({
         </label>
 
         <label className="text-sm text-slate-700">
-          <span className="mb-1 block font-medium">Term Code</span>
+          <span className="mb-1 block font-medium">Term Code <span className="text-rose-700">(required)</span></span>
           <input
             aria-label="Term Code"
             value={code}
@@ -539,7 +502,7 @@ export default function CreateTermPanel({
         </label>
 
         <label className="text-sm text-slate-700">
-          <span className="mb-1 block font-medium">Display Name</span>
+          <span className="mb-1 block font-medium">Display Name <span className="text-rose-700">(required)</span></span>
           <input
             aria-label="Display Name"
             value={name}
@@ -551,7 +514,7 @@ export default function CreateTermPanel({
         </label>
 
         <label className="text-sm text-slate-700">
-          <span className="mb-1 block font-medium">Start Date</span>
+          <span className="mb-1 block font-medium">Start Date <span className="text-rose-700">(required)</span></span>
           <input
             aria-label="Start Date"
             type="date"
@@ -563,7 +526,7 @@ export default function CreateTermPanel({
         </label>
 
         <label className="text-sm text-slate-700">
-          <span className="mb-1 block font-medium">End Date</span>
+          <span className="mb-1 block font-medium">End Date <span className="text-rose-700">(required)</span></span>
           <input
             aria-label="End Date"
             type="date"
@@ -598,7 +561,7 @@ export default function CreateTermPanel({
       ) : null}
 
       <fieldset className="mt-4">
-        <legend className="text-sm font-medium text-slate-700">Meeting Pattern</legend>
+        <legend className="text-sm font-medium text-slate-700">Meeting Pattern <span className="text-rose-700">(required)</span></legend>
         <p className="mt-1 text-xs text-slate-500">Select the weekdays when lecture sessions meet.</p>
         <div className="mt-2 flex flex-wrap gap-2">
           {WEEKDAYS.map((day) => {
@@ -625,13 +588,28 @@ export default function CreateTermPanel({
         </div>
       </fieldset>
 
-      {visibleCalendars.length === 0 ? (
-        <p className="mt-4 text-sm text-amber-700">No academic calendars are available for that institution yet.</p>
-      ) : null}
       {error ? <p className="mt-3 text-sm text-rose-700" role="alert">{error}</p> : null}
       {applyOutcome ? <p className="mt-3 text-sm text-emerald-700" aria-live="polite">{applyOutcome}</p> : null}
 
-      <div className="mt-5 flex justify-end">
+      <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
+        {formDisabled && !submitting ? (
+          <div role="status" className="flex flex-wrap items-center gap-2 text-sm text-amber-700">
+            <span>Before previewing:</span>
+            {missingInstitution ? <span>link an institution</span> : null}
+            {missingInstitution && onResolveMissingInstitution ? (
+              <button type="button" onClick={onResolveMissingInstitution} className="underline">
+                Link institution to create a term
+              </button>
+            ) : null}
+            {missingCalendar ? <span>create an academic calendar</span> : null}
+            {missingCalendar && onResolveMissingCalendar ? (
+              <button type="button" onClick={onResolveMissingCalendar} className="underline">
+                Create an academic calendar
+              </button>
+            ) : null}
+            {missingDays ? <span>select at least one meeting day</span> : null}
+          </div>
+        ) : null}
         <button
           type="submit"
           disabled={formDisabled}

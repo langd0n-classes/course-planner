@@ -331,7 +331,7 @@ export class ExemplarImportService {
               title: module.title,
               description: module.description,
               learningObjectives: module.objectives ?? [],
-              notes: provenanceNote(staged, `learningModules.${module.stableCode}`),
+              notes: null,
               defaultSequence: staged.snapshot.learningModules.indexOf(module),
               changeSummary: "Imported from generic exemplar snapshot",
             },
@@ -355,7 +355,7 @@ export class ExemplarImportService {
             draft: {
               title: topic.title,
               category: topic.category,
-              description: withProvenanceText(topic.description, staged, `topics.${topic.stableCode}`),
+              description: topic.description ?? null,
               changeSummary: "Imported from generic exemplar snapshot",
             },
           }));
@@ -383,7 +383,7 @@ export class ExemplarImportService {
             createdByInstructorId: input.instructorId,
             draft: {
               title: activity.title,
-              summary: withProvenanceText(activity.summary, staged, `activities.${activity.stableCode}`),
+              summary: activity.summary ?? null,
               activityTypeVersionId,
               changeSummary: "Imported from generic exemplar snapshot",
               detail: defaultActivityDetail(behaviorFamily),
@@ -464,7 +464,7 @@ export class ExemplarImportService {
           .map((activity, index) => ({
             activityVersionId: activityVersionIds.get(activity.stableCode)!,
             sequence: index,
-            notes: provenanceNote(staged, `learningModules.${module.stableCode}.activities.${activity.stableCode}`),
+            notes: null,
           }));
         if ((existingMembership?.topics.length ?? 0) === topics.length && (existingMembership?.activities.length ?? 0) === activities.length) {
           continue;
@@ -478,7 +478,7 @@ export class ExemplarImportService {
             title: module.title,
             description: module.description,
             learningObjectives: module.objectives ?? [],
-            notes: provenanceNote(staged, `learningModules.${module.stableCode}`),
+            notes: null,
             defaultSequence: staged.snapshot.learningModules.indexOf(module),
             changeSummary: "Attached imported exemplar Topic and Activity memberships",
             topics,
@@ -629,19 +629,6 @@ function provenancePayload(staged: Pick<StagedExemplarImport, "snapshot" | "snap
     path,
     oneWay: true,
   };
-}
-
-function provenanceNote(staged: Pick<StagedExemplarImport, "snapshot" | "snapshotFingerprint">, path: string) {
-  return `Importer provenance: ${JSON.stringify(provenancePayload(staged, path))}`;
-}
-
-function withProvenanceText(
-  text: string | null | undefined,
-  staged: Pick<StagedExemplarImport, "snapshot" | "snapshotFingerprint">,
-  path: string,
-) {
-  const note = provenanceNote(staged, path);
-  return text ? `${text}\n\n${note}` : note;
 }
 
 function stablePreview(preview: ExemplarPreview): ExemplarPreview {
