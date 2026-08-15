@@ -89,7 +89,7 @@ export default function TopicBrowser({
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(19rem,0.95fr)]">
-      <div className="space-y-3">
+      <div data-testid="topic-list" className="min-w-0 space-y-3">
         {buckets.map((bucket) => (
           <section key={bucket.key} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -129,7 +129,7 @@ export default function TopicBrowser({
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="truncate font-medium text-slate-900">
+                          <p className="break-words font-medium text-slate-900">
                             {entry.currentVersion?.title ?? "Draft topic"}
                             <span className="ml-2 text-xs font-medium uppercase tracking-wide text-slate-500">
                               {entry.topic.stableCode}

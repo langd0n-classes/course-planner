@@ -325,4 +325,20 @@ describe("ExemplarImportService", () => {
     expect(tx.__state.activityVersionTopicActions.length).toBeGreaterThan(0);
     expect(tx.__state.activityVersionTopicActions.every((row: any) => row.provenance?.oneWay)).toBe(true);
   });
+
+  it("stores importer provenance as JSON without adding importer text to instructor-visible fields", async () => {
+    const service = new ExemplarImportService();
+    const tx = createMemoryTx();
+    await service.apply(transactionalDb(tx), {
+      instructorId: "instructor-1",
+      courseId: "course-1",
+      snapshot: genericDemoExemplarSnapshot,
+    });
+
+    expect(tx.__state.activityVersionTopicActions[0]).toMatchObject({
+      provenance: expect.objectContaining({ importer: "generic_exemplar_importer", oneWay: true }),
+      notes: null,
+    });
+    expect(JSON.stringify(tx.__state)).not.toContain("Importer provenance:");
+  });
 });

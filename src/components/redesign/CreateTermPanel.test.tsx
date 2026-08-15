@@ -350,11 +350,27 @@ describe("CreateTermPanel", () => {
     expect(screen.getByLabelText("Term Code")).toHaveValue("SP27");
   });
 
-  it("names the missing institution prerequisite and takes the instructor to its setup action", () => {
+  it("shows the missing institution reason beside the disabled preview control", () => {
     const resolveInstitution = vi.fn();
     render(<CreateTermPanel courseId="course-1" institutions={[]} calendars={[]} onTermCreated={onTermCreated} onResolveMissingInstitution={resolveInstitution} />);
-    expect(screen.getByText("Terms are blocked until this course is linked to an institution.")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(/link an institution/i);
+    expect(screen.getByRole("button", { name: "Preview term" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Link institution to create a term" }));
     expect(resolveInstitution).toHaveBeenCalledOnce();
+  });
+
+  it("shows the missing calendar reason beside the disabled preview control", () => {
+    const resolveCalendar = vi.fn();
+    render(<CreateTermPanel courseId="course-1" institutions={institutions} calendars={[]} onTermCreated={onTermCreated} onResolveMissingCalendar={resolveCalendar} />);
+    expect(screen.getByRole("status")).toHaveTextContent(/create an academic calendar/i);
+    expect(screen.getByRole("button", { name: "Preview term" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Create an academic calendar" }));
+    expect(resolveCalendar).toHaveBeenCalledOnce();
+  });
+
+  it("shows the missing meeting-days reason beside the disabled preview control", () => {
+    render(<CreateTermPanel courseId="course-1" institutions={institutions} calendars={calendars} onTermCreated={onTermCreated} />);
+    expect(screen.getByText(/select at least one meeting day/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Preview term" })).toBeDisabled();
   });
 });

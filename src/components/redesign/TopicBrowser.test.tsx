@@ -115,4 +115,17 @@ describe("TopicBrowser", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Current chain: No prerequisites");
     expect(screen.queryByRole("button", { name: /Current chain/ })).not.toBeInTheDocument();
   });
+
+  it("constrains a long Topic list beside the detail panel at desktop width", () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1440 });
+    const title = "A very long Topic title that must wrap within the list instead of extending underneath the open detail panel";
+    const topics = Array.from({ length: 130 }, (_, index) => ({
+      topic: { id: `topic-${index}`, courseId: "course-1", learningModuleId: null, stableCode: `T${index}`, currentVersionId: `tv-${index}`, archivedAt: null },
+      currentVersion: { id: `tv-${index}`, topicId: `topic-${index}`, revision: 1, title: `${title} ${index}`, category: "Dense", description: null, changeSummary: null, publishedAt: null },
+      prerequisiteTopicIds: [],
+    }));
+    render(<TopicBrowser buckets={[{ key: "unassigned", label: "Unassigned Topics", learningModuleId: null, isUnassigned: true, topics }]} topicTitleById={new Map()} onSaveTopic={vi.fn(async () => undefined)} />);
+    expect(screen.getByTestId("topic-list")).toHaveClass("min-w-0");
+    expect(screen.getAllByText(`${title} 0`)[0]).toHaveClass("break-words");
+  });
 });
