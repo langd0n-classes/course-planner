@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:demo-db": "tsx scripts/test-demo-course-db.ts",
     "test:watch": "vitest",
     "db:generate": "npx prisma generate",
     "db:migrate": "npx prisma migrate dev",

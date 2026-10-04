@@ -1,5 +1,9 @@
 # Architecture
 
+## Authenticated Instructor and demo Course
+
+Authenticated routes normalize the session email and resolve it through an Instructor upsert, reading the winning row after concurrent unique-key conflicts. `POST /api/instructors/me/demo-course` loads the generic exemplar into a Course and a current or next Spring or Fall Term owned by that Instructor. The service locks the Instructor row and creates the Course, imported content, dedicated demo Institution and Academic Calendar, Term calendar, and adopted Term Activities in one transaction. A unique `(instructorId, demoKey)` key identifies an existing demo on repeat requests. The workspace homepage exposes the action through the typed redesign API client.
+
 ## High-Level Overview
 
 ```

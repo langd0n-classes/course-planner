@@ -52,4 +52,18 @@ describe("CourseIndexPage", () => {
       expect(push).toHaveBeenCalledWith("/courses/course-99");
     });
   });
+
+  it("loads the signed-in user's demo course from the workspace", async () => {
+    const loadDemoCourse = vi.fn(async () => ({ courseId: "demo-course", created: true }));
+    setMockBackend({ listCourses: vi.fn(async () => []), loadDemoCourse });
+
+    render(<CourseIndexPage />);
+    await screen.findByText("No courses yet.");
+    fireEvent.click(screen.getByRole("button", { name: "Load demo course" }));
+
+    await waitFor(() => {
+      expect(loadDemoCourse).toHaveBeenCalledTimes(1);
+      expect(push).toHaveBeenCalledWith("/courses/demo-course");
+    });
+  });
 });

@@ -52,6 +52,7 @@ import type {
   ListActivityTypesResponse,
   ListActivityVersionsResponse,
   ListArtifactsResponse,
+  LoadDemoCourseResponse,
   ListCourseActivityTypeVersionsResponse,
   ListTermCalendarExceptionsResponse,
   ListAcademicCalendarVersionsResponse,
@@ -370,6 +371,9 @@ const _api = {
   // Courses -------------------------------------------------------------------
   listCourses: (): Promise<CourseDto[]> =>
     get<{ courses: CourseDto[] }>("/api/courses").then((d) => d.courses),
+
+  loadDemoCourse: (): Promise<LoadDemoCourseResponse> =>
+    post<LoadDemoCourseResponse>("/api/instructors/me/demo-course"),
 
   getCourse: (id: Id): Promise<CourseDto> =>
     get<{ course: CourseDto }>(`/api/courses/${id}`).then((d) => d.course),

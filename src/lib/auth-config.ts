@@ -17,18 +17,18 @@ export function isSignInEmailAllowed(
   email: string | null | undefined,
   env: AuthEnvironment = process.env,
 ): boolean {
-  const normalizedEmail = email?.trim();
+  const normalizedEmail = email?.trim().toLowerCase();
   if (!normalizedEmail) {
     return false;
   }
 
   const allowedEmails = (env.ALLOWED_EMAIL ?? "")
     .split(",")
-    .map((allowedEmail) => allowedEmail.trim())
+    .map((allowedEmail) => allowedEmail.trim().toLowerCase())
     .filter(Boolean);
 
   const previewEmail = getPreviewAuthEmail(env);
   return (
-    allowedEmails.includes(normalizedEmail) || previewEmail === normalizedEmail
+    allowedEmails.includes(normalizedEmail) || previewEmail?.toLowerCase() === normalizedEmail
   );
 }

@@ -279,6 +279,7 @@ model Course {
   id                  String    @id @default(uuid()) @db.Uuid
   instructorId        String    @map("instructor_id") @db.Uuid
   shortId             String    @map("short_id")
+  demoKey             String?   @map("demo_key")
   title               String
   titleIsPlaceholder  Boolean   @default(false) @map("title_is_placeholder")
   number              String
@@ -297,6 +298,7 @@ model Course {
   topics          Topic[]
 
   @@unique([instructorId, shortId])
+  @@unique([instructorId, demoKey])
   @@unique([id, instructorId])
   @@map("courses")
 }
