@@ -60,7 +60,7 @@ export default function CoverageMatrixPage() {
   }, [termId]);
 
   useEffect(() => {
-    load();
+    void Promise.resolve().then(load);
   }, [load]);
 
   async function addCoverage(

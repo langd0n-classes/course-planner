@@ -45,7 +45,7 @@ export default function AssessmentsPage() {
   }, [termId]);
 
   useEffect(() => {
-    load();
+    void Promise.resolve().then(load);
   }, [load]);
 
   async function handleCreate(e: React.FormEvent) {

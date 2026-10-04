@@ -18,10 +18,6 @@ export default function TermsPage() {
     courseCode: "DS-100",
   });
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
   async function loadData() {
     const [t, i] = await Promise.all([
       api.getTerms(),
@@ -33,6 +29,10 @@ export default function TermsPage() {
       setForm((f) => ({ ...f, instructorId: i[0].id }));
     }
   }
+
+  useEffect(() => {
+    void Promise.resolve().then(loadData);
+  }, []);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();

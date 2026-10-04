@@ -316,28 +316,28 @@ export class ExemplarImportService {
         counts.activity_type += 1;
       }
 
-      for (const module of staged.snapshot.learningModules) {
+      for (const learningModule of staged.snapshot.learningModules) {
         const existing = await tx.learningModule.findUnique({
-          where: { courseId_stableCode: { courseId: input.courseId, stableCode: module.stableCode } },
+          where: { courseId_stableCode: { courseId: input.courseId, stableCode: learningModule.stableCode } },
           include: { currentVersion: true },
         });
         const created =
           existing ??
           (await createLearningModule(transactional(tx), {
             courseId: input.courseId,
-            stableCode: module.stableCode,
+            stableCode: learningModule.stableCode,
             createdByInstructorId: input.instructorId,
             draft: {
-              title: module.title,
-              description: module.description,
-              learningObjectives: module.objectives ?? [],
+              title: learningModule.title,
+              description: learningModule.description,
+              learningObjectives: learningModule.objectives ?? [],
               notes: null,
-              defaultSequence: staged.snapshot.learningModules.indexOf(module),
+              defaultSequence: staged.snapshot.learningModules.indexOf(learningModule),
               changeSummary: "Imported from generic exemplar snapshot",
             },
           }));
-        moduleIds.set(module.stableCode, created.id);
-        moduleVersionIds.set(module.stableCode, created.currentVersionId);
+        moduleIds.set(learningModule.stableCode, created.id);
+        moduleVersionIds.set(learningModule.stableCode, created.currentVersionId);
         counts.learning_module += 1;
       }
 
@@ -449,9 +449,9 @@ export class ExemplarImportService {
         counts.activity_topic_scope += topicScopeIds.length;
       }
 
-      for (const module of staged.snapshot.learningModules) {
-        const moduleId = moduleIds.get(module.stableCode);
-        const currentVersionId = moduleVersionIds.get(module.stableCode);
+      for (const learningModule of staged.snapshot.learningModules) {
+        const moduleId = moduleIds.get(learningModule.stableCode);
+        const currentVersionId = moduleVersionIds.get(learningModule.stableCode);
         if (!moduleId || !currentVersionId) continue;
         const existingMembership = await tx.learningModuleVersion.findUnique({
           where: { id: currentVersionId },
@@ -460,7 +460,7 @@ export class ExemplarImportService {
         // Topic placement is activity-derived; imported Topics remain unassigned.
         const topics: { topicVersionId: string; sequence: number }[] = [];
         const activities = staged.snapshot.activities
-          .filter((activity) => activity.learningModuleCode === module.stableCode)
+          .filter((activity) => activity.learningModuleCode === learningModule.stableCode)
           .map((activity, index) => ({
             activityVersionId: activityVersionIds.get(activity.stableCode)!,
             sequence: index,
@@ -475,17 +475,17 @@ export class ExemplarImportService {
           createdByInstructorId: input.instructorId,
           publish: false,
           draft: {
-            title: module.title,
-            description: module.description,
-            learningObjectives: module.objectives ?? [],
+            title: learningModule.title,
+            description: learningModule.description,
+            learningObjectives: learningModule.objectives ?? [],
             notes: null,
-            defaultSequence: staged.snapshot.learningModules.indexOf(module),
+            defaultSequence: staged.snapshot.learningModules.indexOf(learningModule),
             changeSummary: "Attached imported exemplar Topic and Activity memberships",
             topics,
             activities,
           },
         });
-        moduleVersionIds.set(module.stableCode, revised.id);
+        moduleVersionIds.set(learningModule.stableCode, revised.id);
       }
       },
       // The exemplar import writes the whole course structure in one
