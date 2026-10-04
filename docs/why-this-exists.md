@@ -79,6 +79,8 @@ than a long inventory of distant alternatives.
 - Did replanning preserve prior decisions and their reasons, or begin again from
   a plausible-looking snapshot?
   - generally, i tried to do solid commit messages w/ the reasoning.I also try to take notes on what to do next semester. i also try to get my surveys and course eval feedback in to the plan for a next semester.
+  - DS-100's own history answers this section in detail; see "The strongest
+    evidence, from the operator's own repo" below.
 
 The claim to test is: GenAI can generate a plan, but generation without durable
 structure turns every revision into another first draft.
@@ -214,6 +216,24 @@ The same document describes the fall term as a clone of summer that must be "un-
 compressed schedule into a full September–December cadence, driven by the canonical topic map and
 the calendar. That is this application's core operation, being performed by hand with git branches
 and folder conventions.
+
+Two more events from DS-100's history show the same pattern at a smaller scale:
+
+- **One lost meeting.** A snow day cancelled one lecture. Its content moved into
+  the next lecture, the due dates of a weekly assessment shifted, a lab changed
+  focus, and a project gained a new requirement in both its description and its
+  notebook. All of it was repaired by hand, in one commit, so that the next
+  student meeting would still make sense.
+- **Delivery changed the design.** Teaching one lecture covered two topics more
+  deeply than planned. The topics were promoted to core after delivery. That
+  change had to reach both topic maps, the coverage grid, the lecture plan, two
+  assessment overviews, and four lecture overviews.
+
+The repository also separates the stable course design (a course-level topic
+map with no dates or pacing) from one term's delivery (a term topic map with
+packaging and checkoffs). The Fall clone shows where that separation breaks:
+the cloned term map still carried the previous term's checkoffs, and cloned
+lecture overviews carried retired topic codes that had to be remapped by hand.
 
 ## What this application therefore is
 
