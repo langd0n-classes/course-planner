@@ -382,6 +382,7 @@ export type UpdateLearningModuleResponse = {
 };
 export type ListLearningModuleVersionsResponse = { versions: LearningModuleVersionDto[] };
 export type CreateLearningModuleVersionResponse = { version: LearningModuleVersionDto };
+export type PublishLearningModuleVersionResponse = { version: LearningModuleVersionDto };
 
 export type TopicDto = {
   id: Id;
@@ -1392,6 +1393,7 @@ export const CANONICAL_ROUTES = [
   "/api/courses/[id]/learning-modules",
   "/api/learning-modules/[id]",
   "/api/learning-modules/[id]/versions",
+  "/api/learning-module-versions/[id]/publish",
   "/api/courses/[id]/topics",
   "/api/courses/[id]/topic-prerequisites",
   "/api/topic-versions/[id]",

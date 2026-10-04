@@ -133,6 +133,11 @@ function buildCourseWorkspaceBackend(options?: {
     entry.learningModule.currentVersionId = entry.currentVersion.id;
     return entry.currentVersion;
   });
+  const publishLearningModuleVersion = vi.fn(async (versionId: string) => {
+    const entry = learningModules.find((item) => item.currentVersion.id === versionId)!;
+    entry.currentVersion = { ...entry.currentVersion, publishedAt: "2026-10-04T00:00:00.000Z" };
+    return entry.currentVersion;
+  });
 
   const createTopic = vi.fn(
     async (
@@ -254,6 +259,7 @@ function buildCourseWorkspaceBackend(options?: {
     }),
     createLearningModule,
     createLearningModuleVersion,
+    publishLearningModuleVersion,
     restoreLearningModuleVersion: vi.fn(async () => {
       throw new Error("restoreLearningModuleVersion should not be called in this test");
     }),
@@ -645,6 +651,25 @@ describe("CourseWorkspacePage activity board moves", () => {
 });
 
 describe("workspace version editors", () => {
+  it("publishes the current draft without creating another version", async () => {
+    const draft: LearningModuleVersionDto = {
+      id: "lm-draft", learningModuleId: "lm-1", revision: 2, title: "Draft module",
+      description: null, studentDescription: null, learningObjectives: [], notes: null,
+      defaultSequence: 0, changeSummary: null, publishedAt: null, topics: [], activities: [],
+    };
+    const { backend, createLearningModuleVersion } = buildCourseWorkspaceBackend({ learningModules: [{
+      learningModule: { id: "lm-1", courseId: "course-1", stableCode: "LM1", currentVersionId: draft.id, archivedAt: null },
+      currentVersion: draft,
+    }] });
+    setMockBackend(backend);
+    render(<CourseWorkspacePage courseId="course-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Draft module" }));
+    fireEvent.click(screen.getByRole("button", { name: "Publish draft" }));
+    await waitFor(() => expect(backend.publishLearningModuleVersion).toHaveBeenCalledWith("lm-draft"));
+    expect(createLearningModuleVersion).not.toHaveBeenCalled();
+    await screen.findByText(/Revision 2 · Published/);
+  });
+
   it("opens a published module, saves a new version, and refreshes its title and revision", async () => {
     const original: LearningModuleVersionDto = {
       id: "lm-v1", learningModuleId: "lm-1", revision: 1, title: "Original module",
@@ -689,5 +714,20 @@ describe("workspace version editors", () => {
     expect(createTopicVersion).toHaveBeenCalledWith("t1", { expectedCurrentVersionId: "tv1", title: "Original topic", category: "Concept", description: "Expanded description", changeSummary: "Clarify meaning", publish: false });
     expect(updateTopic).not.toHaveBeenCalled();
     expect(original.description).toBe("Old description");
+  });
+
+  it("does not change prerequisites when Topic version creation fails", async () => {
+    const original: TopicVersionDto = { id: "tv1", topicId: "t1", revision: 1, title: "Original topic", category: "Concept", description: "Old description", changeSummary: null, publishedAt: null };
+    const { backend, createTopicVersion } = buildCourseWorkspaceBackend({ topics: [{
+      topic: { id: "t1", courseId: "course-1", learningModuleId: null, stableCode: "T1", currentVersionId: "tv1", archivedAt: null }, currentVersion: original,
+    }] });
+    createTopicVersion.mockRejectedValueOnce(new Error("Concurrent edit detected"));
+    setMockBackend(backend);
+    render(<CourseWorkspacePage courseId="course-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: /Original topic/ }));
+    fireEvent.change(screen.getByLabelText("Topic description"), { target: { value: "New description" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
+    await screen.findByText("Concurrent edit detected");
+    expect(backend.replaceTopicPrerequisites).not.toHaveBeenCalled();
   });
 });

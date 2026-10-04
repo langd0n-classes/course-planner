@@ -58,6 +58,7 @@ import type {
   ListTermsResponse,
   PlannedDeliveredDiffResponse,
   PublishActivityVersionResponse,
+  PublishLearningModuleVersionResponse,
   ReplaceCourseActivityTypeVersionsRequest,
   ReplaceCourseActivityTypeVersionsResponse,
   ReplaceCourseInstitutionsResponse,
@@ -440,6 +441,11 @@ const _api = {
     post<{ version: LearningModuleVersionDto }>(
       `/api/learning-modules/${learningModuleId}/versions`,
       version,
+    ).then((d) => d.version),
+
+  publishLearningModuleVersion: (versionId: Id): Promise<LearningModuleVersionDto> =>
+    post<PublishLearningModuleVersionResponse>(
+      `/api/learning-module-versions/${versionId}/publish`,
     ).then((d) => d.version),
 
   restoreLearningModuleVersion: async (

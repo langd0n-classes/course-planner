@@ -257,14 +257,6 @@ export default function CourseWorkspacePage({ courseId }: Props) {
     const currentVersion = currentVersionsByTopicId.get(topicId) ?? null;
     if (!topic) throw new Error("Topic not found.");
 
-    if (topic.stableCode !== input.stableCode) {
-      await redesignApi.updateTopic(topicId, {
-        stableCode: input.stableCode,
-      });
-    }
-
-    await redesignApi.replaceTopicPrerequisites(topicId, input.prerequisiteTopicIds);
-
     if (
       currentVersion &&
       ((currentVersion.title ?? "") !== input.title || (currentVersion.category ?? "") !== input.category ||
@@ -280,6 +272,14 @@ export default function CourseWorkspacePage({ courseId }: Props) {
       });
     }
 
+    if (topic.stableCode !== input.stableCode) {
+      await redesignApi.updateTopic(topicId, {
+        stableCode: input.stableCode,
+      });
+    }
+
+    await redesignApi.replaceTopicPrerequisites(topicId, input.prerequisiteTopicIds);
+
     await loadWorkspace(false);
   }
 
@@ -288,6 +288,11 @@ export default function CourseWorkspacePage({ courseId }: Props) {
     await redesignApi.createLearningModuleVersion(editingModuleId, input);
     setEditingModuleId(null);
     await loadWorkspace();
+  }
+
+  async function handlePublishLearningModule(versionId: Id) {
+    await redesignApi.publishLearningModuleVersion(versionId);
+    await loadWorkspace(false);
   }
 
   async function handleRestoreVersion(learningModuleId: Id, versionId: Id) {
@@ -1019,6 +1024,7 @@ export default function CourseWorkspacePage({ courseId }: Props) {
           stableCode={learningModules.find((module) => module.id === editingModuleId)!.stableCode}
           version={currentVersionsByLearningModuleId.get(editingModuleId)!}
           onSave={handleSaveLearningModule}
+          onPublish={handlePublishLearningModule}
           onCancel={() => setEditingModuleId(null)}
         />
       ) : null}

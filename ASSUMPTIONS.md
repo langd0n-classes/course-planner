@@ -343,3 +343,6 @@ Decisions made where the requirements were underspecified. Each can be revisited
   saved as contiguous zero-based sequence values.
 - Topic descriptions and change summaries belong to new Topic versions. Stable
   codes and prerequisites continue through their existing identity and DAG APIs.
+- Publishing acts on the current saved Learning Module draft. It sets that
+  version's publication time without creating another revision; unsaved editor
+  changes must be saved first.

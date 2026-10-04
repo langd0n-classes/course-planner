@@ -16,6 +16,7 @@ import { toLearningModuleVersionDto } from "../../lib/redesign-serializers";
 import { computePlannedDeliveredDiff, createDeliveredRevision } from "./offering-service";
 import {
   assertPublishedLearningModuleVersionImmutable,
+  publishLearningModuleVersion,
   reviseLearningModule,
 } from "./revision-service";
 import { applyTermCreation, createTerm } from "./term-service";
@@ -33,6 +34,42 @@ function createTransactionalDb(tx: Record<string, any>) {
     $transaction: async <T>(fn: (tx: Record<string, any>) => Promise<T>) => fn(tx),
   };
 }
+
+describe("Learning Module draft publication", () => {
+  it("publishes the owned current version with its memberships", async () => {
+    const version = {
+      id: "lmv-1", learningModuleId: "lm-1", publishedAt: null,
+      topics: [{ topicVersionId: "tv-1", sequence: 0 }], activities: [],
+      learningModule: { currentVersionId: "lmv-1", course: { instructorId: "instructor-1" } },
+    };
+    let updateData: Record<string, unknown> | null = null;
+    const db = createTransactionalDb({ learningModuleVersion: {
+      findUnique: async () => version,
+      update: async ({ data }: any) => {
+        updateData = data;
+        return { ...version, ...data };
+      },
+    } });
+    const published = await publishLearningModuleVersion(db, "instructor-1", "lmv-1");
+    expect(updateData).toMatchObject({ publishedAt: expect.any(Date) });
+    expect(published.topics).toEqual(version.topics);
+  });
+
+  it("rejects another instructor and an obsolete draft", async () => {
+    const version = {
+      id: "lmv-1", publishedAt: null,
+      learningModule: { currentVersionId: "lmv-1", course: { instructorId: "other" } },
+    };
+    const db = createTransactionalDb({ learningModuleVersion: {
+      findUnique: async () => version,
+      update: async () => { throw new Error("Must not update"); },
+    } });
+    await expect(publishLearningModuleVersion(db, "instructor-1", "lmv-1")).rejects.toThrow(DomainInvariantError);
+    version.learningModule.course.instructorId = "instructor-1";
+    version.learningModule.currentVersionId = "lmv-2";
+    await expect(publishLearningModuleVersion(db, "instructor-1", "lmv-1")).rejects.toThrow(ConcurrencyConflictError);
+  });
+});
 
 // Wraps a test db so a test can assert what options a service passes to
 // $transaction — a bulk write must be given room to finish against a remote

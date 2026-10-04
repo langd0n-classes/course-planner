@@ -84,17 +84,32 @@ export async function reviseLearningModule(
 
 export async function publishLearningModuleVersion(
   db: RedesignDb,
-  input: { learningModuleVersionId: string },
+  instructorId: string,
+  learningModuleVersionId: string,
 ) {
   return db.$transaction(async (tx) => {
     const version = await tx.learningModuleVersion.findUnique({
-      where: { id: input.learningModuleVersionId },
+      where: { id: learningModuleVersionId },
+      include: {
+        learningModule: { include: { course: { select: { instructorId: true } } } },
+        topics: { orderBy: { sequence: "asc" } },
+        activities: { orderBy: { sequence: "asc" } },
+      },
     });
-    if (!version) throw new DomainInvariantError("Learning Module version not found");
+    if (!version || version.learningModule.course.instructorId !== instructorId) {
+      throw new DomainInvariantError("Learning Module version not found");
+    }
+    if (version.learningModule.currentVersionId !== version.id) {
+      throw new ConcurrencyConflictError();
+    }
     if (version.publishedAt) return version;
     return tx.learningModuleVersion.update({
       where: { id: version.id },
       data: { publishedAt: new Date() },
+      include: {
+        topics: { orderBy: { sequence: "asc" } },
+        activities: { orderBy: { sequence: "asc" } },
+      },
     });
   });
 }
