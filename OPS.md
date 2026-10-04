@@ -21,13 +21,11 @@ Read these files before doing any work in this repo:
    were underspecified. Append to this file when making
    new assumptions; do not overwrite prior entries.
 
-Shared, cross-project conventions (basic-memory usage, path conventions,
-GitHub ops, the epic/initiative pattern, the secrets-handling rules) live in
-`~/loc-areas/meta/ai-control-plane/meta-claude.md` — read it once per
-session if you haven't already. This file covers only what's specific to
-course-planner. In particular: a live correction mid-session (who someone
-is, what a task actually means, a dated fact) is a trigger to write it to
-basic-memory in the same turn — see meta-claude.md's b-m section.
+Read the global agent guidance in
+`~/loc-areas/meta/ai-control-plane/global/OPS.md` before you proceed. It holds
+the shared, cross-project conventions: GitHub work, credentials, durable
+corrections, and agent sessions. This file covers only what's specific to
+course-planner.
 
 ## Local environment & known issues
 
