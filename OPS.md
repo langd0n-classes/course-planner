@@ -35,20 +35,14 @@ course-planner.
   `DATABASE_URL` uses host `db` (container-to-container); when running the
   toolchain from the host, connect via `localhost:5432` instead.
 
-- **`prisma` segfaults on the host — run it in a container (KNOWN ISSUE).**
-  On the current host (Fedora, glibc 2.42 / OpenSSL 3.5.x) prisma's prebuilt
-  native engine binaries SIGSEGV — even `prisma -v` core-dumps, in or out of any
-  sandbox. **This is the environment, not your bug.** Until the host install is
-  fixed, run the prisma/node toolchain (`prisma migrate`, `generate`, `db seed`,
-  `prisma format`, tests that touch the DB) **inside a container** with a stable
-  base image (e.g. `node:22-bookworm`, glibc 2.36) — repo bind-mounted, networked
-  to the Postgres container. Do not spend turns retrying prisma on the host.
-  The repo's `db:*` npm scripts run the prisma CLI (`db:migrate`, `db:reset`,
-  `db:push`, `db:generate`) or `tsx prisma/seed.ts` (`db:seed`, which loads the
-  Prisma client). Run **all** of them inside the container, not on the host.
-
-  Still true as of 2026-08-07: `npx prisma -v` and `npx prisma generate` both
-  exit 139 (SIGSEGV) on the host.
+- **`prisma` runs on the host on Fedora 44.** On Fedora 42/43 (glibc 2.42)
+  prisma's native engines segfaulted (exit 139), even for `prisma -v`. Verified
+  fixed on 2026-10-03 on Fedora 44 (glibc 2.43) with prisma 6.19.3:
+  `prisma -v` and `prisma generate` both exit 0 on the host. Run the prisma and
+  node toolchain on the host when Node is installed. If prisma exits 139 on
+  another host, that host still has the old problem: run the toolchain inside a
+  container with a stable base image (e.g. `node:22-bookworm`), repo
+  bind-mounted, networked to the Postgres container, as shown below.
 
   **Generating the client in a worktree** — this exact command works; the
   `--security-opt label=disable` flag is required, not optional:
