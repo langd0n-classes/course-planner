@@ -296,3 +296,11 @@ Client pages under `src/app/terms/*` and `src/app/skills/*` still call the
 legacy `api-client.ts` against these now-retired/stubbed routes; they are
 not rewritten here (Lane C owns that UI work) and will show errors or
 placeholders until Phase B implements the canonical handlers.
+
+## Activity-led Course design (#71)
+
+`CourseWorkspacePage` leads with `ActivityBoard`; Learning Modules group Activity
+versions. The secondary `TopicBrowser` links to
+`/courses/[courseId]/topics/[topicId]`, where `TopicWorkspacePage` loads Course
+Topics and prerequisites and `TopicEditor` edits the selected Topic. Identity,
+prerequisite, and content revision calls retain their existing contracts.

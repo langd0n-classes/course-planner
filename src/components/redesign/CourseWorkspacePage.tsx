@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useEffectEvent, useMemo, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { redesignApi } from "@/lib/redesign-api-client";
 import type {
   AcademicCalendarDto,
@@ -15,7 +15,7 @@ import type {
   TopicVersionDto,
   UpsertLearningModuleVersionRequest,
 } from "@/lib/redesign-contract";
-import { buildTopicBrowserBuckets, planActivityMove, suggestTopicStableCode } from "@/lib/redesign-workspace";
+import { planActivityMove, suggestTopicStableCode } from "@/lib/redesign-workspace";
 import CreateTermPanel from "./CreateTermPanel";
 import GapNotice from "./GapNotice";
 import LifecycleBadge from "./LifecycleBadge";
@@ -84,6 +84,7 @@ type CreateActivityTypeState =
     };
 
 export default function CourseWorkspacePage({ courseId }: Props) {
+  const [showTopicBrowser, setShowTopicBrowser] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [course, setCourse] = useState<Awaited<ReturnType<typeof redesignApi.getCourse>> | null>(null);
@@ -101,7 +102,6 @@ export default function CourseWorkspacePage({ courseId }: Props) {
   const [topics, setTopics] = useState<Awaited<ReturnType<typeof redesignApi.listTopics>>>([]);
   const [currentVersionsByTopicId, setCurrentVersionsByTopicId] = useState(new Map<Id, TopicVersionDto | null>());
   const [topicVersionsById, setTopicVersionsById] = useState(new Map<Id, TopicVersionDto>());
-  const [prerequisites, setPrerequisites] = useState<Awaited<ReturnType<typeof redesignApi.listTopicPrerequisites>>>([]);
   const [activityTypes, setActivityTypes] = useState<ActivityTypeDto[]>([]);
   const [activityTypeVersionsById, setActivityTypeVersionsById] = useState(
     new Map<Id, ActivityTypeVersionDto[]>(),
@@ -128,7 +128,6 @@ export default function CourseWorkspacePage({ courseId }: Props) {
         loadedTerms,
         loadedLearningModules,
         loadedTopics,
-        loadedPrerequisites,
         loadedActivityTypes,
       ] = await Promise.all([
         redesignApi.getCourse(courseId),
@@ -137,7 +136,6 @@ export default function CourseWorkspacePage({ courseId }: Props) {
         redesignApi.listTerms(courseId),
         redesignApi.listLearningModules(courseId),
         redesignApi.listTopics(courseId),
-        redesignApi.listTopicPrerequisites(courseId),
         redesignApi.listActivityTypes(),
       ]);
 
@@ -206,7 +204,6 @@ export default function CourseWorkspacePage({ courseId }: Props) {
       setTopics(loadedTopics);
       setCurrentVersionsByTopicId(nextCurrentTopicVersions);
       setTopicVersionsById(nextTopicVersionsById);
-      setPrerequisites(loadedPrerequisites);
       setActivityTypes(loadedActivityTypes);
       setActivityTypeVersionsById(nextActivityTypeVersionsById);
     } catch (caught) {
@@ -219,69 +216,9 @@ export default function CourseWorkspacePage({ courseId }: Props) {
   const loadFromEffect = useEffectEvent(loadWorkspace);
 
   useEffect(() => {
+    if (window.location.hash === "#topics") setShowTopicBrowser(true);
     void loadFromEffect();
   }, [courseId]);
-
-  const topicTitleById = useMemo(() => {
-    const map = new Map<Id, string>();
-    for (const topic of topics) {
-      map.set(topic.id, currentVersionsByTopicId.get(topic.id)?.title ?? topic.stableCode);
-    }
-    return map;
-  }, [currentVersionsByTopicId, topics]);
-
-  const topicBuckets = useMemo(
-    () =>
-      buildTopicBrowserBuckets({
-        learningModules,
-        currentVersionsByLearningModuleId,
-        topics,
-        currentVersionsByTopicId,
-        prerequisites,
-      }),
-    [currentVersionsByLearningModuleId, currentVersionsByTopicId, learningModules, prerequisites, topics],
-  );
-
-  async function handleSaveTopic(
-    topicId: Id,
-    input: {
-      stableCode: string;
-      title: string;
-      category: string;
-      description: string;
-      changeSummary: string;
-      prerequisiteTopicIds: Id[];
-    },
-  ) {
-    const topic = topics.find((candidate) => candidate.id === topicId);
-    const currentVersion = currentVersionsByTopicId.get(topicId) ?? null;
-    if (!topic) throw new Error("Topic not found.");
-
-    if (topic.stableCode !== input.stableCode) {
-      await redesignApi.updateTopic(topicId, {
-        stableCode: input.stableCode,
-      });
-    }
-
-    await redesignApi.replaceTopicPrerequisites(topicId, input.prerequisiteTopicIds);
-
-    if (
-      currentVersion &&
-      ((currentVersion.title ?? "") !== input.title || (currentVersion.category ?? "") !== input.category ||
-        (currentVersion.description ?? "") !== input.description || !!input.changeSummary)
-    ) {
-      await redesignApi.createTopicVersion(topicId, {
-        expectedCurrentVersionId: currentVersion.id,
-        title: input.title,
-        category: input.category || null,
-        description: input.description || null,
-        changeSummary: input.changeSummary || null,
-        publish: false,
-      });
-    }
-
-    await loadWorkspace(false);
-  }
 
   async function handleSaveLearningModule(input: UpsertLearningModuleVersionRequest) {
     if (!editingModuleId) return;
@@ -474,7 +411,6 @@ export default function CourseWorkspacePage({ courseId }: Props) {
   const activeTerms = terms.filter((term) => term.status === "active");
   const plannedTerms = terms.filter((term) => term.status === "planned");
   const closedTerms = terms.filter((term) => term.status === "closed");
-  const unassignedTopicCount = topics.filter((topic) => topic.learningModuleId === null).length;
   const unlinkedInstitutions = allInstitutions.filter(
     (institution) => !institutions.some((linkedInstitution) => linkedInstitution.id === institution.id),
   );
@@ -571,16 +507,10 @@ export default function CourseWorkspacePage({ courseId }: Props) {
           ) : null}
         </div>
 
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
           <div className="rounded-2xl bg-slate-50 px-4 py-3">
             <p className="text-xs uppercase tracking-wide text-slate-500">Learning modules</p>
             <p className="mt-1 text-xl font-semibold text-slate-900">{learningModules.length}</p>
-          </div>
-          <div className={`rounded-2xl px-4 py-3 ${unassignedTopicCount > 0 ? "bg-amber-50" : "bg-slate-50"}`}>
-            <p className="text-xs uppercase tracking-wide text-slate-500">Unassigned topics</p>
-            <p className={`mt-1 text-xl font-semibold ${unassignedTopicCount > 0 ? "text-amber-800" : "text-slate-900"}`}>
-              {unassignedTopicCount}
-            </p>
           </div>
           <div className="rounded-2xl bg-slate-50 px-4 py-3">
             <p className="text-xs uppercase tracking-wide text-slate-500">Total topics</p>
@@ -592,6 +522,15 @@ export default function CourseWorkspacePage({ courseId }: Props) {
           </div>
         </div>
       </section>
+
+      <ActivityBoard
+        courseId={courseId}
+        learningModules={learningModules}
+        currentVersionsByLearningModuleId={currentVersionsByLearningModuleId}
+        topics={topics}
+        currentVersionsByTopicId={currentVersionsByTopicId}
+        onMove={handleMoveActivity}
+      />
 
       {needsInstitution ? (
         <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
@@ -880,7 +819,7 @@ export default function CourseWorkspacePage({ courseId }: Props) {
           <div>
             <h2 className="text-lg font-semibold text-slate-900">Learning modules</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Modules group related topics. Create modules here, then place topics and later activities.
+              Learning Modules group and sequence activities. Edit a module to update its content and activity membership.
             </p>
           </div>
           {!createLmState.open ? (
@@ -1023,144 +962,134 @@ export default function CourseWorkspacePage({ courseId }: Props) {
         />
       ) : null}
 
-      <section className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">Topic-first browser</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Open a Topic to edit its title, code, category, description, and prerequisites without leaving the workspace.
-            </p>
-          </div>
-          {!createTopicState.open ? (
-            <button
-              type="button"
-              onClick={() =>
-                setCreateTopicState({
-                  open: true,
-                  stableCode: "",
-                  title: "",
-                  category: "",
-                  codeOverridden: false,
-                  submitting: false,
-                  error: null,
-                })
-              }
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
-            >
-              New topic
-            </button>
-          ) : null}
-        </div>
-
-        {createTopicState.open ? (
-          <form onSubmit={handleCreateTopic} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="mb-4 text-base font-semibold text-slate-900">New topic</h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="text-sm text-slate-700">
-                <span className="mb-1 block font-medium">Topic title</span>
-                <input
-                  value={createTopicState.title}
-                  onChange={(event) => {
-                    const nextTitle = event.target.value;
-                    setCreateTopicState({
-                      ...createTopicState,
-                      title: nextTitle,
-                      stableCode: createTopicState.codeOverridden
-                        ? createTopicState.stableCode
-                        : suggestTopicStableCode(nextTitle),
-                    });
-                  }}
-                  placeholder="Pandas basics"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
-                  required
-                  disabled={createTopicState.submitting}
-                />
-              </label>
-              <label className="text-sm text-slate-700">
-                <span className="mb-1 block font-medium">Topic code</span>
-                <input
-                  value={createTopicState.stableCode}
-                  onChange={(event) =>
-                    setCreateTopicState({
-                      ...createTopicState,
-                      stableCode: event.target.value,
-                      codeOverridden:
-                        event.target.value !== "" &&
-                        event.target.value !== suggestTopicStableCode(createTopicState.title),
-                    })
-                  }
-                  onKeyDown={(event) => {
-                    if (
-                      event.key === "Tab" &&
-                      !event.shiftKey &&
-                      !createTopicState.codeOverridden &&
-                      suggestTopicStableCode(createTopicState.title) &&
-                      createTopicState.stableCode !== suggestTopicStableCode(createTopicState.title)
-                    ) {
-                      setCreateTopicState({
-                        ...createTopicState,
-                        stableCode: suggestTopicStableCode(createTopicState.title),
-                      });
-                    }
-                  }}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
-                  disabled={createTopicState.submitting}
-                  aria-describedby="new-topic-code-suggestion"
-                />
-              </label>
-              <p id="new-topic-code-suggestion" className="text-xs text-slate-500 sm:col-span-2">
-                Suggested from the title. Press Tab to accept it and continue.
+      <details id="topics" open={showTopicBrowser} onToggle={(event) => setShowTopicBrowser(event.currentTarget.open)} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <summary className="cursor-pointer text-base font-semibold text-slate-900">Browse topics</summary>
+        <div className="mt-4 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Topics</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Topics connect to activities through introduced, practiced, or assessed actions. Open a Topic page to edit its content and prerequisites.
               </p>
-              <label className="text-sm text-slate-700">
-                <span className="mb-1 block font-medium">Category (optional)</span>
-                <input
-                  value={createTopicState.category}
-                  onChange={(event) =>
-                    setCreateTopicState({ ...createTopicState, category: event.target.value })
-                  }
-                  placeholder="tools / concepts / skills"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
-                  disabled={createTopicState.submitting}
-                />
-              </label>
             </div>
-            {createTopicState.error ? (
-              <p className="mt-3 text-sm text-rose-700">{createTopicState.error}</p>
-            ) : null}
-            <div className="mt-4 flex gap-3">
-              <button
-                type="submit"
-                disabled={createTopicState.submitting}
-                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:bg-slate-400"
-              >
-                {createTopicState.submitting ? "Creating..." : "Create topic"}
-              </button>
+            {!createTopicState.open ? (
               <button
                 type="button"
-                onClick={() => setCreateTopicState({ open: false })}
+                onClick={() =>
+                  setCreateTopicState({
+                    open: true,
+                    stableCode: "",
+                    title: "",
+                    category: "",
+                    codeOverridden: false,
+                    submitting: false,
+                    error: null,
+                  })
+                }
                 className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
               >
-                Cancel
+                New topic
               </button>
-            </div>
-          </form>
-        ) : null}
+            ) : null}
+          </div>
 
-        <TopicBrowser
-          buckets={topicBuckets}
-          topicTitleById={topicTitleById}
-          onSaveTopic={handleSaveTopic}
-        />
-      </section>
+          {createTopicState.open ? (
+            <form onSubmit={handleCreateTopic} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="mb-4 text-base font-semibold text-slate-900">New topic</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="text-sm text-slate-700">
+                  <span className="mb-1 block font-medium">Topic title</span>
+                  <input
+                    value={createTopicState.title}
+                    onChange={(event) => {
+                      const nextTitle = event.target.value;
+                      setCreateTopicState({
+                        ...createTopicState,
+                        title: nextTitle,
+                        stableCode: createTopicState.codeOverridden
+                          ? createTopicState.stableCode
+                          : suggestTopicStableCode(nextTitle),
+                      });
+                    }}
+                    placeholder="Pandas basics"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                    required
+                    disabled={createTopicState.submitting}
+                  />
+                </label>
+                <label className="text-sm text-slate-700">
+                  <span className="mb-1 block font-medium">Topic code</span>
+                  <input
+                    value={createTopicState.stableCode}
+                    onChange={(event) =>
+                      setCreateTopicState({
+                        ...createTopicState,
+                        stableCode: event.target.value,
+                        codeOverridden:
+                          event.target.value !== "" &&
+                          event.target.value !== suggestTopicStableCode(createTopicState.title),
+                      })
+                    }
+                    onKeyDown={(event) => {
+                      if (
+                        event.key === "Tab" &&
+                        !event.shiftKey &&
+                        !createTopicState.codeOverridden &&
+                        suggestTopicStableCode(createTopicState.title) &&
+                        createTopicState.stableCode !== suggestTopicStableCode(createTopicState.title)
+                      ) {
+                        setCreateTopicState({
+                          ...createTopicState,
+                          stableCode: suggestTopicStableCode(createTopicState.title),
+                        });
+                      }
+                    }}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                    disabled={createTopicState.submitting}
+                    aria-describedby="new-topic-code-suggestion"
+                  />
+                </label>
+                <p id="new-topic-code-suggestion" className="text-xs text-slate-500 sm:col-span-2">
+                  Suggested from the title. Press Tab to accept it and continue.
+                </p>
+                <label className="text-sm text-slate-700">
+                  <span className="mb-1 block font-medium">Category (optional)</span>
+                  <input
+                    value={createTopicState.category}
+                    onChange={(event) =>
+                      setCreateTopicState({ ...createTopicState, category: event.target.value })
+                    }
+                    placeholder="tools / concepts / skills"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                    disabled={createTopicState.submitting}
+                  />
+                </label>
+              </div>
+              {createTopicState.error ? (
+                <p className="mt-3 text-sm text-rose-700">{createTopicState.error}</p>
+              ) : null}
+              <div className="mt-4 flex gap-3">
+                <button
+                  type="submit"
+                  disabled={createTopicState.submitting}
+                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:bg-slate-400"
+                >
+                  {createTopicState.submitting ? "Creating..." : "Create topic"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCreateTopicState({ open: false })}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : null}
 
-      <ActivityBoard
-        courseId={courseId}
-        learningModules={learningModules}
-        currentVersionsByLearningModuleId={currentVersionsByLearningModuleId}
-        topics={topics}
-        currentVersionsByTopicId={currentVersionsByTopicId}
-        onMove={handleMoveActivity}
-      />
+          <TopicBrowser courseId={courseId} topics={topics} currentVersionsByTopicId={currentVersionsByTopicId} />
+        </div>
+      </details>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between gap-3">

@@ -15,6 +15,7 @@ import type {
   UpsertTopicVersionRequest,
 } from "@/lib/redesign-contract";
 import CourseWorkspacePage from "./CourseWorkspacePage";
+import TopicWorkspacePage from "./TopicWorkspacePage";
 
 function buildCourseWorkspaceBackend(options?: {
   linkedInstitutions?: Array<{ id: string; name: string; shortName: string | null }>;
@@ -302,6 +303,37 @@ describe("CourseWorkspacePage", () => {
     vi.clearAllMocks();
   });
 
+  it("leads with the activity board and keeps Topic browsing secondary", async () => {
+    const { backend } = buildCourseWorkspaceBackend();
+    setMockBackend(backend);
+    render(<CourseWorkspacePage courseId="course-1" />);
+    const board = await screen.findByRole("region", { name: "Activity board" });
+    const browser = screen.getByText("Browse topics").closest("details")!;
+    expect(browser).not.toHaveAttribute("open");
+    expect(board.compareDocumentPosition(browser) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(board.compareDocumentPosition(screen.getByRole("heading", { name: "Terms" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByText("Unassigned topics")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Modules group related topics/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Topic description")).not.toBeInTheDocument();
+  });
+
+  it("opens the secondary browser when returning from a Topic page", async () => {
+    window.history.replaceState(null, "", "/courses/course-1#topics");
+    const { backend } = buildCourseWorkspaceBackend({ topics: [{
+      topic: { id: "t1", courseId: "course-1", learningModuleId: "lm-legacy", stableCode: "T1", currentVersionId: "tv1", archivedAt: null },
+      currentVersion: { id: "tv1", topicId: "t1", revision: 1, title: "Probability", category: "Concept", description: null, changeSummary: null, publishedAt: null },
+    }] });
+    setMockBackend(backend);
+    try {
+      render(<CourseWorkspacePage courseId="course-1" />);
+      expect(await screen.findByRole("link", { name: /Probability T1/ })).toHaveAttribute("href", "/courses/course-1/topics/t1");
+      expect(screen.getByText("Browse topics").closest("details")).toHaveAttribute("open");
+      expect(screen.queryByText("lm-legacy")).not.toBeInTheDocument();
+    } finally {
+      window.history.replaceState(null, "", "/");
+    }
+  });
+
   it("shows loading, then offers a retry after a workspace load failure", async () => {
     const { backend } = buildCourseWorkspaceBackend();
     backend.getCourse.mockRejectedValueOnce(new Error("Workspace service unavailable"));
@@ -401,7 +433,8 @@ describe("CourseWorkspacePage", () => {
       });
     });
 
-    await screen.findByRole("heading", { name: "Introduction to Data Science" });
+    await screen.findByRole("button", { name: "Introduction to Data Science" });
+    fireEvent.click(screen.getByText("Browse topics"));
     fireEvent.click(screen.getByRole("button", { name: "New topic" }));
     fireEvent.change(screen.getByLabelText("Topic title"), {
       target: { value: "Pandas basics" },
@@ -473,7 +506,7 @@ describe("CourseWorkspacePage", () => {
     });
     setMockBackend(backend);
 
-    render(<CourseWorkspacePage courseId="course-1" />);
+    render(<TopicWorkspacePage courseId="course-1" topicId="topic-1" />);
 
     await screen.findByDisplayValue("Selecting");
     fireEvent.change(screen.getByLabelText("Topic title"), {
@@ -678,8 +711,7 @@ describe("workspace version editors", () => {
       topic: { id: "t1", courseId: "course-1", learningModuleId: null, stableCode: "T1", currentVersionId: "tv1", archivedAt: null }, currentVersion: original,
     }] });
     setMockBackend(backend);
-    render(<CourseWorkspacePage courseId="course-1" />);
-    fireEvent.click(await screen.findByRole("button", { name: /Original topic/ }));
+    render(<TopicWorkspacePage courseId="course-1" topicId="t1" />);
     await screen.findByDisplayValue("Old description");
     fireEvent.change(screen.getByLabelText("Topic description"), { target: { value: "Expanded description" } });
     fireEvent.change(screen.getByLabelText("Topic change summary"), { target: { value: "Clarify meaning" } });

@@ -319,3 +319,10 @@ vision described in the design principles.
 - Real-time collaboration
 
 **No build prompt written yet.**
+
+## Activity-led Course UI (#71)
+
+The Course workspace now opens with the Activity board. Topic browsing is a
+secondary Course-wide list, and Topic content and prerequisite editing use a
+dedicated page. Learning Module editing from #66 remains available; coverage
+connections continue through Activity I/P/A actions.

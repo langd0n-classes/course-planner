@@ -343,3 +343,15 @@ Decisions made where the requirements were underspecified. Each can be revisited
   saved as contiguous zero-based sequence values.
 - Topic descriptions and change summaries belong to new Topic versions. Stable
   codes and prerequisites continue through their existing identity and DAG APIs.
+
+## Activity-led Course workspace (#71)
+
+- The Activity board is the first design surface below the Course header.
+  Learning Module editing, Term setup, and revision history remain available.
+- Topic browsing is a secondary, collapsible Course-wide list. Legacy
+  `Topic.learningModuleId` values do not define list groups or planning gaps.
+- Topic content and prerequisites use a dedicated
+  `/courses/[courseId]/topics/[topicId]` page because no existing Topic page
+  route exists. The page uses the existing identity, DAG, and revision APIs.
+  Topic creation remains available in the browser; coverage edits remain on
+  Activity cards. Learning Outcome features are outside this change.
