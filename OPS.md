@@ -21,9 +21,8 @@ Read these files before doing any work in this repo:
    were underspecified. Append to this file when making
    new assumptions; do not overwrite prior entries.
 
-Read the global agent guidance in
-`~/loc-areas/meta/ai-control-plane/global/OPS.md` before you proceed. It holds
-the shared, cross-project conventions: GitHub work, credentials, durable
+Read the operator's global agent guidance before you proceed. It holds the
+shared, cross-project conventions: GitHub work, credentials, durable
 corrections, and agent sessions. This file covers only what's specific to
 course-planner.
 
