@@ -75,6 +75,20 @@ function createMemoryTx() {
             };
           }),
       createMany: async ({ data, skipDuplicates }: any) => {
+        if (key === "learningModuleVersions") {
+          const versions = [...state[key]];
+          for (const row of data) {
+            if (
+              versions.some(
+                (version) =>
+                  version.learningModuleId === row.learningModuleId &&
+                  version.revision === row.revision,
+              )
+            )
+              throw new Error("Duplicate learning module revision");
+            versions.push(row);
+          }
+        }
         const rows = data.filter(
           (row: any) =>
             !skipDuplicates ||
@@ -226,6 +240,27 @@ describe("ExemplarImportService", () => {
         (row: any) => row.provenance?.oneWay,
       ),
     ).toBe(true);
+  });
+
+  it("applies a snapshot with a repeated learning module code", async () => {
+    const service = new ExemplarImportService();
+    const tx = createMemoryTx();
+    const snapshot = structuredClone(genericDemoExemplarSnapshot);
+    snapshot.learningModules.push({ ...snapshot.learningModules[0] });
+
+    const result = await service.apply(transactionalDb(tx), {
+      instructorId: "instructor-1",
+      courseId: "course-1",
+      snapshot,
+    });
+
+    expect(result.createdOrReused.learning_module).toBe(3);
+    expect(tx.__state.learningModules).toHaveLength(2);
+    expect(
+      tx.__state.learningModuleVersions.filter(
+        (row: any) => row.learningModuleId === tx.__state.learningModules[0].id,
+      ),
+    ).toHaveLength(2);
   });
 
   it("stores importer provenance as JSON without adding importer text to instructor-visible fields", async () => {

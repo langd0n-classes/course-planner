@@ -495,6 +495,9 @@ async function applyBatched(
   input: { instructorId: string; courseId: string },
   counts: Record<PreviewEntityKind, number>,
 ) {
+  // Batch writes bypass the individual services' ownership, course, and detail
+  // checks. This importer constructs instructor-owned, same-course rows with
+  // matching detail families; keep these assumptions aligned as those services evolve.
   const snapshot = staged.snapshot;
   const typeVersions = new Map<string, string>();
   const existingTypes = await tx.activityType.findMany({
@@ -916,7 +919,9 @@ async function applyBatched(
     index: number;
     activityVersions: string[];
   }> = [];
+  const revisedModuleCodes = new Set<string>();
   snapshot.learningModules.forEach((module, index) => {
+    if (revisedModuleCodes.has(module.stableCode)) return;
     const current = modules.get(module.stableCode)!;
     const activityVersions = snapshot.activities
       .filter((activity) => activity.learningModuleCode === module.stableCode)
@@ -926,6 +931,7 @@ async function applyBatched(
       current.activities.length === activityVersions.length
     )
       return;
+    revisedModuleCodes.add(module.stableCode);
     revisions.push({
       moduleId: current.id,
       newVersionId: randomUUID(),
