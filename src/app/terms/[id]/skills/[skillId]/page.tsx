@@ -16,24 +16,27 @@ import { CardSkeleton } from "@/components/LoadingSkeleton";
 
 export default function SkillDetailPage() {
   const { id: termId, skillId } = useParams<{ id: string; skillId: string }>();
+  return <SkillDetail key={`${termId}:${skillId}`} termId={termId} skillId={skillId} />;
+}
 
+function SkillDetail({ termId, skillId }: { termId: string; skillId: string }) {
   const [skill, setSkill] = useState<Skill | null>(null);
   const [termName, setTermName] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const [s, term] = await Promise.all([
+  const load = useCallback(() => {
+    return Promise.all([
       api.getSkill(skillId),
       api.getTerm(termId),
-    ]);
-    setSkill(s);
-    setTermName(term.name);
-    setLoading(false);
+    ]).then(([s, term]) => {
+      setSkill(s);
+      setTermName(term.name);
+      setLoading(false);
+    });
   }, [skillId, termId]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   if (loading) {

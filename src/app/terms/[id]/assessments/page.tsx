@@ -33,15 +33,16 @@ export default function AssessmentsPage() {
     progressionStage: "",
   });
 
-  const load = useCallback(async () => {
-    const [a, sk, se] = await Promise.all([
+  const load = useCallback(() => {
+    return Promise.all([
       api.getAssessments(termId) as Promise<AssessmentWithSkills[]>,
       api.getSkills(termId),
       api.getSessions({ termId }),
-    ]);
-    setAssessments(a);
-    setSkills(sk);
-    setSessions(se);
+    ]).then(([a, sk, se]) => {
+      setAssessments(a);
+      setSkills(sk);
+      setSessions(se);
+    });
   }, [termId]);
 
   useEffect(() => {

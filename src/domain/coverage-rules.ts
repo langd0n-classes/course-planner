@@ -18,12 +18,6 @@ export interface CoverageEntry {
   moduleSequence: number;
 }
 
-const LEVEL_ORDER: Record<CoverageLevel, number> = {
-  introduced: 0,
-  practiced: 1,
-  assessed: 2,
-};
-
 /**
  * Compare two coverage entries by temporal order:
  * moduleSequence first, then sessionSequence, then date as tiebreaker.

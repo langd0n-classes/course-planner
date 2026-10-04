@@ -114,6 +114,7 @@ export class MockAiPlanner implements AiPlanner {
 
   async chat(
     messages: ChatMessage[],
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Keep the AiPlanner signature; mock replies intentionally ignore course context.
     _courseContext: string,
   ): Promise<ChatMessage> {
     const lastMsg = messages[messages.length - 1];

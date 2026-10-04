@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- structural Prisma test doubles */
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { ConcurrencyConflictError, DomainInvariantError } from "./errors";
+import { ConcurrencyConflictError } from "./errors";
 import {
   applyTermActivityAdoption,
   applyTermActivityRevision,

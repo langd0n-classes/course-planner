@@ -6,7 +6,6 @@ import { useParams } from "next/navigation";
 import {
   api,
   type Session,
-  type Coverage,
   type Assessment,
 } from "@/lib/api-client";
 import Breadcrumbs from "@/components/Breadcrumbs";
@@ -19,6 +18,10 @@ import WhatIfPanel from "@/components/WhatIfPanel";
 
 export default function SessionDetailPage() {
   const { id: termId, sessionId } = useParams<{ id: string; sessionId: string }>();
+  return <SessionDetail key={`${termId}:${sessionId}`} termId={termId} sessionId={sessionId} />;
+}
+
+function SessionDetail({ termId, sessionId }: { termId: string; sessionId: string }) {
   const { showToast } = useToast();
 
   const [session, setSession] = useState<Session | null>(null);
@@ -27,28 +30,29 @@ export default function SessionDetailPage() {
   const [loading, setLoading] = useState(true);
   const [showWhatIf, setShowWhatIf] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const [s, term, sessions] = await Promise.all([
+  const load = useCallback(() => {
+    return Promise.all([
       api.getSession(sessionId),
       api.getTerm(termId),
       api.getSessions({ termId }),
-    ]);
-    setSession(s);
-    setTermName(term.name);
-    setAllSessions(sessions);
-    setLoading(false);
+    ]).then(([s, term, sessions]) => {
+      setSession(s);
+      setTermName(term.name);
+      setAllSessions(sessions);
+      setLoading(false);
+    });
   }, [sessionId, termId]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   async function updateField(field: string, value: unknown) {
     try {
       await api.updateSession(sessionId, { [field]: value });
       showToast("Session updated");
-      load();
+      setLoading(true);
+      void load();
     } catch (err) {
       showToast((err as Error).message, "error");
     }
@@ -63,7 +67,8 @@ export default function SessionDetailPage() {
     ) => {
       try {
         await api.cancelSession(sid, { reason, redistributions, force });
-        load();
+        setLoading(true);
+        void load();
       } catch (err) {
         console.error("Cancel error:", err);
       }
