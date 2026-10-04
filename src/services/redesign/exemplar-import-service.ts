@@ -1,13 +1,5 @@
-
-import { createHash } from "node:crypto";
-import { createActivity } from "./activity-service";
-import { createActivityType } from "./activity-type-service";
-import {
-  replaceActivityTopicActionsForInstructor,
-  replaceActivityTopicScopeForInstructor,
-} from "./activity-relationship-service";
+import { createHash, randomUUID } from "node:crypto";
 import { DomainInvariantError } from "./errors";
-import { createLearningModule, createTopic, reviseLearningModule } from "./revision-service";
 import type { RedesignDb, RedesignTx } from "./types";
 
 type BehaviorFamily = "meeting" | "coursework" | "assessment";
@@ -287,213 +279,19 @@ export class ExemplarImportService {
 
     await db.$transaction(
       async (tx) => {
-      const course = await tx.course.findUnique({
-        where: { id_instructorId: { id: input.courseId, instructorId: input.instructorId } },
-      });
-      if (!course) throw new DomainInvariantError("Course not found");
-
-      const moduleIds = new Map<string, string>();
-      const moduleVersionIds = new Map<string, string>();
-      const topicIds = new Map<string, string>();
-      const topicVersionIds = new Map<string, string>();
-      const activityTypeVersionIds = new Map<string, string>();
-      const activityIds = new Map<string, string>();
-      const activityVersionIds = new Map<string, string>();
-
-      for (const type of staged.snapshot.activityTypes) {
-        const version = await findOrCreateActivityTypeVersion(tx, input.instructorId, type);
-        activityTypeVersionIds.set(type.key, version.id);
-        await tx.courseActivityTypeVersion.upsert({
+        const course = await tx.course.findUnique({
           where: {
-            courseId_activityTypeVersionId: {
-              courseId: input.courseId,
-              activityTypeVersionId: version.id,
+            id_instructorId: {
+              id: input.courseId,
+              instructorId: input.instructorId,
             },
           },
-          create: { courseId: input.courseId, activityTypeVersionId: version.id },
-          update: {},
         });
-        counts.activity_type += 1;
-      }
+        if (!course) throw new DomainInvariantError("Course not found");
 
-      for (const module of staged.snapshot.learningModules) {
-        const existing = await tx.learningModule.findUnique({
-          where: { courseId_stableCode: { courseId: input.courseId, stableCode: module.stableCode } },
-          include: { currentVersion: true },
-        });
-        const created =
-          existing ??
-          (await createLearningModule(transactional(tx), {
-            courseId: input.courseId,
-            stableCode: module.stableCode,
-            createdByInstructorId: input.instructorId,
-            draft: {
-              title: module.title,
-              description: module.description,
-              learningObjectives: module.objectives ?? [],
-              notes: null,
-              defaultSequence: staged.snapshot.learningModules.indexOf(module),
-              changeSummary: "Imported from generic exemplar snapshot",
-            },
-          }));
-        moduleIds.set(module.stableCode, created.id);
-        moduleVersionIds.set(module.stableCode, created.currentVersionId);
-        counts.learning_module += 1;
-      }
-
-      for (const topic of staged.snapshot.topics) {
-        const existing = await tx.topic.findUnique({
-          where: { courseId_stableCode: { courseId: input.courseId, stableCode: topic.stableCode } },
-          include: { currentVersion: true },
-        });
-        const created =
-          existing ??
-          (await createTopic(transactional(tx), {
-            courseId: input.courseId,
-            stableCode: topic.stableCode,
-            createdByInstructorId: input.instructorId,
-            draft: {
-              title: topic.title,
-              category: topic.category,
-              description: topic.description ?? null,
-              changeSummary: "Imported from generic exemplar snapshot",
-            },
-          }));
-        topicIds.set(topic.stableCode, created.id);
-        topicVersionIds.set(topic.stableCode, created.currentVersionId);
-        counts.topic += 1;
-      }
-
-      for (const activity of staged.snapshot.activities) {
-        const activityTypeVersionId = activityTypeVersionIds.get(activity.typeKey);
-        if (!activityTypeVersionId) throw new DomainInvariantError("Activity Type not found");
-        const existing = await tx.activity.findUnique({
-          where: { courseId_stableCode: { courseId: input.courseId, stableCode: activity.stableCode } },
-          include: { currentVersion: true },
-        });
-        const behaviorFamily = staged.snapshot.activityTypes.find((type) => type.key === activity.typeKey)
-          ?.behaviorFamily;
-        if (!behaviorFamily) throw new DomainInvariantError("Activity Type not found");
-        const created =
-          existing ??
-          (await createActivity(transactional(tx), {
-            instructorId: input.instructorId,
-            courseId: input.courseId,
-            stableCode: activity.stableCode,
-            createdByInstructorId: input.instructorId,
-            draft: {
-              title: activity.title,
-              summary: activity.summary ?? null,
-              activityTypeVersionId,
-              changeSummary: "Imported from generic exemplar snapshot",
-              detail: defaultActivityDetail(behaviorFamily),
-            },
-          }));
-        activityIds.set(activity.stableCode, created.id);
-        activityVersionIds.set(activity.stableCode, created.currentVersionId);
-        counts.activity += 1;
-      }
-
-      for (const activity of staged.snapshot.activities) {
-        const activityId = activityIds.get(activity.stableCode);
-        const activityVersionId = activityVersionIds.get(activity.stableCode);
-        if (!activityId || !activityVersionId) throw new DomainInvariantError("Activity not found");
-
-        const actionInputs = (activity.topicActions ?? []).map((action) => {
-          const topic = resolveTopicRef(staged.snapshot, action.topicRef);
-          if (topic.kind !== "one") throw new DomainInvariantError("Ambiguous Topic reference");
-          const topicVersionId = topicVersionIds.get(topic.topic.stableCode);
-          if (!topicVersionId) throw new DomainInvariantError("Topic version not found");
-          return {
-            topicVersionId,
-            action: action.action,
-            notes: action.notes ?? null,
-            provenance: provenancePayload(staged, `activities.${activity.stableCode}.topicActions.${topic.topic.stableCode}.${action.action}`),
-          };
-        });
-        const existingActions = await tx.activityVersionTopicAction.findMany({
-          where: { activityVersionId },
-        });
-        if (!sameTopicActions(existingActions, actionInputs)) {
-          await replaceActivityTopicActionsForInstructor(transactional(tx), {
-            instructorId: input.instructorId,
-            activityVersionId,
-            actions: actionInputs,
-          });
-        }
-        counts.topic_action += actionInputs.length;
-
-        const topicScopeIds = [
-          ...new Set(
-            (activity.topicActions ?? []).map((action) => {
-              const topic = resolveTopicRef(staged.snapshot, action.topicRef);
-              if (topic.kind !== "one") throw new DomainInvariantError("Ambiguous Topic reference");
-              const topicId = topicIds.get(topic.topic.stableCode);
-              if (!topicId) throw new DomainInvariantError("Topic not found");
-              return topicId;
-            }),
-          ),
-        ];
-        const scopeInputs = topicScopeIds.map((topicId) => ({
-            topicId,
-            provenance: provenancePayload(staged, `activities.${activity.stableCode}.topicScope.${topicId}`),
-          }));
-        const existingScopes = await tx.activityTopicScope.findMany({ where: { activityId } });
-        if (!sameTopicScopes(existingScopes, scopeInputs)) {
-          await replaceActivityTopicScopeForInstructor(transactional(tx), {
-            instructorId: input.instructorId,
-            activityId,
-            scopes: scopeInputs,
-          });
-        }
-        counts.activity_topic_scope += topicScopeIds.length;
-      }
-
-      for (const module of staged.snapshot.learningModules) {
-        const moduleId = moduleIds.get(module.stableCode);
-        const currentVersionId = moduleVersionIds.get(module.stableCode);
-        if (!moduleId || !currentVersionId) continue;
-        const existingMembership = await tx.learningModuleVersion.findUnique({
-          where: { id: currentVersionId },
-          include: { topics: true, activities: true },
-        });
-        // Topic placement is activity-derived; imported Topics remain unassigned.
-        const topics: { topicVersionId: string; sequence: number }[] = [];
-        const activities = staged.snapshot.activities
-          .filter((activity) => activity.learningModuleCode === module.stableCode)
-          .map((activity, index) => ({
-            activityVersionId: activityVersionIds.get(activity.stableCode)!,
-            sequence: index,
-            notes: null,
-          }));
-        if ((existingMembership?.topics.length ?? 0) === topics.length && (existingMembership?.activities.length ?? 0) === activities.length) {
-          continue;
-        }
-        const revised = await reviseLearningModule(transactional(tx), {
-          learningModuleId: moduleId,
-          expectedCurrentVersionId: currentVersionId,
-          createdByInstructorId: input.instructorId,
-          publish: false,
-          draft: {
-            title: module.title,
-            description: module.description,
-            learningObjectives: module.objectives ?? [],
-            notes: null,
-            defaultSequence: staged.snapshot.learningModules.indexOf(module),
-            changeSummary: "Attached imported exemplar Topic and Activity memberships",
-            topics,
-            activities,
-          },
-        });
-        moduleVersionIds.set(module.stableCode, revised.id);
-      }
+        await applyBatched(tx, staged, input, counts);
       },
-      // The exemplar import writes the whole course structure in one
-      // transaction, one row at a time. Prisma's default interactive-transaction
-      // timeout is 5s, which is ample against a local database and not against a
-      // remote one: importing the 130-Topic DS-100 snapshot into a Neon database
-      // measured 125 seconds, because each write is a separate round trip.
-      // Batching those writes would make this far shorter — see issue #63.
+      // Keep the remote-import timeout while batching database round trips.
       { timeout: 300_000, maxWait: 30_000 },
     );
 
@@ -578,37 +376,6 @@ function resolveTopicRef(snapshot: ExemplarSnapshot, ref: string) {
   return { kind: "none" as const };
 }
 
-async function findOrCreateActivityTypeVersion(
-  tx: RedesignTx,
-  instructorId: string,
-  type: ExemplarSnapshot["activityTypes"][number],
-) {
-  const existing = await tx.activityType.findFirst({
-    where: { instructorId, behaviorFamily: type.behaviorFamily, currentVersion: { label: type.label } },
-    include: { currentVersion: true },
-    orderBy: { createdAt: "asc" },
-  });
-  if (existing?.currentVersion) return existing.currentVersion;
-  const created = await createActivityType(transactional(tx), {
-    instructorId,
-    behaviorFamily: type.behaviorFamily,
-    createdByInstructorId: instructorId,
-    publish: false,
-    draft: {
-      label: type.label,
-      description: type.description ?? null,
-      changeSummary: "Imported from generic exemplar snapshot",
-    },
-  });
-  return created.currentVersion;
-}
-
-function defaultActivityDetail(behaviorFamily: BehaviorFamily) {
-  if (behaviorFamily === "meeting") return { behaviorFamily, modality: "standard" };
-  if (behaviorFamily === "coursework") return { behaviorFamily, submissionPolicy: "standard" };
-  return { behaviorFamily, modality: "standard" };
-}
-
 function zeroCounts(): Record<PreviewEntityKind, number> {
   return {
     course: 0,
@@ -672,11 +439,23 @@ function sameTopicScopes(
   ) === stableJson(next.map((row) => ({ ...row, notes: row.notes ?? null, provenance: row.provenance ?? null })));
 }
 
-function stableJson(value: unknown) {
-  return JSON.stringify(value, (_key, entry) => {
-    if (!isRecord(entry)) return entry;
-    return Object.fromEntries(Object.entries(entry).sort(([left], [right]) => left.localeCompare(right)));
-  });
+function stableJson(rows: unknown[]) {
+  // Relationships have no database ordering. Compare their content without
+  // rewriting unchanged rows when PostgreSQL chooses a different query plan.
+  return JSON.stringify(
+    rows
+      .map((row) =>
+        JSON.stringify(row, (_key, entry) => {
+          if (!isRecord(entry)) return entry;
+          return Object.fromEntries(
+            Object.entries(entry).sort(([left], [right]) =>
+              left.localeCompare(right),
+            ),
+          );
+        }),
+      )
+      .sort(),
+  );
 }
 
 function courseStableKey(snapshot: ExemplarSnapshot) {
@@ -695,6 +474,500 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function transactional(tx: RedesignTx): RedesignDb {
-  return { $transaction: async <T>(fn: (inner: RedesignTx) => Promise<T>) => fn(tx) };
+async function setCurrentVersions(
+  tx: RedesignTx,
+  table: "topics" | "activities" | "learning_modules" | "activity_types",
+  pairs: Array<[string, string]>,
+) {
+  if (!pairs.length) return;
+  const values = pairs
+    .map((_, index) => `($${index * 2 + 1}::uuid, $${index * 2 + 2}::uuid)`)
+    .join(", ");
+  await tx.$executeRawUnsafe(
+    `UPDATE ${table} AS target SET current_version_id = source.version_id, updated_at = NOW() FROM (VALUES ${values}) AS source(id, version_id) WHERE target.id = source.id`,
+    ...pairs.flat(),
+  );
+}
+
+async function applyBatched(
+  tx: RedesignTx,
+  staged: StagedExemplarImport,
+  input: { instructorId: string; courseId: string },
+  counts: Record<PreviewEntityKind, number>,
+) {
+  const snapshot = staged.snapshot;
+  const typeVersions = new Map<string, string>();
+  const existingTypes = await tx.activityType.findMany({
+    where: { instructorId: input.instructorId },
+    include: { currentVersion: true },
+    orderBy: { createdAt: "asc" },
+  });
+  const newTypes: Array<{
+    id: string;
+    versionId: string;
+    type: ExemplarSnapshot["activityTypes"][number];
+  }> = [];
+  for (const type of snapshot.activityTypes) {
+    const existing = existingTypes.find(
+      (row: {
+        behaviorFamily: string;
+        currentVersion?: { label: string; id: string };
+      }) =>
+        row.behaviorFamily === type.behaviorFamily &&
+        row.currentVersion?.label === type.label,
+    );
+    const pending = newTypes.find(
+      (row) =>
+        row.type.behaviorFamily === type.behaviorFamily &&
+        row.type.label === type.label,
+    );
+    if (existing) typeVersions.set(type.key, existing.currentVersion.id);
+    else if (pending) typeVersions.set(type.key, pending.versionId);
+    else {
+      const row = { id: randomUUID(), versionId: randomUUID(), type };
+      newTypes.push(row);
+      typeVersions.set(type.key, row.versionId);
+    }
+    counts.activity_type++;
+  }
+  if (newTypes.length) {
+    await tx.activityType.createMany({
+      data: newTypes.map(({ id, type }) => ({
+        id,
+        instructorId: input.instructorId,
+        behaviorFamily: type.behaviorFamily,
+      })),
+    });
+    await tx.activityTypeVersion.createMany({
+      data: newTypes.map(({ id, versionId, type }) => ({
+        id: versionId,
+        activityTypeId: id,
+        revision: 1,
+        label: type.label,
+        description: type.description ?? null,
+        changeSummary: "Imported from generic exemplar snapshot",
+        createdByInstructorId: input.instructorId,
+      })),
+    });
+    await setCurrentVersions(
+      tx,
+      "activity_types",
+      newTypes.map(({ id, versionId }) => [id, versionId]),
+    );
+  }
+  await tx.courseActivityTypeVersion.createMany({
+    data: [...typeVersions.values()].map((activityTypeVersionId) => ({
+      courseId: input.courseId,
+      activityTypeVersionId,
+    })),
+    skipDuplicates: true,
+  });
+
+  const modules = new Map<
+    string,
+    {
+      id: string;
+      versionId: string;
+      revision: number;
+      topics: unknown[];
+      activities: unknown[];
+    }
+  >();
+  const existingModules = await tx.learningModule.findMany({
+    where: { courseId: input.courseId },
+    include: {
+      currentVersion: { include: { topics: true, activities: true } },
+    },
+  });
+  const newModules: Array<{
+    id: string;
+    versionId: string;
+    module: ExemplarSnapshot["learningModules"][number];
+    index: number;
+  }> = [];
+  snapshot.learningModules.forEach((module, index) => {
+    if (modules.has(module.stableCode)) {
+      counts.learning_module++;
+      return;
+    }
+    const existing = existingModules.find(
+      (row: { stableCode: string }) => row.stableCode === module.stableCode,
+    );
+    if (existing)
+      modules.set(module.stableCode, {
+        id: existing.id,
+        versionId: existing.currentVersionId,
+        revision: existing.currentVersion.revision,
+        topics: existing.currentVersion.topics,
+        activities: existing.currentVersion.activities,
+      });
+    else {
+      const id = randomUUID(),
+        versionId = randomUUID();
+      newModules.push({ id, versionId, module, index });
+      modules.set(module.stableCode, {
+        id,
+        versionId,
+        revision: 1,
+        topics: [],
+        activities: [],
+      });
+    }
+    counts.learning_module++;
+  });
+  if (newModules.length) {
+    await tx.learningModule.createMany({
+      data: newModules.map(({ id, module }) => ({
+        id,
+        courseId: input.courseId,
+        stableCode: module.stableCode,
+      })),
+    });
+    await tx.learningModuleVersion.createMany({
+      data: newModules.map(({ id, versionId, module, index }) => ({
+        id: versionId,
+        learningModuleId: id,
+        revision: 1,
+        title: module.title,
+        description: module.description ?? null,
+        learningObjectives: module.objectives ?? [],
+        notes: null,
+        defaultSequence: index,
+        changeSummary: "Imported from generic exemplar snapshot",
+        createdByInstructorId: input.instructorId,
+      })),
+    });
+    await setCurrentVersions(
+      tx,
+      "learning_modules",
+      newModules.map(({ id, versionId }) => [id, versionId]),
+    );
+  }
+
+  const topics = new Map<string, { id: string; versionId: string }>();
+  const existingTopics = await tx.topic.findMany({
+    where: { courseId: input.courseId },
+  });
+  const newTopics: Array<{
+    id: string;
+    versionId: string;
+    topic: ExemplarSnapshot["topics"][number];
+  }> = [];
+  for (const topic of snapshot.topics) {
+    if (topics.has(topic.stableCode)) {
+      counts.topic++;
+      continue;
+    }
+    const existing = existingTopics.find(
+      (row: { stableCode: string }) => row.stableCode === topic.stableCode,
+    );
+    if (existing)
+      topics.set(topic.stableCode, {
+        id: existing.id,
+        versionId: existing.currentVersionId,
+      });
+    else {
+      const row = { id: randomUUID(), versionId: randomUUID(), topic };
+      newTopics.push(row);
+      topics.set(topic.stableCode, row);
+    }
+    counts.topic++;
+  }
+  if (newTopics.length) {
+    await tx.topic.createMany({
+      data: newTopics.map(({ id, topic }) => ({
+        id,
+        courseId: input.courseId,
+        learningModuleId: null,
+        stableCode: topic.stableCode,
+      })),
+    });
+    await tx.topicVersion.createMany({
+      data: newTopics.map(({ id, versionId, topic }) => ({
+        id: versionId,
+        topicId: id,
+        revision: 1,
+        title: topic.title,
+        category: topic.category ?? null,
+        description: topic.description ?? null,
+        changeSummary: "Imported from generic exemplar snapshot",
+        createdByInstructorId: input.instructorId,
+      })),
+    });
+    await setCurrentVersions(
+      tx,
+      "topics",
+      newTopics.map(({ id, versionId }) => [id, versionId]),
+    );
+  }
+
+  const activities = new Map<string, { id: string; versionId: string }>();
+  const existingActivities = await tx.activity.findMany({
+    where: { courseId: input.courseId },
+  });
+  const newActivities: Array<{
+    id: string;
+    versionId: string;
+    activity: ExemplarSnapshot["activities"][number];
+    family: BehaviorFamily;
+    typeVersionId: string;
+  }> = [];
+  for (const activity of snapshot.activities) {
+    if (activities.has(activity.stableCode)) {
+      counts.activity++;
+      continue;
+    }
+    const typeVersionId = typeVersions.get(activity.typeKey);
+    const family = snapshot.activityTypes.find(
+      (type) => type.key === activity.typeKey,
+    )?.behaviorFamily;
+    if (!typeVersionId || !family)
+      throw new DomainInvariantError("Activity Type not found");
+    const existing = existingActivities.find(
+      (row: { stableCode: string }) => row.stableCode === activity.stableCode,
+    );
+    if (existing)
+      activities.set(activity.stableCode, {
+        id: existing.id,
+        versionId: existing.currentVersionId,
+      });
+    else {
+      const row = {
+        id: randomUUID(),
+        versionId: randomUUID(),
+        activity,
+        family,
+        typeVersionId,
+      };
+      newActivities.push(row);
+      activities.set(activity.stableCode, row);
+    }
+    counts.activity++;
+  }
+  if (newActivities.length) {
+    await tx.activity.createMany({
+      data: newActivities.map(({ id, activity }) => ({
+        id,
+        courseId: input.courseId,
+        stableCode: activity.stableCode,
+      })),
+    });
+    await tx.activityVersion.createMany({
+      data: newActivities.map(({ id, versionId, activity, typeVersionId }) => ({
+        id: versionId,
+        activityId: id,
+        revision: 1,
+        title: activity.title,
+        summary: activity.summary ?? null,
+        activityTypeVersionId: typeVersionId,
+        changeSummary: "Imported from generic exemplar snapshot",
+        createdByInstructorId: input.instructorId,
+      })),
+    });
+    for (const family of ["meeting", "coursework", "assessment"] as const) {
+      const rows = newActivities.filter((row) => row.family === family);
+      if (!rows.length) continue;
+      if (family === "meeting")
+        await tx.meetingActivityVersion.createMany({
+          data: rows.map(({ versionId }) => ({
+            activityVersionId: versionId,
+            modality: "standard",
+          })),
+        });
+      if (family === "coursework")
+        await tx.courseworkActivityVersion.createMany({
+          data: rows.map(({ versionId }) => ({
+            activityVersionId: versionId,
+            submissionPolicy: "standard",
+          })),
+        });
+      if (family === "assessment")
+        await tx.assessmentActivityVersion.createMany({
+          data: rows.map(({ versionId }) => ({
+            activityVersionId: versionId,
+            modality: "standard",
+          })),
+        });
+    }
+    await setCurrentVersions(
+      tx,
+      "activities",
+      newActivities.map(({ id, versionId }) => [id, versionId]),
+    );
+  }
+
+  const actionRows: Array<{
+    activityVersionId: string;
+    topicVersionId: string;
+    action: CoverageAction;
+    notes: string | null;
+    provenance: ReturnType<typeof provenancePayload>;
+  }> = [];
+  const scopeRows: Array<{
+    activityId: string;
+    topicId: string;
+    notes: null;
+    provenance: ReturnType<typeof provenancePayload>;
+  }> = [];
+  const existingActions = await tx.activityVersionTopicAction.findMany({
+    where: {
+      activityVersionId: {
+        in: [...activities.values()].map((row) => row.versionId),
+      },
+    },
+  });
+  const existingScopes = await tx.activityTopicScope.findMany({
+    where: {
+      activityId: { in: [...activities.values()].map((row) => row.id) },
+    },
+  });
+  const changedActionVersions: string[] = [],
+    changedScopeActivities: string[] = [];
+  for (const activity of snapshot.activities) {
+    const identity = activities.get(activity.stableCode)!;
+    const nextActions = (activity.topicActions ?? []).map((action) => {
+      const resolved = resolveTopicRef(snapshot, action.topicRef);
+      if (resolved.kind !== "one")
+        throw new DomainInvariantError("Ambiguous Topic reference");
+      const topic = topics.get(resolved.topic.stableCode)!;
+      return {
+        activityVersionId: identity.versionId,
+        topicVersionId: topic.versionId,
+        action: action.action,
+        notes: action.notes ?? null,
+        provenance: provenancePayload(
+          staged,
+          `activities.${activity.stableCode}.topicActions.${resolved.topic.stableCode}.${action.action}`,
+        ),
+      };
+    });
+    if (
+      !sameTopicActions(
+        existingActions.filter(
+          (row: { activityVersionId: string }) =>
+            row.activityVersionId === identity.versionId,
+        ),
+        nextActions.map(({ topicVersionId, action, notes, provenance }) => ({
+          topicVersionId,
+          action,
+          notes,
+          provenance,
+        })),
+      )
+    ) {
+      changedActionVersions.push(identity.versionId);
+      actionRows.push(...nextActions);
+    }
+    counts.topic_action += nextActions.length;
+    const uniqueTopics = [
+      ...new Set(
+        (activity.topicActions ?? []).map((action) => {
+          const resolved = resolveTopicRef(snapshot, action.topicRef);
+          if (resolved.kind !== "one")
+            throw new DomainInvariantError("Ambiguous Topic reference");
+          return topics.get(resolved.topic.stableCode)!.id;
+        }),
+      ),
+    ];
+    const nextScopes = uniqueTopics.map((topicId) => ({
+      activityId: identity.id,
+      topicId,
+      notes: null,
+      provenance: provenancePayload(
+        staged,
+        `activities.${activity.stableCode}.topicScope.${topicId}`,
+      ),
+    }));
+    if (
+      !sameTopicScopes(
+        existingScopes.filter(
+          (row: { activityId: string }) => row.activityId === identity.id,
+        ),
+        nextScopes.map(({ topicId, notes, provenance }) => ({
+          topicId,
+          notes,
+          provenance,
+        })),
+      )
+    ) {
+      changedScopeActivities.push(identity.id);
+      scopeRows.push(...nextScopes);
+    }
+    counts.activity_topic_scope += uniqueTopics.length;
+  }
+  if (changedActionVersions.length)
+    await tx.activityVersionTopicAction.deleteMany({
+      where: { activityVersionId: { in: changedActionVersions } },
+    });
+  if (actionRows.length)
+    await tx.activityVersionTopicAction.createMany({ data: actionRows });
+  if (changedScopeActivities.length)
+    await tx.activityTopicScope.deleteMany({
+      where: { activityId: { in: changedScopeActivities } },
+    });
+  if (scopeRows.length)
+    await tx.activityTopicScope.createMany({ data: scopeRows });
+
+  const revisions: Array<{
+    moduleId: string;
+    newVersionId: string;
+    revision: number;
+    module: ExemplarSnapshot["learningModules"][number];
+    index: number;
+    activityVersions: string[];
+  }> = [];
+  snapshot.learningModules.forEach((module, index) => {
+    const current = modules.get(module.stableCode)!;
+    const activityVersions = snapshot.activities
+      .filter((activity) => activity.learningModuleCode === module.stableCode)
+      .map((activity) => activities.get(activity.stableCode)!.versionId);
+    if (
+      current.topics.length === 0 &&
+      current.activities.length === activityVersions.length
+    )
+      return;
+    revisions.push({
+      moduleId: current.id,
+      newVersionId: randomUUID(),
+      revision: current.revision + 1,
+      module,
+      index,
+      activityVersions,
+    });
+  });
+  if (revisions.length) {
+    await tx.learningModuleVersion.createMany({
+      data: revisions.map(
+        ({ moduleId, newVersionId, revision, module, index }) => ({
+          id: newVersionId,
+          learningModuleId: moduleId,
+          revision,
+          title: module.title,
+          description: module.description ?? null,
+          learningObjectives: module.objectives ?? [],
+          notes: null,
+          defaultSequence: index,
+          changeSummary:
+            "Attached imported exemplar Topic and Activity memberships",
+          createdByInstructorId: input.instructorId,
+        }),
+      ),
+    });
+    const memberships = revisions.flatMap(
+      ({ newVersionId, activityVersions }) =>
+        activityVersions.map((activityVersionId, sequence) => ({
+          learningModuleVersionId: newVersionId,
+          activityVersionId,
+          sequence,
+          notes: null,
+        })),
+    );
+    if (memberships.length)
+      await tx.learningModuleVersionActivity.createMany({ data: memberships });
+    await setCurrentVersions(
+      tx,
+      "learning_modules",
+      revisions.map(({ moduleId, newVersionId }) => [moduleId, newVersionId]),
+    );
+  }
 }
