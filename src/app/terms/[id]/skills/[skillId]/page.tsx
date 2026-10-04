@@ -33,7 +33,7 @@ export default function SkillDetailPage() {
   }, [skillId, termId]);
 
   useEffect(() => {
-    load();
+    void Promise.resolve().then(load);
   }, [load]);
 
   if (loading) {

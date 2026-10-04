@@ -95,7 +95,7 @@ export default function WhatIfPanel({
   // Load comparison data
   useEffect(() => {
     if (!compareSessionId) {
-      setComparison(null);
+      queueMicrotask(() => setComparison(null));
       return;
     }
     async function loadComparison() {

@@ -15,14 +15,14 @@ export default function SkillsPage() {
     isGlobal: true,
   });
 
-  useEffect(() => {
-    loadSkills();
-  }, []);
-
   async function loadSkills() {
     const s = await api.getSkills();
     setSkills(s);
   }
+
+  useEffect(() => {
+    void Promise.resolve().then(loadSkills);
+  }, []);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();

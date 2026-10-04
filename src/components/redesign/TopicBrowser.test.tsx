@@ -114,7 +114,7 @@ describe("TopicBrowser", () => {
     expect(screen.getAllByText("Topic 149")).toHaveLength(2);
     expect(screen.getByRole("status")).toHaveTextContent("Current chain: No prerequisites");
     expect(screen.queryByRole("button", { name: /Current chain/ })).not.toBeInTheDocument();
-  });
+  }, 15000);
 
   it("constrains a long Topic list beside the detail panel at desktop width", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1440 });

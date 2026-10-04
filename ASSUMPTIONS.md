@@ -332,3 +332,8 @@ Decisions made where the requirements were underspecified. Each can be revisited
   explicitly configured, already-seeded Instructor email so ownership checks
   remain active. Production continues to expose only configured OAuth
   providers; this is a review seam, not an alternative production auth mode.
+
+## Authenticated demo loading
+
+- **First data request creates the Instructor**: A signed-in email is used to create or find an Instructor when an authenticated route first needs it. A unique-key conflict from concurrent creation resolves to the winning row. The session name is used only for the initial row; later sign-ins do not overwrite a name the instructor may have edited.
+- **The in-app demo creates one Course per Instructor**: The action imports the generic exemplar course structure into a new Course identified by the unique `(instructorId, demoKey)` pair. Repeating the action returns that Course without importing again. It does not create a Term because the generic exemplar snapshot has no institution or academic-calendar context for a usable Term.

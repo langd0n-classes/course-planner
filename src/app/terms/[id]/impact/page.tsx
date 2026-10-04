@@ -18,7 +18,7 @@ export default function ImpactPage() {
   }, [termId]);
 
   useEffect(() => {
-    load();
+    void Promise.resolve().then(load);
   }, [load]);
 
   if (loading) return <p className="text-gray-500">Loading impact report...</p>;

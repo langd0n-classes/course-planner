@@ -38,7 +38,7 @@ export default function ModuleDetailPage() {
   }, [moduleId, termId]);
 
   useEffect(() => {
-    load();
+    void Promise.resolve().then(load);
   }, [load]);
 
   async function updateField(field: string, value: unknown) {

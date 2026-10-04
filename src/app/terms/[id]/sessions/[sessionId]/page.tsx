@@ -41,7 +41,7 @@ export default function SessionDetailPage() {
   }, [sessionId, termId]);
 
   useEffect(() => {
-    load();
+    void Promise.resolve().then(load);
   }, [load]);
 
   async function updateField(field: string, value: unknown) {
