@@ -9,7 +9,7 @@ describe("getAuthenticatedInstructor", () => {
   beforeEach(() => authMock.mockReset());
 
   it("creates or reuses the email-scoped instructor atomically", async () => {
-    authMock.mockResolvedValue({ user: { email: " alice@example.edu ", name: " Alice " } });
+    authMock.mockResolvedValue({ user: { email: " Alice@Example.edu ", name: " Alice " } });
     const upsert = vi.fn(async () => ({ id: "instructor-1", email: "alice@example.edu", name: "Alice" }));
     const db = { instructor: { upsert, findUnique: vi.fn() } };
 
@@ -46,5 +46,25 @@ describe("getAuthenticatedInstructor", () => {
       where: { email: "alice@example.edu" },
       select: { id: true, email: true, name: true },
     });
+  });
+
+  it("normalizes email for direct instructor lookup", async () => {
+    const upsert = vi.fn().mockResolvedValue({ id: "instructor-1", email: "alice@example.edu", name: "Alice" });
+    const { getOrCreateInstructor } = await import("./redesign-auth");
+    await getOrCreateInstructor({ instructor: { upsert, findUnique: vi.fn() } }, " ALICE@EXAMPLE.EDU ", "Alice");
+    expect(upsert.mock.calls[0][0].where.email).toBe("alice@example.edu");
+  });
+
+  it("reuses a seeded instructor whose email has different case", async () => {
+    const row = { id: "seeded", email: "Alice@Example.edu", name: "Alice" };
+    const findFirst = vi.fn().mockResolvedValue(row);
+    const upsert = vi.fn();
+    const { getOrCreateInstructor } = await import("./redesign-auth");
+    expect(await getOrCreateInstructor({ instructor: { findFirst, upsert, findUnique: vi.fn() } }, "alice@example.edu", "Alice")).toEqual(row);
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { email: { equals: "alice@example.edu", mode: "insensitive" } },
+      select: { id: true, email: true, name: true },
+    });
+    expect(upsert).not.toHaveBeenCalled();
   });
 });
