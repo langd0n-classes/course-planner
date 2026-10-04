@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useEffectEvent, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api, type ImpactReport } from "@/lib/api-client";
@@ -17,8 +17,9 @@ export default function ImpactPage() {
     setLoading(false);
   }, [termId]);
 
+  const loadFromEffect = useEffectEvent(load);
   useEffect(() => {
-    load();
+    void loadFromEffect();
   }, [load]);
 
   if (loading) return <p className="text-gray-500">Loading impact report...</p>;

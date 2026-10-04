@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useEffectEvent } from "react";
 import Link from "next/link";
 import { api, type Term, type Instructor } from "@/lib/api-client";
 
@@ -18,10 +18,6 @@ export default function TermsPage() {
     courseCode: "DS-100",
   });
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
   async function loadData() {
     const [t, i] = await Promise.all([
       api.getTerms(),
@@ -33,6 +29,11 @@ export default function TermsPage() {
       setForm((f) => ({ ...f, instructorId: i[0].id }));
     }
   }
+
+  const loadFromEffect = useEffectEvent(loadData);
+  useEffect(() => {
+    void loadFromEffect();
+  }, []);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();

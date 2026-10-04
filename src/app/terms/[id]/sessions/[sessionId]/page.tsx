@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useEffectEvent, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -40,8 +40,9 @@ export default function SessionDetailPage() {
     setLoading(false);
   }, [sessionId, termId]);
 
+  const loadFromEffect = useEffectEvent(load);
   useEffect(() => {
-    load();
+    void loadFromEffect();
   }, [load]);
 
   async function updateField(field: string, value: unknown) {

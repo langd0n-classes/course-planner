@@ -12,6 +12,7 @@ import type {
   TopicDto,
   TopicVersionDto,
   UpsertLearningModuleVersionRequest,
+  UpsertTopicVersionRequest,
 } from "@/lib/redesign-contract";
 import CourseWorkspacePage from "./CourseWorkspacePage";
 
@@ -123,6 +124,16 @@ function buildCourseWorkspaceBackend(options?: {
     },
   );
 
+  const createLearningModuleVersion = vi.fn(async (id: string, input: UpsertLearningModuleVersionRequest) => {
+    const entry = learningModules.find((item) => item.learningModule.id === id)!;
+    entry.currentVersion = {
+      ...entry.currentVersion, ...input,
+      id: `${entry.currentVersion.id}-next`, revision: entry.currentVersion.revision + 1, publishedAt: null,
+    };
+    entry.learningModule.currentVersionId = entry.currentVersion.id;
+    return entry.currentVersion;
+  });
+
   const createTopic = vi.fn(
     async (
       _courseId: string,
@@ -171,7 +182,7 @@ function buildCourseWorkspaceBackend(options?: {
   const createTopicVersion = vi.fn(
     async (
       topicId: string,
-      input: { title: string; category?: string | null },
+      input: UpsertTopicVersionRequest,
     ) => {
       const entry = topics.find((candidate) => candidate.topic.id === topicId);
       if (!entry) throw new Error(`Unknown topic ${topicId}`);
@@ -181,6 +192,9 @@ function buildCourseWorkspaceBackend(options?: {
         revision: entry.currentVersion.revision + 1,
         title: input.title,
         category: input.category ?? null,
+        description: input.description ?? null,
+        changeSummary: input.changeSummary ?? null,
+        publishedAt: null,
       };
       entry.topic.currentVersionId = entry.currentVersion.id;
       return entry.currentVersion;
@@ -239,6 +253,7 @@ function buildCourseWorkspaceBackend(options?: {
       return entry ? [entry.currentVersion] : [];
     }),
     createLearningModule,
+    createLearningModuleVersion,
     restoreLearningModuleVersion: vi.fn(async () => {
       throw new Error("restoreLearningModuleVersion should not be called in this test");
     }),
@@ -258,6 +273,7 @@ function buildCourseWorkspaceBackend(options?: {
     createTopicVersion,
     listTopicPrerequisites: vi.fn(async () => []),
     replaceTopicPrerequisites: vi.fn(async () => []),
+    listCourseActivities: vi.fn(async () => []),
     listActivityTypes: vi.fn(async () => activityTypes.map((entry) => entry.activityType)),
     listActivityTypeVersions: vi.fn(async (activityTypeId: string) => {
       const entry = activityTypes.find((candidate) => candidate.activityType.id === activityTypeId);
@@ -272,6 +288,7 @@ function buildCourseWorkspaceBackend(options?: {
     replaceCourseInstitutions,
     createAcademicCalendar,
     createLearningModule,
+    createLearningModuleVersion,
     createTopic,
     updateTopic,
     createTopicVersion,
@@ -476,6 +493,7 @@ describe("CourseWorkspacePage", () => {
         title: "Selecting rows",
         category: "SQL",
         description: null,
+        changeSummary: null,
         publish: false,
       });
     });
@@ -623,5 +641,53 @@ describe("CourseWorkspacePage activity board moves", () => {
     await screen.findByText("Concurrent edit detected");
     expect(createLearningModuleVersion).toHaveBeenCalledTimes(1);
     expect(createLearningModuleVersion.mock.calls[0]?.[0]).toBe("lm-2");
+  });
+});
+
+describe("workspace version editors", () => {
+  it("opens a published module, saves a new version, and refreshes its title and revision", async () => {
+    const original: LearningModuleVersionDto = {
+      id: "lm-v1", learningModuleId: "lm-1", revision: 1, title: "Original module",
+      description: "Description", studentDescription: "Student text", learningObjectives: ["Objective"],
+      notes: "Notes", defaultSequence: 0, changeSummary: null, publishedAt: "2026-01-01T00:00:00Z",
+      topics: [], activities: [],
+    };
+    const { backend, createLearningModuleVersion } = buildCourseWorkspaceBackend({ learningModules: [{
+      learningModule: { id: "lm-1", courseId: "course-1", stableCode: "LM1", currentVersionId: original.id, archivedAt: null },
+      currentVersion: original,
+    }] });
+    setMockBackend(backend);
+    render(<CourseWorkspacePage courseId="course-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Original module" }));
+    fireEvent.change(screen.getByLabelText("Module title"), { target: { value: "Updated module" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save new version" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Save new version" }));
+    await screen.findByRole("button", { name: "Updated module" });
+    expect(createLearningModuleVersion).toHaveBeenCalledWith("lm-1", expect.objectContaining({ expectedCurrentVersionId: "lm-v1", title: "Updated module", publish: false, activities: [] }));
+    expect(screen.queryByRole("form", { name: "Learning module editor" })).not.toBeInTheDocument();
+    expect(original.title).toBe("Original module");
+    expect(original.revision).toBe(1);
+  });
+
+  it("keeps the selected Topic open after a description-only revision", async () => {
+    const original: TopicVersionDto = { id: "tv1", topicId: "t1", revision: 1, title: "Original topic", category: "Concept", description: "Old description", changeSummary: null, publishedAt: "2026-01-01T00:00:00Z" };
+    const { backend, createTopicVersion, updateTopic } = buildCourseWorkspaceBackend({ topics: [{
+      topic: { id: "t0", courseId: "course-1", learningModuleId: null, stableCode: "T0", currentVersionId: "tv0", archivedAt: null },
+      currentVersion: { ...original, id: "tv0", topicId: "t0", title: "First topic", description: "First description" },
+    }, {
+      topic: { id: "t1", courseId: "course-1", learningModuleId: null, stableCode: "T1", currentVersionId: "tv1", archivedAt: null }, currentVersion: original,
+    }] });
+    setMockBackend(backend);
+    render(<CourseWorkspacePage courseId="course-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: /Original topic/ }));
+    await screen.findByDisplayValue("Old description");
+    fireEvent.change(screen.getByLabelText("Topic description"), { target: { value: "Expanded description" } });
+    fireEvent.change(screen.getByLabelText("Topic change summary"), { target: { value: "Clarify meaning" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
+    await screen.findByText("Last change: Clarify meaning");
+    expect(screen.getByLabelText("Topic description")).toHaveValue("Expanded description");
+    expect(createTopicVersion).toHaveBeenCalledWith("t1", { expectedCurrentVersionId: "tv1", title: "Original topic", category: "Concept", description: "Expanded description", changeSummary: "Clarify meaning", publish: false });
+    expect(updateTopic).not.toHaveBeenCalled();
+    expect(original.description).toBe("Old description");
   });
 });

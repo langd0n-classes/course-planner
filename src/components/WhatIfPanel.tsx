@@ -94,10 +94,7 @@ export default function WhatIfPanel({
 
   // Load comparison data
   useEffect(() => {
-    if (!compareSessionId) {
-      setComparison(null);
-      return;
-    }
+    if (!compareSessionId) return;
     async function loadComparison() {
       try {
         const data = await api.whatIfCompare(termId, activeSessionId, compareSessionId!);
@@ -425,7 +422,7 @@ export default function WhatIfPanel({
                 </div>
 
                 {/* Side-by-side comparison */}
-                {comparison && (
+                {comparison && compareSessionId === comparison.scenarioB.canceledSessionId && activeSessionId === comparison.scenarioA.canceledSessionId && (
                   <div className="border border-gray-200 rounded">
                     <div className="grid grid-cols-2 text-xs">
                       <div className="p-3 border-r border-gray-200">

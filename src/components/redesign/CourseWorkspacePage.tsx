@@ -13,6 +13,7 @@ import type {
   LearningModuleVersionDto,
   TermDto,
   TopicVersionDto,
+  UpsertLearningModuleVersionRequest,
 } from "@/lib/redesign-contract";
 import { buildTopicBrowserBuckets, planActivityMove, suggestTopicStableCode } from "@/lib/redesign-workspace";
 import CreateTermPanel from "./CreateTermPanel";
@@ -21,6 +22,7 @@ import LifecycleBadge from "./LifecycleBadge";
 import RevisionHistoryPanel from "./RevisionHistoryPanel";
 import TopicBrowser from "./TopicBrowser";
 import ActivityBoard from "./ActivityBoard";
+import LearningModuleEditor from "./LearningModuleEditor";
 
 type Props = {
   courseId: string;
@@ -108,14 +110,15 @@ export default function CourseWorkspacePage({ courseId }: Props) {
   const [institutionForm, setInstitutionForm] = useState<InstitutionFormState>({ open: false });
   const [calendarForm, setCalendarForm] = useState<CalendarFormState>({ open: false });
   const [linkInstForm, setLinkInstForm] = useState<LinkInstitutionState>({ open: false });
+  const [editingModuleId, setEditingModuleId] = useState<Id | null>(null);
   const [createLmState, setCreateLmState] = useState<CreateLmState>({ open: false });
   const [createTopicState, setCreateTopicState] = useState<CreateTopicState>({ open: false });
   const [createActivityTypeState, setCreateActivityTypeState] = useState<CreateActivityTypeState>({
     open: false,
   });
 
-  async function loadWorkspace() {
-    setLoading(true);
+  async function loadWorkspace(showLoading = true) {
+    if (showLoading) setLoading(true);
     setError(null);
     try {
       const [
@@ -245,6 +248,8 @@ export default function CourseWorkspacePage({ courseId }: Props) {
       stableCode: string;
       title: string;
       category: string;
+      description: string;
+      changeSummary: string;
       prerequisiteTopicIds: Id[];
     },
   ) {
@@ -258,20 +263,30 @@ export default function CourseWorkspacePage({ courseId }: Props) {
       });
     }
 
+    await redesignApi.replaceTopicPrerequisites(topicId, input.prerequisiteTopicIds);
+
     if (
       currentVersion &&
-      ((currentVersion.title ?? "") !== input.title || (currentVersion.category ?? "") !== input.category)
+      ((currentVersion.title ?? "") !== input.title || (currentVersion.category ?? "") !== input.category ||
+        (currentVersion.description ?? "") !== input.description || !!input.changeSummary)
     ) {
       await redesignApi.createTopicVersion(topicId, {
         expectedCurrentVersionId: currentVersion.id,
         title: input.title,
         category: input.category || null,
-        description: currentVersion.description,
+        description: input.description || null,
+        changeSummary: input.changeSummary || null,
         publish: false,
       });
     }
 
-    await redesignApi.replaceTopicPrerequisites(topicId, input.prerequisiteTopicIds);
+    await loadWorkspace(false);
+  }
+
+  async function handleSaveLearningModule(input: UpsertLearningModuleVersionRequest) {
+    if (!editingModuleId) return;
+    await redesignApi.createLearningModuleVersion(editingModuleId, input);
+    setEditingModuleId(null);
     await loadWorkspace();
   }
 
@@ -966,7 +981,7 @@ export default function CourseWorkspacePage({ courseId }: Props) {
         {learningModules.length === 0 && !createLmState.open ? (
           <div className="mt-4">
             <GapNotice title="No learning modules yet.">
-              Create modules to organize topics into coherent groups before building terms.
+              Create modules to organize learning activities before building terms.
             </GapNotice>
           </div>
         ) : null}
@@ -977,9 +992,15 @@ export default function CourseWorkspacePage({ courseId }: Props) {
               const version = currentVersionsByLearningModuleId.get(learningModule.id);
               return (
                 <div key={learningModule.id} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-sm font-medium text-slate-900">
+                  <button
+                    type="button"
+                    onClick={() => setEditingModuleId(learningModule.id)}
+                    disabled={!version}
+                    aria-expanded={editingModuleId === learningModule.id}
+                    className="text-left text-sm font-medium text-sky-800 underline disabled:text-slate-500"
+                  >
                     {version?.title ?? learningModule.stableCode}
-                  </p>
+                  </button>
                   <p className="mt-0.5 text-xs text-slate-500">
                     {learningModule.stableCode}
                     {version ? ` · rev. ${version.revision}` : " · no version yet"}
@@ -991,12 +1012,23 @@ export default function CourseWorkspacePage({ courseId }: Props) {
         ) : null}
       </section>
 
+      {editingModuleId && currentVersionsByLearningModuleId.get(editingModuleId) ? (
+        <LearningModuleEditor
+          key={`${editingModuleId}:${currentVersionsByLearningModuleId.get(editingModuleId)!.id}`}
+          courseId={courseId}
+          stableCode={learningModules.find((module) => module.id === editingModuleId)!.stableCode}
+          version={currentVersionsByLearningModuleId.get(editingModuleId)!}
+          onSave={handleSaveLearningModule}
+          onCancel={() => setEditingModuleId(null)}
+        />
+      ) : null}
+
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">Topic-first browser</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Topics stay visible even before they have a module home. Edit title, code, category, and prerequisites without leaving the workspace.
+              Open a Topic to edit its title, code, category, description, and prerequisites without leaving the workspace.
             </p>
           </div>
           {!createTopicState.open ? (
