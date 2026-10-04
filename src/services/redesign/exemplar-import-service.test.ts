@@ -1,9 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- structural Prisma test doubles */
 import { describe, expect, it } from "vitest";
-import { ExemplarImportService, genericDemoExemplarSnapshot } from "./exemplar-import-service";
+import {
+  ExemplarImportService,
+  genericDemoExemplarSnapshot,
+} from "./exemplar-import-service";
 
 function transactionalDb(tx: Record<string, any>) {
-  return { $transaction: async <T>(fn: (tx: Record<string, any>) => Promise<T>) => fn(tx) };
+  return {
+    $transaction: async <T>(fn: (tx: Record<string, any>) => Promise<T>) =>
+      fn(tx),
+  };
 }
 
 function createMemoryTx() {
@@ -13,219 +19,106 @@ function createMemoryTx() {
     courseActivityTypeVersions: [],
     learningModules: [],
     learningModuleVersions: [],
+    learningModuleVersionActivities: [],
     topics: [],
     topicVersions: [],
     activities: [],
     activityVersions: [],
+    meetingActivityVersions: [],
+    courseworkActivityVersions: [],
+    assessmentActivityVersions: [],
     activityVersionTopicActions: [],
     activityTopicScopes: [],
   };
+  const matches = (row: any, where: any) =>
+    Object.entries(where ?? {}).every(([key, value]: any) =>
+      value && typeof value === "object"
+        ? value.in.includes(row[key])
+        : row[key] === value,
+    );
   let n = 1;
-  const id = (prefix: string) => `${prefix}-${n++}`;
-  const course = { id: "course-1", instructorId: "instructor-1" };
-
-  const tx = {
+  const tx: Record<string, any> = {
     __state: state,
     course: {
       findUnique: async ({ where }: any) =>
-        where.id_instructorId?.id === course.id && where.id_instructorId?.instructorId === course.instructorId
-          ? course
+        where.id_instructorId?.id === "course-1" &&
+        where.id_instructorId?.instructorId === "instructor-1"
+          ? { id: "course-1", instructorId: "instructor-1" }
           : null,
     },
-    activityType: {
-      findFirst: async ({ where }: any) =>
-        state.activityTypes.find(
-          (row) =>
-            row.instructorId === where.instructorId &&
-            row.behaviorFamily === where.behaviorFamily &&
-            row.currentVersion?.label === where.currentVersion.label,
-        ) ?? null,
-      create: async ({ data }: any) => {
-        const row = { id: id("at"), currentVersionId: null, archivedAt: null, createdAt: new Date(), ...data };
-        state.activityTypes.push(row);
-        return row;
-      },
-      update: async ({ where, data }: any) => {
-        const row = state.activityTypes.find((entry) => entry.id === where.id);
-        Object.assign(row, data);
-        row.currentVersion = state.activityTypeVersions.find((version) => version.id === data.currentVersionId);
-        return row;
-      },
-    },
-    activityTypeVersion: {
-      create: async ({ data }: any) => {
-        const row = { id: id("atv"), ...data };
-        state.activityTypeVersions.push(row);
-        return row;
-      },
-      findUnique: async ({ where }: any) => {
-        const row = state.activityTypeVersions.find((entry) => entry.id === where.id);
-        if (!row) return null;
-        const activityType = state.activityTypes.find((entry) => entry.id === row.activityTypeId);
-        return { ...row, activityType };
-      },
-    },
-    courseActivityTypeVersion: {
-      upsert: async ({ where, create }: any) => {
-        const key = where.courseId_activityTypeVersionId;
-        const existing = state.courseActivityTypeVersions.find(
-          (row) => row.courseId === key.courseId && row.activityTypeVersionId === key.activityTypeVersionId,
-        );
-        if (existing) return existing;
-        state.courseActivityTypeVersions.push(create);
-        return create;
-      },
-      findUnique: async ({ where }: any) =>
-        state.courseActivityTypeVersions.find(
-          (row) =>
-            row.courseId === where.courseId_activityTypeVersionId.courseId &&
-            row.activityTypeVersionId === where.courseId_activityTypeVersionId.activityTypeVersionId,
-        ) ?? null,
-    },
-    learningModule: {
-      findUnique: async ({ where, include }: any) => {
-        const row = state.learningModules.find(
-          (entry) =>
-            entry.id === where.id ||
-            (entry.courseId === where.courseId_stableCode?.courseId &&
-              entry.stableCode === where.courseId_stableCode?.stableCode),
-        );
-        if (!row) return null;
-        return include?.currentVersion
-          ? { ...row, currentVersion: state.learningModuleVersions.find((v) => v.id === row.currentVersionId) }
-          : row;
-      },
-      create: async ({ data }: any) => {
-        const row = { id: id("lm"), currentVersionId: null, ...data };
-        state.learningModules.push(row);
-        return row;
-      },
-      update: async ({ where, data }: any) => {
-        const row = state.learningModules.find((entry) => entry.id === where.id);
-        Object.assign(row, data);
-        return row;
-      },
-    },
-    learningModuleVersion: {
-      create: async ({ data }: any) => {
-        const row = {
-          id: id("lmv"),
-          ...data,
-          topics: (data.topics?.create ?? []).map((topic: any) => ({ ...topic })),
-          activities: (data.activities?.create ?? []).map((activity: any) => ({ ...activity })),
-        };
-        state.learningModuleVersions.push(row);
-        return row;
-      },
-      findUnique: async ({ where, include }: any) => {
-        const row = state.learningModuleVersions.find(
-          (entry) => entry.id === where.id || (entry.id === where.id_learningModuleId?.id && entry.learningModuleId === where.id_learningModuleId?.learningModuleId),
-        );
-        if (!row) return null;
-        return include ? { ...row, topics: row.topics ?? [], activities: row.activities ?? [] } : row;
-      },
-    },
-    topic: {
-      findUnique: async ({ where }: any) =>
-        state.topics.find(
-          (entry) =>
-            entry.id === where.id ||
-            (entry.courseId === where.courseId_stableCode?.courseId &&
-              entry.stableCode === where.courseId_stableCode?.stableCode),
-        ) ?? null,
-      create: async ({ data }: any) => {
-        const row = { id: id("topic"), currentVersionId: null, ...data };
-        state.topics.push(row);
-        return row;
-      },
-      update: async ({ where, data }: any) => {
-        const row = state.topics.find((entry) => entry.id === where.id);
-        Object.assign(row, data);
-        return row;
-      },
-    },
-    topicVersion: {
-      create: async ({ data }: any) => {
-        const row = { id: id("tv"), ...data };
-        state.topicVersions.push(row);
-        return row;
-      },
-      findUnique: async ({ where, include }: any) => {
-        const row = state.topicVersions.find((entry) => entry.id === where.id);
-        if (!row) return null;
-        const topic = state.topics.find((entry) => entry.id === row.topicId);
-        return include?.topic ? { ...row, topic } : row;
-      },
-    },
-    activity: {
-      findUnique: async ({ where, include }: any) => {
-        const row = state.activities.find(
-          (entry) =>
-            (where.id && entry.id === where.id) ||
-            (entry.courseId === where.courseId_stableCode?.courseId &&
-              entry.stableCode === where.courseId_stableCode?.stableCode),
-        );
-        if (!row) return null;
-        if (include?.course) return { ...row, course };
-        return include?.currentVersion
-          ? { ...row, currentVersion: state.activityVersions.find((v) => v.id === row.currentVersionId) }
-          : row;
-      },
-      create: async ({ data }: any) => {
-        const row = { id: id("act"), currentVersionId: null, archivedAt: null, ...data };
-        state.activities.push(row);
-        return row;
-      },
-      update: async ({ where, data }: any) => {
-        const row = state.activities.find((entry) => entry.id === where.id);
-        Object.assign(row, data);
-        return row;
-      },
-    },
-    activityVersion: {
-      create: async ({ data }: any) => {
-        const row = { id: id("av"), ...data, milestoneTemplates: [] };
-        state.activityVersions.push(row);
-        return row;
-      },
-      findUnique: async ({ where, include }: any) => {
-        const row = state.activityVersions.find((entry) => entry.id === where.id);
-        if (!row) return null;
-        const activity = state.activities.find((entry) => entry.id === row.activityId);
-        if (include?.activity?.include?.course) return { ...row, activity: { ...activity, course } };
-        if (include?.activity) return { ...row, activity };
-        return row;
-      },
-    },
-    activityVersionTopicAction: {
-      deleteMany: async ({ where }: any) => {
-        state.activityVersionTopicActions = state.activityVersionTopicActions.filter(
-          (row) => row.activityVersionId !== where.activityVersionId,
-        );
-        return { count: 1 };
-      },
-      createMany: async ({ data }: any) => {
-        state.activityVersionTopicActions.push(...data.map((row: any) => ({ id: id("ata"), ...row })));
-        return { count: data.length };
-      },
-      findMany: async ({ where }: any) => {
-        if (where.activityVersionId) {
-          return state.activityVersionTopicActions.filter((row) => row.activityVersionId === where.activityVersionId);
+  };
+  for (const key of Object.keys(state)) {
+    const model = key.endsWith("ies")
+      ? key.slice(0, -3) + "y"
+      : key.slice(0, -1);
+    tx[model] = {
+      findMany: async ({ where, include }: any) =>
+        state[key]
+          .filter((row) => matches(row, where))
+          .map((row) => {
+            if (!include?.currentVersion) return row;
+            const version = state[model + "Versions"].find(
+              (v) => v.id === row.currentVersionId,
+            );
+            return {
+              ...row,
+              currentVersion:
+                key === "learningModules" && version
+                  ? {
+                      ...version,
+                      topics: [],
+                      activities: state.learningModuleVersionActivities.filter(
+                        (v) => v.learningModuleVersionId === version.id,
+                      ),
+                    }
+                  : version,
+            };
+          }),
+      createMany: async ({ data, skipDuplicates }: any) => {
+        if (key === "learningModuleVersions") {
+          const versions = [...state[key]];
+          for (const row of data) {
+            if (
+              versions.some(
+                (version) =>
+                  version.learningModuleId === row.learningModuleId &&
+                  version.revision === row.revision,
+              )
+            )
+              throw new Error("Duplicate learning module revision");
+            versions.push(row);
+          }
         }
-        return [];
+        const rows = data.filter(
+          (row: any) =>
+            !skipDuplicates ||
+            !state[key].some((existing) => matches(existing, row)),
+        );
+        state[key].push(
+          ...rows.map((row: any) => ({ id: `row-${n++}`, ...row })),
+        );
+        return { count: rows.length };
       },
-    },
-    activityTopicScope: {
       deleteMany: async ({ where }: any) => {
-        state.activityTopicScopes = state.activityTopicScopes.filter((row) => row.activityId !== where.activityId);
-        return { count: 1 };
+        const before = state[key].length;
+        state[key] = state[key].filter((row) => !matches(row, where));
+        return { count: before - state[key].length };
       },
-      createMany: async ({ data }: any) => {
-        state.activityTopicScopes.push(...data.map((row: any) => ({ id: id("scope"), ...row })));
-        return { count: data.length };
-      },
-      findMany: async ({ where }: any) => state.activityTopicScopes.filter((row) => row.activityId === where.activityId),
-    },
+    };
+  }
+  tx.$executeRawUnsafe = async (query: string, ...values: string[]) => {
+    const table = query.match(/^UPDATE (\w+)/)![1];
+    const key = {
+      topics: "topics",
+      activities: "activities",
+      learning_modules: "learningModules",
+      activity_types: "activityTypes",
+    }[table]!;
+    for (let i = 0; i < values.length; i += 2) {
+      state[key].find((row) => row.id === values[i]).currentVersionId =
+        values[i + 1];
+    }
+    return values.length / 2;
   };
   return tx;
 }
@@ -235,17 +128,29 @@ describe("ExemplarImportService", () => {
     const service = new ExemplarImportService();
     const staged = service.stage(genericDemoExemplarSnapshot);
     const preview = service.preview(staged);
-    expect(service.preview(service.stage(genericDemoExemplarSnapshot))).toEqual(preview);
-    expect(preview.creates.some((entry) => entry.kind === "activity")).toBe(true);
-    expect(preview.provenance.every((entry) => entry.origin.snapshotId === "generic-intro-data-science-v1")).toBe(true);
-    expect(JSON.stringify(preview)).not.toMatch(/answerKey|solutionKey|studentScores/);
+    expect(service.preview(service.stage(genericDemoExemplarSnapshot))).toEqual(
+      preview,
+    );
+    expect(preview.creates.some((entry) => entry.kind === "activity")).toBe(
+      true,
+    );
+    expect(
+      preview.provenance.every(
+        (entry) => entry.origin.snapshotId === "generic-intro-data-science-v1",
+      ),
+    ).toBe(true);
+    expect(JSON.stringify(preview)).not.toMatch(
+      /answerKey|solutionKey|studentScores/,
+    );
   });
 
   it("excludes grading fields before preview or persistence", async () => {
     const service = new ExemplarImportService();
     const snapshot: any = structuredClone(genericDemoExemplarSnapshot);
     snapshot.activities[0].topicActions[0].answerKey = "excluded";
-    snapshot.activities[0].topicActions[0].studentScores = [{ name: "Student A", score: 10 }];
+    snapshot.activities[0].topicActions[0].studentScores = [
+      { name: "Student A", score: 10 },
+    ];
 
     const staged = service.stage(snapshot);
     expect(staged.exclusions.map((entry) => entry.reason)).toEqual([
@@ -259,7 +164,9 @@ describe("ExemplarImportService", () => {
       courseId: "course-1",
       snapshot,
     });
-    expect(JSON.stringify(tx.__state)).not.toMatch(/excluded|studentScores|answerKey|Student A/);
+    expect(JSON.stringify(tx.__state)).not.toMatch(
+      /excluded|studentScores|answerKey|Student A/,
+    );
   });
 
   it("uses a long enough interactive transaction timeout for remote imports", async () => {
@@ -267,7 +174,10 @@ describe("ExemplarImportService", () => {
     const tx = createMemoryTx();
     let transactionOptions: any;
     const db = {
-      $transaction: async <T>(fn: (innerTx: Record<string, any>) => Promise<T>, options?: any) => {
+      $transaction: async <T>(
+        fn: (innerTx: Record<string, any>) => Promise<T>,
+        options?: any,
+      ) => {
         transactionOptions = options;
         return fn(tx);
       },
@@ -279,10 +189,12 @@ describe("ExemplarImportService", () => {
       snapshot: genericDemoExemplarSnapshot,
     });
 
-    expect(transactionOptions).toEqual(expect.objectContaining({
-      timeout: expect.any(Number),
-      maxWait: expect.any(Number),
-    }));
+    expect(transactionOptions).toEqual(
+      expect.objectContaining({
+        timeout: expect.any(Number),
+        maxWait: expect.any(Number),
+      }),
+    );
     expect(transactionOptions.timeout).toBeGreaterThanOrEqual(60_000);
     expect(transactionOptions.maxWait).toBeGreaterThanOrEqual(5_000);
   });
@@ -323,7 +235,32 @@ describe("ExemplarImportService", () => {
     });
     expect(JSON.stringify(tx.__state)).toEqual(firstGraph);
     expect(tx.__state.activityVersionTopicActions.length).toBeGreaterThan(0);
-    expect(tx.__state.activityVersionTopicActions.every((row: any) => row.provenance?.oneWay)).toBe(true);
+    expect(
+      tx.__state.activityVersionTopicActions.every(
+        (row: any) => row.provenance?.oneWay,
+      ),
+    ).toBe(true);
+  });
+
+  it("applies a snapshot with a repeated learning module code", async () => {
+    const service = new ExemplarImportService();
+    const tx = createMemoryTx();
+    const snapshot = structuredClone(genericDemoExemplarSnapshot);
+    snapshot.learningModules.push({ ...snapshot.learningModules[0] });
+
+    const result = await service.apply(transactionalDb(tx), {
+      instructorId: "instructor-1",
+      courseId: "course-1",
+      snapshot,
+    });
+
+    expect(result.createdOrReused.learning_module).toBe(3);
+    expect(tx.__state.learningModules).toHaveLength(2);
+    expect(
+      tx.__state.learningModuleVersions.filter(
+        (row: any) => row.learningModuleId === tx.__state.learningModules[0].id,
+      ),
+    ).toHaveLength(2);
   });
 
   it("stores importer provenance as JSON without adding importer text to instructor-visible fields", async () => {
@@ -336,9 +273,142 @@ describe("ExemplarImportService", () => {
     });
 
     expect(tx.__state.activityVersionTopicActions[0]).toMatchObject({
-      provenance: expect.objectContaining({ importer: "generic_exemplar_importer", oneWay: true }),
+      provenance: expect.objectContaining({
+        importer: "generic_exemplar_importer",
+        oneWay: true,
+      }),
       notes: null,
     });
     expect(JSON.stringify(tx.__state)).not.toContain("Importer provenance:");
+  });
+
+  it("batches identities, all detail families, relationships, and module memberships as the graph grows", async () => {
+    const callCounts = [];
+    for (const size of [1, 20, 130]) {
+      const tx = createMemoryTx();
+      let calls = 0;
+      for (const [key, value] of Object.entries(tx)) {
+        if (key === "__state") continue;
+        if (typeof value === "function") {
+          tx[key] = (...args: any[]) => {
+            calls++;
+            return value(...args);
+          };
+        } else {
+          for (const [method, fn] of Object.entries(value)) {
+            value[method] = (...args: any[]) => {
+              calls++;
+              return (fn as (...args: any[]) => any)(...args);
+            };
+          }
+        }
+      }
+      const snapshot = {
+        snapshotId: "all-families",
+        course: { title: "Example", number: "EX 1" },
+        activityTypes: ["meeting", "coursework", "assessment"].map(
+          (family) => ({ key: family, label: family, behaviorFamily: family }),
+        ),
+        learningModules: Array.from({ length: size }, (_, i) => ({
+          stableCode: `LM-${i}`,
+          title: `Module ${i}`,
+        })),
+        topics: Array.from({ length: size }, (_, i) => ({
+          stableCode: `T-${i}`,
+          learningModuleCode: `LM-${i}`,
+          title: `Topic ${i}`,
+        })),
+        activities: Array.from({ length: size }, (_, i) =>
+          ["meeting", "coursework", "assessment"].map((family) => ({
+            stableCode: `${family}-${i}`,
+            typeKey: family,
+            learningModuleCode: `LM-${i}`,
+            title: `Activity ${i}`,
+            topicActions: [{ topicRef: `T-${i}`, action: "introduced" }],
+          })),
+        ).flat(),
+      };
+      const result = await new ExemplarImportService().apply(
+        transactionalDb(tx),
+        {
+          instructorId: "instructor-1",
+          courseId: "course-1",
+          snapshot,
+        },
+      );
+      expect(result.createdOrReused).toMatchObject({
+        learning_module: size,
+        topic: size,
+        activity: size * 3,
+        topic_action: size * 3,
+        activity_topic_scope: size * 3,
+      });
+      for (const family of ["meeting", "coursework", "assessment"]) {
+        expect(tx.__state[family + "ActivityVersions"]).toHaveLength(size);
+      }
+      expect(tx.__state.learningModuleVersionActivities).toHaveLength(size * 3);
+      expect(
+        tx.__state.topics.every((row: any) => row.learningModuleId === null),
+      ).toBe(true);
+      callCounts.push(calls);
+    }
+    expect(callCounts).toEqual([callCounts[0], callCounts[0], callCounts[0]]);
+    expect(callCounts[0]).toBeLessThanOrEqual(35);
+  });
+
+  it("replaces changed relationships and removes empty ones while retaining existing identities and versions", async () => {
+    const tx = createMemoryTx();
+    const service = new ExemplarImportService();
+    const input = {
+      instructorId: "instructor-1",
+      courseId: "course-1",
+      snapshot: structuredClone(genericDemoExemplarSnapshot),
+    };
+    await service.apply(transactionalDb(tx), input);
+    const versions = structuredClone(tx.__state.activityVersions);
+    const topics = structuredClone(tx.__state.topics);
+    input.snapshot.activities[0].topicActions = [];
+    input.snapshot.activities[1].topicActions = [
+      { topicRef: "TOPIC-MODEL", action: "assessed" },
+    ];
+    const result = await service.apply(transactionalDb(tx), input);
+    expect(result.createdOrReused.topic_action).toBe(3);
+    expect(tx.__state.activityVersionTopicActions).toHaveLength(3);
+    expect(tx.__state.activityTopicScopes).toHaveLength(2);
+    expect(tx.__state.activityVersions).toEqual(versions);
+    expect(tx.__state.topics).toEqual(topics);
+    const graph = structuredClone(tx.__state);
+    await service.apply(transactionalDb(tx), input);
+    expect(tx.__state).toEqual(graph);
+  });
+
+  it("rejects another instructor's course before writing", async () => {
+    const tx = createMemoryTx();
+    await expect(
+      new ExemplarImportService().apply(transactionalDb(tx), {
+        instructorId: "other-instructor",
+        courseId: "course-1",
+        snapshot: genericDemoExemplarSnapshot,
+      }),
+    ).rejects.toThrow("Course not found");
+    expect(
+      Object.values(tx.__state).every((rows: any) => rows.length === 0),
+    ).toBe(true);
+  });
+
+  it("leaves relationship rows unchanged when the database returns them in a different order", async () => {
+    const tx = createMemoryTx();
+    const service = new ExemplarImportService();
+    const input = {
+      instructorId: "instructor-1",
+      courseId: "course-1",
+      snapshot: genericDemoExemplarSnapshot,
+    };
+    await service.apply(transactionalDb(tx), input);
+    tx.__state.activityVersionTopicActions.reverse();
+    tx.__state.activityTopicScopes.reverse();
+    const before = structuredClone(tx.__state);
+    await service.apply(transactionalDb(tx), input);
+    expect(tx.__state).toEqual(before);
   });
 });
