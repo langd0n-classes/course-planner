@@ -20,10 +20,15 @@ Start with one real incident, not the market landscape.
 - What changed while the course was running: a canceled meeting, a concept that
   did not land, a schedule compression, a redesigned assessment, or something
   else?
+  - The most typical example is a snow day but I also broke my leg and had to cancel a lecture this past spring. however, the most common case is just not fitting everything in to a lecture (probably happens in discussions too but normally the TAs run those). sometimes the issue is that you misestimated the speed at which the content can be deliverred. however, another really common example is "delayed start" a) the students are trickling in even later than usual. b) the "tech" is broken/neeeds restart/ etc c) prior "user of the room" runs long. another one is that an activity takes the students longer than expected. there is often a delicate balance on "learning" of making sure the students "go fast enough" vs the author just assuming the work is "easier than it is" for a student.
 - What did you need to decide immediately?
+  - where to move the content.. likely continue the same content in to the next lecture if it was "just a lecture" .. sometimes it is axe an activity because you don't have time for the students to complete it during the alloted time left and you also may not be able to just bump it to next time because of loss of context for the students so you might need to rejigger. in the case of an activity taking to long for the students you might need to end it early, dump the results, make a new activity for next time to "do the same thing" but probably with new context and shorter "effort"
 - Which documents or systems held pieces of the answer?
+  - mostly prior art, a lot of my own but also searching around for options, then failing to "build it"
 - What could none of them tell you about the consequences of the change?
+  - downstream impact usually.. like i just lost a chunk of student facing time, what has to get compressed to fit everything? if i axed something does something later actually cover it already "well enough"?
 - What did you track mentally or repair by hand?
+  - all that? but updating the cal is hard. i also am particularly bad with calendars so its especially hard for me as a human. i am not sure if everyone shares that issue.
 
 The incident should establish the core problem: the instructor needs to revise
 the plan without erasing the difference between what was intended, what
@@ -32,18 +37,25 @@ happened, and what must happen next.
 ### 2. Explain the workaround that proved the need
 
 - What did you build in markdown and git?
+  - some activities use external tools like kahoot, mentimeter. biggest external tool is google slides because i have never found a "text based tool" precise enough in layout to make my slides in (tried marp, rise, reveal.js). markdown and git are for course design, genai prompts, rubrics, answer keys, lm overviews, "lecture plans", "discussion plans", activities based on notebooks like GAIEs, live demos, in class work. 551 has substantially different activity types but use a lot of the same tools.
 - Which parts represented the course design, the term plan, and the delivered
   reality?
+  - usually git holds (via markdown) deisng & plan .. the delivered is the checked in artifacts which are retained but the only "what happened" markers are git diffs on the plan which are tough for using history to inform the future
 - How did you clone or adapt one term into another?
+  - currently, i branch from last term or, if the class is pretty stable, maybe the prior version of the same term (eg. to make f26 i would use f25) because the cadence changes based on the term structure (6 wks for summer, spring break in spring, thanksgiving in fall). i never "merge back to main" and the branches just live forever to try to be minable for history.
 - What questions could the workaround answer that Blackboard or a spreadsheet
   could not?
+  - kind of all of this but it doesn't do it "well" its just tracking current state and then i modify it to be corrected current state.
 - What remained expensive, fragile, or dependent on knowledge in your head?
+  - hard not to say "all of it". one thing that may not have come up is the search for "i know i made an activity/slide deck/notebook for this topic/set of topics, where is it"
 - How long did you keep using it, and why did you tolerate the maintenance cost?
+  - still using, i don't have any better solution. tbh, i don't *like* the solution, it just works. has a lot of overhead in teaching it to TAs and alt instructors as well.
 
 The existence of a durable workaround matters more than the number of products
 considered. It shows that the need survived after the novelty wore off.
 
 ### 3. Use the tool categories to define the missing layer
+ANSWERED IN THE SECTION BELOW
 
 Keep the categories below. For each one, answer the same two questions:
 
@@ -57,14 +69,20 @@ than a long inventory of distant alternatives.
 ### 4. Explain why GenAI did not remove the problem
 
 - What plans or redesigns did you generate with AI?
+  - everything besides slides.. and for slides i had ai design the content and find the prior art. tbhm this would be better answered by looking at the content of ds100. ds551 is much less sophisticated in terms of this because it is an "easier class" (for me) and most of the course is "project" and "assignment" based like bigger ones .. but, if i had a tool like c-p 551 could be much richer i just don't have the time to bring it up to the same level is 100
 - Where did the generated plan live after the conversation ended?
+  - i have the tools document it in artifacts like the topics completed, calendar, lm and lecture overviews, activity overviews, etc. again, a review of actual ds100 would answer this much better.
 - What happened when the calendar, topic map, or assessment strategy changed?
+  - cascading fires for creating content for "next student meeting"
 - Could the model distinguish canonical course design from one term's delivery?
+  - yes, i have "course-info/*" and "course-info/term" which is where the diff lies on "structure" for content the diff is comparing to "last term" or looking at the git history of thre atifacts.
 - Did replanning preserve prior decisions and their reasons, or begin again from
   a plausible-looking snapshot?
+  - generally, i tried to do solid commit messages w/ the reasoning.I also try to take notes on what to do next semester. i also try to get my surveys and course eval feedback in to the plan for a next semester.
 
 The claim to test is: GenAI can generate a plan, but generation without durable
 structure turns every revision into another first draft.
+  - kinda.. it does solidify over time.. c-p is making that happen faster and more simply/less effort for the operator.
 
 ### 5. Name the product boundary precisely
 
@@ -123,6 +141,10 @@ Four clusters, from the operator's own experience except where noted.
 Infinitely flexible, no domain model. The structure lives in your head, and it rots the moment the
 term slips. The spreadsheet was abandoned quickly.
 
+1. What job is this category actually designed to do?
+2. What happens when it is asked to preserve and revise a live course plan?
+
+
 **TODO (operator):** what specifically broke down — was it maintenance cost, or that the structure
 could not represent the thing?
 
@@ -143,6 +165,9 @@ Built for delivery and measurement, not planning.
   a Canvas calendar and it is simply moved: no diff, no impact preview, no record that the plan
   changed.
 
+1. What job is this category actually designed to do?
+2. What happens when it is asked to preserve and revise a live course plan?
+
 ### Curriculum-mapping-shaped — Coursetune, Watermark, Nuventive
 
 Correct domain model, wrong tempo, wrong buyer. Aimed at annual program review and accreditation.
@@ -158,12 +183,18 @@ That is the whole market structure in one data point. A company launched at the 
 problem and was pulled to the buyer within a few years. The gap is real *because* it is
 commercially unattractive: instructors do not hold budget.
 
+1. What job is this category actually designed to do?
+2. What happens when it is asked to preserve and revise a live course plan?
+
 ### Post-GenAI — prompting for a plan
 
 Produces a plausible plan once, then has nowhere to live. No state, so replanning starts from
 scratch. The operator's own attempts are the `ds100` and `pantheon` repos.
 
 **TODO (operator):** this is the newest failure mode and the one worth writing about publicly.
+
+1. What job is this category actually designed to do?
+2. What happens when it is asked to preserve and revise a live course plan?
 
 ## The strongest evidence, from the operator's own repo
 
