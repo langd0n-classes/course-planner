@@ -257,30 +257,34 @@ export default function CourseWorkspacePage({ courseId }: Props) {
     const currentVersion = currentVersionsByTopicId.get(topicId) ?? null;
     if (!topic) throw new Error("Topic not found.");
 
-    if (
-      currentVersion &&
-      ((currentVersion.title ?? "") !== input.title || (currentVersion.category ?? "") !== input.category ||
-        (currentVersion.description ?? "") !== input.description || !!input.changeSummary)
-    ) {
-      await redesignApi.createTopicVersion(topicId, {
-        expectedCurrentVersionId: currentVersion.id,
-        title: input.title,
-        category: input.category || null,
-        description: input.description || null,
-        changeSummary: input.changeSummary || null,
-        publish: false,
-      });
+    try {
+      if (
+        currentVersion &&
+        ((currentVersion.title ?? "") !== input.title || (currentVersion.category ?? "") !== input.category ||
+          (currentVersion.description ?? "") !== input.description ||
+          (!!input.changeSummary && currentVersion.changeSummary !== input.changeSummary))
+      ) {
+        const version = await redesignApi.createTopicVersion(topicId, {
+          expectedCurrentVersionId: currentVersion.id,
+          title: input.title,
+          category: input.category || null,
+          description: input.description || null,
+          changeSummary: input.changeSummary || null,
+          publish: false,
+        });
+        setCurrentVersionsByTopicId((previous) => new Map(previous).set(topicId, version));
+      }
+
+      if (topic.stableCode !== input.stableCode) {
+        await redesignApi.updateTopic(topicId, {
+          stableCode: input.stableCode,
+        });
+      }
+
+      await redesignApi.replaceTopicPrerequisites(topicId, input.prerequisiteTopicIds);
+    } finally {
+      await loadWorkspace(false);
     }
-
-    if (topic.stableCode !== input.stableCode) {
-      await redesignApi.updateTopic(topicId, {
-        stableCode: input.stableCode,
-      });
-    }
-
-    await redesignApi.replaceTopicPrerequisites(topicId, input.prerequisiteTopicIds);
-
-    await loadWorkspace(false);
   }
 
   async function handleSaveLearningModule(input: UpsertLearningModuleVersionRequest) {

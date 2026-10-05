@@ -730,4 +730,33 @@ describe("workspace version editors", () => {
     await screen.findByText("Concurrent edit detected");
     expect(backend.replaceTopicPrerequisites).not.toHaveBeenCalled();
   });
+
+  it("retries a partial Topic save without creating another version", async () => {
+    const original: TopicVersionDto = { id: "tv1", topicId: "t1", revision: 1, title: "Original topic", category: "Concept", description: "Old description", changeSummary: null, publishedAt: null };
+    const { backend, createTopicVersion, updateTopic } = buildCourseWorkspaceBackend({ topics: [{
+      topic: { id: "t1", courseId: "course-1", learningModuleId: null, stableCode: "T1", currentVersionId: "tv1", archivedAt: null }, currentVersion: original,
+    }] });
+    updateTopic.mockRejectedValueOnce(new Error("Code already in use"));
+    setMockBackend(backend);
+    render(<CourseWorkspacePage courseId="course-1" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Original topic/ }));
+    fireEvent.change(screen.getByLabelText("Topic description"), { target: { value: "Expanded description" } });
+    fireEvent.change(screen.getByLabelText("Topic code"), { target: { value: "T1-NEW" } });
+    fireEvent.change(screen.getByLabelText("Topic change summary"), { target: { value: "Clarify meaning" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
+
+    await screen.findByText("Code already in use");
+    await screen.findByText("Last change: Clarify meaning");
+    expect(createTopicVersion).toHaveBeenCalledTimes(1);
+    expect(updateTopic).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByLabelText("Topic code"), { target: { value: "T1-NEW" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
+
+    await waitFor(() => expect(updateTopic).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(backend.replaceTopicPrerequisites).toHaveBeenCalledTimes(1));
+    expect(createTopicVersion).toHaveBeenCalledTimes(1);
+    expect(createTopicVersion).toHaveBeenCalledWith("t1", expect.objectContaining({ expectedCurrentVersionId: "tv1" }));
+  });
 });

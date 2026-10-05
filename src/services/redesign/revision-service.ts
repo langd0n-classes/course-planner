@@ -88,6 +88,18 @@ export async function publishLearningModuleVersion(
   learningModuleVersionId: string,
 ) {
   return db.$transaction(async (tx) => {
+    const locked: Array<{ id: string }> = await tx.$queryRaw`
+      SELECT version.id
+      FROM learning_module_versions AS version
+      JOIN learning_modules AS module ON module.id = version.learning_module_id
+      JOIN courses AS course ON course.id = module.course_id
+      WHERE version.id = ${learningModuleVersionId}::uuid
+        AND course.instructor_id = ${instructorId}::uuid
+      FOR UPDATE OF version, module
+    `;
+    if (locked.length !== 1) {
+      throw new DomainInvariantError("Learning Module version not found");
+    }
     const version = await tx.learningModuleVersion.findUnique({
       where: { id: learningModuleVersionId },
       include: {
@@ -102,15 +114,18 @@ export async function publishLearningModuleVersion(
     if (version.learningModule.currentVersionId !== version.id) {
       throw new ConcurrencyConflictError();
     }
-    if (version.publishedAt) return version;
-    return tx.learningModuleVersion.update({
-      where: { id: version.id },
-      data: { publishedAt: new Date() },
-      include: {
-        topics: { orderBy: { sequence: "asc" } },
-        activities: { orderBy: { sequence: "asc" } },
+    if (version.publishedAt) throw new ConcurrencyConflictError();
+    const publishedAt = new Date();
+    const result = await tx.learningModuleVersion.updateMany({
+      where: {
+        id: version.id,
+        publishedAt: null,
+        learningModule: { currentVersionId: version.id },
       },
+      data: { publishedAt },
     });
+    if (result.count !== 1) throw new ConcurrencyConflictError();
+    return { ...version, publishedAt };
   });
 }
 

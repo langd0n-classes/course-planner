@@ -43,31 +43,88 @@ describe("Learning Module draft publication", () => {
       learningModule: { currentVersionId: "lmv-1", course: { instructorId: "instructor-1" } },
     };
     let updateData: Record<string, unknown> | null = null;
+    let updateWhere: Record<string, unknown> | null = null;
     const db = createTransactionalDb({ learningModuleVersion: {
       findUnique: async () => version,
-      update: async ({ data }: any) => {
+      updateMany: async ({ data, where }: any) => {
         updateData = data;
-        return { ...version, ...data };
+        updateWhere = where;
+        return { count: 1 };
       },
-    } });
+    }, $queryRaw: async () => [{ id: "lmv-1" }] });
     const published = await publishLearningModuleVersion(db, "instructor-1", "lmv-1");
     expect(updateData).toMatchObject({ publishedAt: expect.any(Date) });
+    expect(updateWhere).toMatchObject({ id: "lmv-1", publishedAt: null, learningModule: { currentVersionId: "lmv-1" } });
     expect(published.topics).toEqual(version.topics);
   });
 
-  it("rejects another instructor and an obsolete draft", async () => {
-    const version = {
+  it("rejects another instructor, an obsolete draft, and a published version", async () => {
+    const version: {
+      id: string;
+      publishedAt: Date | null;
+      learningModule: { currentVersionId: string; course: { instructorId: string } };
+    } = {
       id: "lmv-1", publishedAt: null,
       learningModule: { currentVersionId: "lmv-1", course: { instructorId: "other" } },
     };
+    let authorized = false;
     const db = createTransactionalDb({ learningModuleVersion: {
       findUnique: async () => version,
-      update: async () => { throw new Error("Must not update"); },
-    } });
+      updateMany: async () => { throw new Error("Must not update"); },
+    }, $queryRaw: async () => authorized ? [{ id: "lmv-1" }] : [] });
     await expect(publishLearningModuleVersion(db, "instructor-1", "lmv-1")).rejects.toThrow(DomainInvariantError);
+    authorized = true;
     version.learningModule.course.instructorId = "instructor-1";
     version.learningModule.currentVersionId = "lmv-2";
     await expect(publishLearningModuleVersion(db, "instructor-1", "lmv-1")).rejects.toThrow(ConcurrencyConflictError);
+    version.learningModule.currentVersionId = "lmv-1";
+    version.publishedAt = new Date();
+    await expect(publishLearningModuleVersion(db, "instructor-1", "lmv-1")).rejects.toThrow(ConcurrencyConflictError);
+  });
+
+  it("locks concurrent publishes so only the first can publish", async () => {
+    let publishedAt: Date | null = null;
+    let previousLock = Promise.resolve();
+    const lockQueries: string[] = [];
+    const db = {
+      $transaction: async <T>(fn: (tx: Record<string, any>) => Promise<T>): Promise<T> => {
+        let unlock: (() => void) | undefined;
+        const tx = {
+          $queryRaw: async (strings: TemplateStringsArray) => {
+            lockQueries.push(strings.join("?"));
+            const waitForPrevious = previousLock;
+            previousLock = new Promise<void>((resolve) => { unlock = resolve; });
+            await waitForPrevious;
+            return [{ id: "lmv-1" }];
+          },
+          learningModuleVersion: {
+            findUnique: async () => ({
+              id: "lmv-1", publishedAt, topics: [], activities: [],
+              learningModule: { currentVersionId: "lmv-1", course: { instructorId: "instructor-1" } },
+            }),
+            updateMany: async ({ data }: any) => {
+              if (publishedAt) return { count: 0 };
+              publishedAt = data.publishedAt;
+              return { count: 1 };
+            },
+          },
+        };
+        try {
+          return await fn(tx);
+        } finally {
+          unlock?.();
+        }
+      },
+    };
+
+    const results = await Promise.allSettled([
+      publishLearningModuleVersion(db, "instructor-1", "lmv-1"),
+      publishLearningModuleVersion(db, "instructor-1", "lmv-1"),
+    ]);
+    expect(results.map((result) => result.status)).toEqual(["fulfilled", "rejected"]);
+    expect(results[1]).toMatchObject({ reason: expect.any(ConcurrencyConflictError) });
+    expect(lockQueries).toHaveLength(2);
+    expect(lockQueries[0]).toContain("FOR UPDATE OF version, module");
   });
 });
 
