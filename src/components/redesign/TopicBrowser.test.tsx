@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import TopicBrowser from "./TopicBrowser";
 
@@ -62,6 +62,8 @@ describe("TopicBrowser", () => {
         stableCode: "topic-selecting-rows",
         title: "Selecting rows",
         category: "SQL",
+        description: "",
+        changeSummary: "",
         prerequisiteTopicIds: ["topic-2"],
       });
     });
@@ -110,10 +112,10 @@ describe("TopicBrowser", () => {
       prerequisiteTopicIds: index === 0 ? [] : ["topic-0"],
     }));
     render(<TopicBrowser buckets={[{ key: "unassigned", label: "Unassigned Topics", learningModuleId: null, isUnassigned: true, topics }]} topicTitleById={new Map([["topic-0", "Topic 0"]])} onSaveTopic={vi.fn(async () => undefined)} />);
-    expect(document.querySelectorAll("button")).toHaveLength(151);
+    expect(document.querySelectorAll("button")).toHaveLength(152);
     expect(screen.getAllByText("Topic 149")).toHaveLength(2);
     expect(screen.getByRole("status")).toHaveTextContent("Current chain: No prerequisites");
-    expect(screen.queryByRole("button", { name: /Current chain/ })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("complementary")).queryByRole("button", { name: /Current chain/ })).not.toBeInTheDocument();
   }, 15000);
 
   it("constrains a long Topic list beside the detail panel at desktop width", () => {
@@ -127,5 +129,36 @@ describe("TopicBrowser", () => {
     render(<TopicBrowser buckets={[{ key: "unassigned", label: "Unassigned Topics", learningModuleId: null, isUnassigned: true, topics }]} topicTitleById={new Map()} onSaveTopic={vi.fn(async () => undefined)} />);
     expect(screen.getByTestId("topic-list")).toHaveClass("min-w-0");
     expect(screen.getAllByText(`${title} 0`)[0]).toHaveClass("break-words");
+  });
+});
+
+describe("Topic detail edits", () => {
+  const buckets = [{ key: "unassigned", label: "Unassigned Topics", learningModuleId: null, isUnassigned: true, topics: [{
+    topic: { id: "t1", courseId: "c1", learningModuleId: null, stableCode: "T1", currentVersionId: "v1", archivedAt: null },
+    currentVersion: { id: "v1", topicId: "t1", revision: 3, title: "Topic", category: "Concept", description: "Original description", changeSummary: "Previous change", publishedAt: "2026-01-01T00:00:00Z" },
+    prerequisiteTopicIds: [],
+  }] }];
+
+  it("shows version details, cancels edits locally, and saves description and summary", async () => {
+    const onSaveTopic = vi.fn().mockResolvedValue(undefined);
+    render(<TopicBrowser buckets={buckets} topicTitleById={new Map()} onSaveTopic={onSaveTopic} />);
+    expect(screen.getByText(/Revision 3 · Published/)).toBeInTheDocument();
+    expect(screen.getByText("Last change: Previous change")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Topic description"), { target: { value: "Discard me" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel edits" }));
+    expect(screen.getByLabelText("Topic description")).toHaveValue("Original description");
+    expect(onSaveTopic).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Topic description"), { target: { value: "New description" } });
+    fireEvent.change(screen.getByLabelText("Topic change summary"), { target: { value: "Explain the topic" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
+    await waitFor(() => expect(onSaveTopic).toHaveBeenCalledWith("t1", { stableCode: "T1", title: "Topic", category: "Concept", description: "New description", changeSummary: "Explain the topic", prerequisiteTopicIds: [] }));
+  });
+
+  it("retains description edits when saving fails", async () => {
+    render(<TopicBrowser buckets={buckets} topicTitleById={new Map()} onSaveTopic={vi.fn().mockRejectedValue(new Error("Version conflict"))} />);
+    fireEvent.change(screen.getByLabelText("Topic description"), { target: { value: "Keep my work" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Version conflict");
+    expect(screen.getByLabelText("Topic description")).toHaveValue("Keep my work");
   });
 });

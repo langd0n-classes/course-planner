@@ -14,6 +14,8 @@ type Props = {
       stableCode: string;
       title: string;
       category: string;
+      description: string;
+      changeSummary: string;
       prerequisiteTopicIds: Id[];
     },
   ) => Promise<void>;
@@ -29,6 +31,9 @@ export default function TopicBrowser({
   const [draftTitle, setDraftTitle] = useState("");
   const [draftCode, setDraftCode] = useState("");
   const [draftCategory, setDraftCategory] = useState("");
+  const [draftDescription, setDraftDescription] = useState("");
+  const [changeSummary, setChangeSummary] = useState("");
+  const [resetCount, setResetCount] = useState(0);
   const [selectedPrerequisites, setSelectedPrerequisites] = useState<Id[]>([]);
   const [codeOverridden, setCodeOverridden] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +53,8 @@ export default function TopicBrowser({
   }, [flatTopics, selectedTopicId]);
 
   useEffect(() => {
+    setDraftDescription(selected?.currentVersion?.description ?? "");
+    setChangeSummary("");
     setDraftTitle(selected?.currentVersion?.title ?? "");
     setDraftCode(selected?.topic.stableCode ?? "");
     setDraftCategory(selected?.currentVersion?.category ?? "");
@@ -55,6 +62,9 @@ export default function TopicBrowser({
     setCodeOverridden(false);
     setError(null);
   }, [
+    resetCount,
+    selected?.currentVersion?.id,
+    selected?.currentVersion?.description,
     selected?.currentVersion?.category,
     selected?.currentVersion?.title,
     selected?.prerequisiteTopicIds,
@@ -78,8 +88,11 @@ export default function TopicBrowser({
         stableCode: draftCode,
         title: draftTitle,
         category: draftCategory,
+        description: draftDescription,
+        changeSummary,
         prerequisiteTopicIds: selectedPrerequisites,
       });
+      setChangeSummary("");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to save topic.");
     } finally {
@@ -120,6 +133,8 @@ export default function TopicBrowser({
                     <button
                       key={entry.topic.id}
                       type="button"
+                      disabled={saving}
+                      aria-pressed={active}
                       onClick={() => setSelectedTopicId(entry.topic.id)}
                       className={`rounded-xl border px-3 py-2 text-left ${
                         active
@@ -169,6 +184,11 @@ export default function TopicBrowser({
               </p>
             </div>
 
+            {selected.currentVersion ? <div className="text-sm text-slate-600">
+              <p>Revision {selected.currentVersion.revision} · {selected.currentVersion.publishedAt ? "Published" : "Draft"}. Content edits create a new draft version; existing Activity and Term pins stay unchanged.</p>
+              {selected.currentVersion.changeSummary ? <p>Last change: {selected.currentVersion.changeSummary}</p> : null}
+            </div> : <p role="alert">This Topic has no current version to edit.</p>}
+
             <div className="grid gap-3">
               <label className="block text-sm text-slate-700">
                 <span className="mb-1 block font-medium">Topic title</span>
@@ -214,9 +234,17 @@ export default function TopicBrowser({
                   disabled={saving}
                 />
               </label>
+              <label className="block text-sm text-slate-700">
+                <span className="mb-1 block font-medium">Topic description</span>
+                <textarea rows={5} value={draftDescription} onChange={(event) => setDraftDescription(event.target.value)} disabled={saving} className="w-full rounded-lg border border-slate-300 px-3 py-2" />
+              </label>
+              <label className="block text-sm text-slate-700">
+                <span className="mb-1 block font-medium">Topic change summary</span>
+                <textarea value={changeSummary} onChange={(event) => setChangeSummary(event.target.value)} disabled={saving} className="w-full rounded-lg border border-slate-300 px-3 py-2" />
+              </label>
             </div>
 
-            <fieldset>
+            <fieldset disabled={saving}>
               <legend className="text-sm font-medium text-slate-700">Prerequisites</legend>
               <div className="mt-2 space-y-2">
                 {flatTopics
@@ -262,13 +290,14 @@ export default function TopicBrowser({
                     .join(", ")}
             </div>
 
-            {error ? <p className="text-sm text-rose-700">{error}</p> : null}
+            {error ? <p role="alert" className="text-sm text-rose-700">{error}</p> : null}
 
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-3">
+              <button type="button" disabled={saving} onClick={() => setResetCount((count) => count + 1)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Cancel edits</button>
               <button
                 type="button"
                 onClick={handleSaveTopic}
-                disabled={saving}
+                disabled={saving || !selected.currentVersion || !draftTitle.trim() || !draftCode.trim()}
                 className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-400"
               >
                 {saving ? "Saving..." : "Save topic"}
