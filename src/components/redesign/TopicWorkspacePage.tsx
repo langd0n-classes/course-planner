@@ -59,27 +59,30 @@ export default function TopicWorkspacePage({ courseId, topicId }: Props) {
     const selected = entries.find((entry) => entry.topic.id === id);
     if (!selected?.currentVersion)
       throw new Error("This Topic has no current version to edit.");
-    if (selected.topic.stableCode !== input.stableCode) {
-      await redesignApi.updateTopic(id, { stableCode: input.stableCode });
-    }
-    await redesignApi.replaceTopicPrerequisites(id, input.prerequisiteTopicIds);
     const current = selected.currentVersion;
-    if (
-      current.title !== input.title ||
-      (current.category ?? "") !== input.category ||
-      (current.description ?? "") !== input.description ||
-      !!input.changeSummary
-    ) {
-      await redesignApi.createTopicVersion(id, {
-        expectedCurrentVersionId: current.id,
-        title: input.title,
-        category: input.category || null,
-        description: input.description || null,
-        changeSummary: input.changeSummary || null,
-        publish: false,
-      });
+    try {
+      if (
+        current.title !== input.title ||
+        (current.category ?? "") !== input.category ||
+        (current.description ?? "") !== input.description ||
+        (!!input.changeSummary && current.changeSummary !== input.changeSummary)
+      ) {
+        await redesignApi.createTopicVersion(id, {
+          expectedCurrentVersionId: current.id,
+          title: input.title,
+          category: input.category || null,
+          description: input.description || null,
+          changeSummary: input.changeSummary || null,
+          publish: false,
+        });
+      }
+      if (selected.topic.stableCode !== input.stableCode) {
+        await redesignApi.updateTopic(id, { stableCode: input.stableCode });
+      }
+      await redesignApi.replaceTopicPrerequisites(id, input.prerequisiteTopicIds);
+    } finally {
+      await loadTopic(false);
     }
-    await loadTopic(false);
   }
 
   return (

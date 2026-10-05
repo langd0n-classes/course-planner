@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useEffectEvent, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -16,7 +16,6 @@ import {
   type MatrixSkill,
   type MatrixSession,
   type MatrixCoverage,
-  type MatrixRow,
 } from "@/domain/coverage-matrix";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import CoverageBadge from "@/components/CoverageBadge";
@@ -27,6 +26,10 @@ type FilterMode = "all" | "gaps" | "at_risk";
 
 export default function CoverageMatrixPage() {
   const { id: termId } = useParams<{ id: string }>();
+  return <CoverageMatrix key={termId} termId={termId} />;
+}
+
+function CoverageMatrix({ termId }: { termId: string }) {
   const { showToast } = useToast();
 
   const [coverages, setCoverages] = useState<Coverage[]>([]);
@@ -44,24 +47,23 @@ export default function CoverageMatrixPage() {
     sessionId: string;
   } | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const [c, sk, se, term] = await Promise.all([
+  const load = useCallback(() => {
+    return Promise.all([
       api.getCoverages({ termId }),
       api.getSkills(termId),
       api.getSessions({ termId }),
       api.getTerm(termId),
-    ]);
-    setCoverages(c);
-    setSkills(sk);
-    setSessions(se);
-    setTermName(term.name);
-    setLoading(false);
+    ]).then(([c, sk, se, term]) => {
+      setCoverages(c);
+      setSkills(sk);
+      setSessions(se);
+      setTermName(term.name);
+      setLoading(false);
+    });
   }, [termId]);
 
-  const loadFromEffect = useEffectEvent(load);
   useEffect(() => {
-    void loadFromEffect();
+    void load();
   }, [load]);
 
   async function addCoverage(
@@ -73,7 +75,8 @@ export default function CoverageMatrixPage() {
       await api.createCoverage({ sessionId, skillId, level });
       setPopover(null);
       showToast("Coverage added");
-      load();
+      setLoading(true);
+      void load();
     } catch (err) {
       showToast((err as Error).message, "error");
     }
@@ -83,7 +86,8 @@ export default function CoverageMatrixPage() {
     try {
       await api.deleteCoverage(covId);
       showToast("Coverage removed");
-      load();
+      setLoading(true);
+      void load();
     } catch (err) {
       showToast((err as Error).message, "error");
     }

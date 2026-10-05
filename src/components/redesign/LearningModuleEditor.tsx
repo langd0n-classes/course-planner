@@ -14,6 +14,7 @@ type Props = {
   stableCode: string;
   version: LearningModuleVersionDto;
   onSave: (input: UpsertLearningModuleVersionRequest) => Promise<void>;
+  onPublish: (versionId: Id) => Promise<void>;
   onCancel: () => void;
 };
 
@@ -22,6 +23,7 @@ export default function LearningModuleEditor({
   stableCode,
   version,
   onSave,
+  onPublish,
   onCancel,
 }: Props) {
   const [title, setTitle] = useState(version.title);
@@ -49,6 +51,19 @@ export default function LearningModuleEditor({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  async function publish() {
+    if (saving || version.publishedAt) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await onPublish(version.id);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to publish learning module.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -124,6 +139,7 @@ export default function LearningModuleEditor({
           ...member,
           sequence: index,
         })),
+        topics: version.topics,
         publish: false,
       });
     } catch (caught) {
@@ -151,6 +167,7 @@ export default function LearningModuleEditor({
         Revision {version.revision} ·{" "}
         {version.publishedAt ? "Published" : "Draft"}. Saving creates a new
         draft version. Existing Term pins stay unchanged.
+        {!version.publishedAt ? " Publish uses the saved draft; save edits first." : null}
       </p>
       {version.changeSummary ? (
         <p className="mt-1 text-sm text-slate-600">
@@ -344,6 +361,15 @@ export default function LearningModuleEditor({
           >
             Cancel
           </button>
+          {!version.publishedAt ? (
+            <button
+              type="button"
+              onClick={() => void publish()}
+              className="rounded-lg border border-sky-700 px-4 py-2 text-sky-800"
+            >
+              {saving ? "Publishing…" : "Publish draft"}
+            </button>
+          ) : null}
         </div>
       </fieldset>
     </form>

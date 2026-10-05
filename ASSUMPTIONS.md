@@ -333,6 +333,19 @@ Decisions made where the requirements were underspecified. Each can be revisited
   remain active. Production continues to expose only configured OAuth
   providers; this is a review seam, not an alternative production auth mode.
 
+## Issue #15 — non-destructive default seed
+
+- The default demo reserves deterministic UUIDs for its direct rows. Natural-key collisions fail instead of adopting user rows. Existing demo rows keep instructor edits; version pointers are set only when absent.
+- The exemplar importer runs when its demo course is first created (or has no imported modules). Its stable course-scoped codes and version revisions identify the imported rows. Later default seed runs leave that course untouched.
+- `--force` is the only path that clears every application table; migration history remains. Operator decision 2026-10-04, relayed by AICP.
+
+## Authenticated demo loading
+
+- **First data request creates the Instructor**: A signed-in email is used to create or find an Instructor when an authenticated route first needs it. A unique-key conflict from concurrent creation resolves to the winning row. The session name is used only for the initial row; later sign-ins do not overwrite a name the instructor may have edited.
+- **The in-app demo creates one Course per Instructor**: The action imports the generic exemplar course structure into a new Course identified by the unique `(instructorId, demoKey)` pair. Repeating the action returns that Course without importing again. It does not create a Term because the generic exemplar snapshot has no institution or academic-calendar context for a usable Term.
+
+- **The in-app demo now creates a Term as well (2026-10-04 operator decision)**: A dedicated demo Institution and Academic Calendar supply the missing context. The load creates the current or next Spring or Fall Term with weekly meetings and adopted Activities in the same transaction as the Course. Repeating the load makes no changes.
+
 ## Learning Module and Topic workspace editing (#66)
 
 - Course workspace edits create a new draft version through the existing revision
@@ -343,6 +356,9 @@ Decisions made where the requirements were underspecified. Each can be revisited
   saved as contiguous zero-based sequence values.
 - Topic descriptions and change summaries belong to new Topic versions. Stable
   codes and prerequisites continue through their existing identity and DAG APIs.
+- Publishing acts on the current saved Learning Module draft. It sets that
+  version's publication time without creating another revision; unsaved editor
+  changes must be saved first.
 
 ## Activity-led Course workspace (#71)
 
@@ -355,3 +371,6 @@ Decisions made where the requirements were underspecified. Each can be revisited
   route exists. The page uses the existing identity, DAG, and revision APIs.
   Topic creation remains available in the browser; coverage edits remain on
   Activity cards. Learning Outcome features are outside this change.
+- A failed Topic save refreshes the displayed server revision and prerequisite
+  chain while retaining the unsaved form values. The displayed revision shows
+  which part of a partial save succeeded before the instructor retries.

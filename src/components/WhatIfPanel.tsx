@@ -46,7 +46,12 @@ export default function WhatIfPanel({
   onSetCompare = () => {},
 }: WhatIfPanelProps) {
   const [impact, setImpact] = useState<WhatIfImpact | null>(null);
-  const [comparison, setComparison] = useState<ScenarioComparison | null>(null);
+  const [comparisonResult, setComparisonResult] = useState<{
+    termId: string;
+    sessionId: string;
+    compareSessionId: string;
+    data: ScenarioComparison;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelReason, setCancelReason] = useState("");
   const [demoScenario, setDemoScenario] = useState("");
@@ -67,6 +72,11 @@ export default function WhatIfPanel({
   } | null>(null);
 
   const activeSessionId = demoScenario || sessionId;
+  const comparison = comparisonResult?.termId === termId &&
+    comparisonResult.sessionId === activeSessionId &&
+    comparisonResult.compareSessionId === compareSessionId
+    ? comparisonResult.data
+    : null;
 
   // Demo scenarios
   const demoScenarios = sessions
@@ -92,18 +102,18 @@ export default function WhatIfPanel({
     load();
   }, [activeSessionId]);
 
-  // Load comparison data
+  // Only display results for the selected pair and ignore superseded requests.
   useEffect(() => {
     if (!compareSessionId) return;
-    async function loadComparison() {
-      try {
-        const data = await api.whatIfCompare(termId, activeSessionId, compareSessionId!);
-        setComparison(data);
-      } catch (err) {
-        console.error("Comparison error:", err);
+    let ignore = false;
+    api.whatIfCompare(termId, activeSessionId, compareSessionId).then((data) => {
+      if (!ignore) {
+        setComparisonResult({ termId, sessionId: activeSessionId, compareSessionId, data });
       }
-    }
-    loadComparison();
+    }).catch((err) => {
+      console.error("Comparison error:", err);
+    });
+    return () => { ignore = true; };
   }, [compareSessionId, activeSessionId, termId]);
 
   const session = sessions.find((s) => s.id === activeSessionId);
@@ -422,7 +432,7 @@ export default function WhatIfPanel({
                 </div>
 
                 {/* Side-by-side comparison */}
-                {comparison && compareSessionId === comparison.scenarioB.canceledSessionId && activeSessionId === comparison.scenarioA.canceledSessionId && (
+                {comparison && (
                   <div className="border border-gray-200 rounded">
                     <div className="grid grid-cols-2 text-xs">
                       <div className="p-3 border-r border-gray-200">

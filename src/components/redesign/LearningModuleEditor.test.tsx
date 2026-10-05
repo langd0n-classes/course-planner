@@ -20,7 +20,7 @@ const version: LearningModuleVersionDto = {
   defaultSequence: 2,
   changeSummary: null,
   publishedAt: "2026-01-01T00:00:00Z",
-  topics: [],
+  topics: [{ topicVersionId: "topic-v1", sequence: 3 }],
   activities: [
     {
       activityVersionId: "a-old",
@@ -86,6 +86,7 @@ function setup(onSave = vi.fn().mockResolvedValue(undefined)) {
       stableCode="LM1"
       version={version}
       onSave={onSave}
+      onPublish={vi.fn()}
       onCancel={onCancel}
     />,
   );
@@ -123,6 +124,7 @@ describe("LearningModuleEditor", () => {
           notes: "Keep notes",
           defaultSequence: 2,
           publish: false,
+          topics: [{ topicVersionId: "topic-v1", sequence: 3 }],
           activities: [
             { activityVersionId: "b-new", sequence: 0, notes: null },
             {
@@ -214,6 +216,7 @@ describe("LearningModuleEditor", () => {
         stableCode="LM2"
         version={version}
         onSave={vi.fn()}
+        onPublish={vi.fn()}
         onCancel={vi.fn()}
       />,
     );

@@ -26,6 +26,8 @@ export default function CourseIndexPage() {
   const [error, setError] = useState<string | null>(null);
   const [courses, setCourses] = useState<CourseSummary[]>([]);
   const [createState, setCreateState] = useState<CreateCourseState>({ open: false });
+  const [demoLoading, setDemoLoading] = useState(false);
+  const [demoError, setDemoError] = useState<string | null>(null);
 
   const load = useEffectEvent(async () => {
     setLoading(true);
@@ -84,6 +86,18 @@ export default function CourseIndexPage() {
     }
   }
 
+  async function handleLoadDemo() {
+    setDemoLoading(true);
+    setDemoError(null);
+    try {
+      const result = await redesignApi.loadDemoCourse();
+      router.push(`/courses/${result.courseId}`);
+    } catch (caught) {
+      setDemoError(caught instanceof Error ? caught.message : "Unable to load demo course.");
+      setDemoLoading(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-4 animate-pulse">
@@ -119,15 +133,28 @@ export default function CourseIndexPage() {
               Start from a course to design curriculum, then move into term setup, topic placement, revision history, and delivered-term review.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() =>
-              setCreateState({ open: true, title: "", number: "", description: "", submitting: false, error: null })
-            }
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
-          >
-            New course
-          </button>
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => void handleLoadDemo()}
+                disabled={demoLoading}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-50"
+              >
+                {demoLoading ? "Loading demo..." : "Load demo course"}
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setCreateState({ open: true, title: "", number: "", description: "", submitting: false, error: null })
+                }
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+              >
+                New course
+              </button>
+            </div>
+            {demoError ? <p role="alert" className="text-sm text-rose-700">{demoError}</p> : null}
+          </div>
         </div>
       </section>
 

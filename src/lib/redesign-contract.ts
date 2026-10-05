@@ -230,6 +230,7 @@ export type CreateCourseRequest = {
   institutionIds?: Id[];
 };
 export type ListCoursesResponse = { courses: CourseDto[] };
+export type LoadDemoCourseResponse = { courseId: Id; created: boolean };
 export type CreateCourseResponse = { course: CourseDto };
 export type GetCourseResponse = { course: CourseDto };
 export type UpdateCourseRequest = Partial<
@@ -382,6 +383,7 @@ export type UpdateLearningModuleResponse = {
 };
 export type ListLearningModuleVersionsResponse = { versions: LearningModuleVersionDto[] };
 export type CreateLearningModuleVersionResponse = { version: LearningModuleVersionDto };
+export type PublishLearningModuleVersionResponse = { version: LearningModuleVersionDto };
 
 export type TopicDto = {
   id: Id;
@@ -1381,6 +1383,7 @@ export type DeleteArtifactResponse =
 // source of truth the CanonicalRoute type is derived from.
 export const CANONICAL_ROUTES = [
   "/api/instructors/me",
+  "/api/instructors/me/demo-course",
   "/api/institutions",
   "/api/academic-calendars",
   "/api/academic-calendars/[id]",
@@ -1392,6 +1395,7 @@ export const CANONICAL_ROUTES = [
   "/api/courses/[id]/learning-modules",
   "/api/learning-modules/[id]",
   "/api/learning-modules/[id]/versions",
+  "/api/learning-module-versions/[id]/publish",
   "/api/courses/[id]/topics",
   "/api/courses/[id]/topic-prerequisites",
   "/api/topic-versions/[id]",

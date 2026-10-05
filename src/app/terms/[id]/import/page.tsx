@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { api, type ImportResult } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
 
 type Tab = "calendar" | "structure" | "csv";
 

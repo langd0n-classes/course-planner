@@ -52,12 +52,14 @@ import type {
   ListActivityTypesResponse,
   ListActivityVersionsResponse,
   ListArtifactsResponse,
+  LoadDemoCourseResponse,
   ListCourseActivityTypeVersionsResponse,
   ListTermCalendarExceptionsResponse,
   ListAcademicCalendarVersionsResponse,
   ListTermsResponse,
   PlannedDeliveredDiffResponse,
   PublishActivityVersionResponse,
+  PublishLearningModuleVersionResponse,
   ReplaceCourseActivityTypeVersionsRequest,
   ReplaceCourseActivityTypeVersionsResponse,
   ReplaceCourseInstitutionsResponse,
@@ -371,6 +373,9 @@ const _api = {
   listCourses: (): Promise<CourseDto[]> =>
     get<{ courses: CourseDto[] }>("/api/courses").then((d) => d.courses),
 
+  loadDemoCourse: (): Promise<LoadDemoCourseResponse> =>
+    post<LoadDemoCourseResponse>("/api/instructors/me/demo-course"),
+
   getCourse: (id: Id): Promise<CourseDto> =>
     get<{ course: CourseDto }>(`/api/courses/${id}`).then((d) => d.course),
 
@@ -440,6 +445,11 @@ const _api = {
     post<{ version: LearningModuleVersionDto }>(
       `/api/learning-modules/${learningModuleId}/versions`,
       version,
+    ).then((d) => d.version),
+
+  publishLearningModuleVersion: (versionId: Id): Promise<LearningModuleVersionDto> =>
+    post<PublishLearningModuleVersionResponse>(
+      `/api/learning-module-versions/${versionId}/publish`,
     ).then((d) => d.version),
 
   restoreLearningModuleVersion: async (

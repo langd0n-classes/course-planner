@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useEffectEvent } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api, type Skill } from "@/lib/api-client";
 
 export default function SkillsPage() {
@@ -15,15 +15,11 @@ export default function SkillsPage() {
     isGlobal: true,
   });
 
-  async function loadSkills() {
-    const s = await api.getSkills();
-    setSkills(s);
-  }
+  const loadSkills = useCallback(() => api.getSkills().then(setSkills), []);
 
-  const loadFromEffect = useEffectEvent(loadSkills);
   useEffect(() => {
-    void loadFromEffect();
-  }, []);
+    void loadSkills();
+  }, [loadSkills]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();

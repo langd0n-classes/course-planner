@@ -25,6 +25,9 @@ const version: TopicVersionDto = {
 };
 
 function backend() {
+  let savedTopic = { ...topic };
+  let savedVersion = { ...version };
+  let savedPrerequisites = ["t2"];
   const other = {
     ...topic,
     id: "t2",
@@ -32,10 +35,8 @@ function backend() {
     currentVersionId: "v2",
   };
   return {
-    listTopics: vi.fn(async () => [topic, other]),
-    listTopicPrerequisites: vi.fn(async () => [
-      { topicId: "t1", prerequisiteTopicId: "t2" },
-    ]),
+    listTopics: vi.fn(async () => [savedTopic, other]),
+    listTopicPrerequisites: vi.fn(async () => savedPrerequisites.map((prerequisiteTopicId) => ({ topicId: "t1", prerequisiteTopicId }))),
     getTopic: vi.fn(
       async (
         id: string,
@@ -43,16 +44,35 @@ function backend() {
         topic: TopicDto;
         currentVersion: TopicVersionDto | null;
       }> => ({
-        topic: id === "t1" ? topic : other,
+        topic: id === "t1" ? savedTopic : other,
         currentVersion:
           id === "t1"
-            ? version
+            ? savedVersion
             : { ...version, id: "v2", topicId: "t2", title: "Counting" },
       }),
     ),
-    updateTopic: vi.fn(async () => ({ topic, currentVersion: version })),
-    replaceTopicPrerequisites: vi.fn(async () => []),
-    createTopicVersion: vi.fn(async () => version),
+    updateTopic: vi.fn(async (_id: string, input: { stableCode?: string; archivedAt?: string | null }) => {
+      savedTopic = { ...savedTopic, stableCode: input.stableCode ?? savedTopic.stableCode };
+      return { topic: savedTopic, currentVersion: savedVersion };
+    }),
+    replaceTopicPrerequisites: vi.fn(async (_id: string, prerequisiteTopicIds: string[]) => {
+      savedPrerequisites = [...prerequisiteTopicIds];
+      return [];
+    }),
+    createTopicVersion: vi.fn(async (_id: string, input: { title: string; category?: string | null; description?: string | null; changeSummary?: string | null }) => {
+      savedVersion = {
+        ...savedVersion,
+        id: `v${savedVersion.revision + 1}`,
+        revision: savedVersion.revision + 1,
+        title: input.title,
+        category: input.category ?? null,
+        description: input.description ?? null,
+        changeSummary: input.changeSummary ?? null,
+        publishedAt: null,
+      };
+      savedTopic = { ...savedTopic, currentVersionId: savedVersion.id };
+      return savedVersion;
+    }),
   };
 }
 
@@ -152,6 +172,49 @@ describe("TopicWorkspacePage", () => {
         publish: false,
       }),
     );
+    await waitFor(() => expect(api.getTopic).toHaveBeenCalledTimes(4));
+    expect(screen.getByRole("alert")).toHaveTextContent("form edits are preserved");
+  });
+
+  it("does not change prerequisites when Topic version creation fails", async () => {
+    const api = backend();
+    api.createTopicVersion.mockRejectedValueOnce(new Error("Concurrent edit detected"));
+    setMockBackend(api);
+    render(<TopicWorkspacePage courseId="c1" topicId="t1" />);
+    await screen.findByDisplayValue("Probability");
+    fireEvent.change(screen.getByLabelText("Topic description"), { target: { value: "New description" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Concurrent edit detected");
+    expect(api.replaceTopicPrerequisites).not.toHaveBeenCalled();
+    expect(api.updateTopic).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Topic description")).toHaveValue("New description");
+    expect(api.getTopic).toHaveBeenCalledTimes(4);
+  });
+
+  it("retries a partial Topic save without creating another version", async () => {
+    const api = backend();
+    api.updateTopic.mockRejectedValueOnce(new Error("Code already in use"));
+    setMockBackend(api);
+    render(<TopicWorkspacePage courseId="c1" topicId="t1" />);
+    await screen.findByDisplayValue("Probability");
+    fireEvent.change(screen.getByLabelText("Topic description"), { target: { value: "Expanded description" } });
+    fireEvent.change(screen.getByLabelText("Topic code"), { target: { value: "T1-NEW" } });
+    fireEvent.change(screen.getByLabelText("Topic change summary"), { target: { value: "Clarify meaning" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Code already in use");
+    expect(await screen.findByText("Last change: Clarify meaning")).toBeInTheDocument();
+    expect(screen.getByLabelText("Topic description")).toHaveValue("Expanded description");
+    expect(screen.getByLabelText("Topic code")).toHaveValue("T1-NEW");
+    expect(screen.getByLabelText("Topic change summary")).toHaveValue("Clarify meaning");
+    expect(api.createTopicVersion).toHaveBeenCalledTimes(1);
+    expect(api.updateTopic).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
+    await waitFor(() => expect(api.updateTopic).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(api.replaceTopicPrerequisites).toHaveBeenCalledTimes(1));
+    expect(api.createTopicVersion).toHaveBeenCalledTimes(1);
+    expect(api.createTopicVersion).toHaveBeenCalledWith("t1", expect.objectContaining({ expectedCurrentVersionId: "v1" }));
   });
 
   it("disables content saves for a Topic without a version", async () => {

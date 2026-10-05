@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useEffectEvent, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -33,20 +33,20 @@ export default function AssessmentsPage() {
     progressionStage: "",
   });
 
-  const load = useCallback(async () => {
-    const [a, sk, se] = await Promise.all([
+  const load = useCallback(() => {
+    return Promise.all([
       api.getAssessments(termId) as Promise<AssessmentWithSkills[]>,
       api.getSkills(termId),
       api.getSessions({ termId }),
-    ]);
-    setAssessments(a);
-    setSkills(sk);
-    setSessions(se);
+    ]).then(([a, sk, se]) => {
+      setAssessments(a);
+      setSkills(sk);
+      setSessions(se);
+    });
   }, [termId]);
 
-  const loadFromEffect = useEffectEvent(load);
   useEffect(() => {
-    void loadFromEffect();
+    void Promise.resolve().then(load);
   }, [load]);
 
   async function handleCreate(e: React.FormEvent) {

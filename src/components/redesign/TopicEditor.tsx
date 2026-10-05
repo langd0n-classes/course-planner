@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import type { Id } from "@/lib/redesign-contract";
 import {
   suggestTopicStableCode,
@@ -44,7 +44,7 @@ export default function TopicEditor({
   const selected = entries.find((entry) => entry.topic.id === topicId) ?? null;
   const suggestedCode = suggestTopicStableCode(draftTitle);
 
-  useEffect(() => {
+  const resetDraftFromServer = useEffectEvent(() => {
     setDraftDescription(selected?.currentVersion?.description ?? "");
     setChangeSummary("");
     setDraftTitle(selected?.currentVersion?.title ?? "");
@@ -53,16 +53,11 @@ export default function TopicEditor({
     setSelectedPrerequisites(selected?.prerequisiteTopicIds ?? []);
     setCodeOverridden(false);
     setError(null);
-  }, [
-    resetCount,
-    selected?.currentVersion?.id,
-    selected?.currentVersion?.description,
-    selected?.currentVersion?.category,
-    selected?.currentVersion?.title,
-    selected?.prerequisiteTopicIds,
-    selected?.topic.id,
-    selected?.topic.stableCode,
-  ]);
+  });
+
+  useEffect(() => {
+    resetDraftFromServer();
+  }, [resetCount, selected?.topic.id]);
 
   function handleTitleChange(value: string) {
     setDraftTitle(value);
@@ -84,7 +79,7 @@ export default function TopicEditor({
         changeSummary,
         prerequisiteTopicIds: selectedPrerequisites,
       });
-      setChangeSummary("");
+      setResetCount((count) => count + 1);
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : "Unable to save topic.",
@@ -268,9 +263,10 @@ export default function TopicEditor({
           </div>
 
           {error ? (
-            <p role="alert" className="text-sm text-rose-700">
-              {error}
-            </p>
+            <div role="alert" className="text-sm text-rose-700">
+              <p>{error}</p>
+              <p>The saved Topic state above has been refreshed. Your form edits are preserved.</p>
+            </div>
           ) : null}
 
           <div className="flex justify-end gap-3">

@@ -227,6 +227,11 @@ export default function CourseWorkspacePage({ courseId }: Props) {
     await loadWorkspace();
   }
 
+  async function handlePublishLearningModule(versionId: Id) {
+    await redesignApi.publishLearningModuleVersion(versionId);
+    await loadWorkspace(false);
+  }
+
   async function handleRestoreVersion(learningModuleId: Id, versionId: Id) {
     await redesignApi.restoreLearningModuleVersion(
       learningModuleId,
@@ -958,6 +963,7 @@ export default function CourseWorkspacePage({ courseId }: Props) {
           stableCode={learningModules.find((module) => module.id === editingModuleId)!.stableCode}
           version={currentVersionsByLearningModuleId.get(editingModuleId)!}
           onSave={handleSaveLearningModule}
+          onPublish={handlePublishLearningModule}
           onCancel={() => setEditingModuleId(null)}
         />
       ) : null}

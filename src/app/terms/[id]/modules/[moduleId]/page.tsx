@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect, useEffectEvent, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
   api,
   type Module,
-  type Session,
   type Coverage,
   type Skill,
 } from "@/lib/api-client";
@@ -19,6 +18,10 @@ import { useToast } from "@/components/Toast";
 
 export default function ModuleDetailPage() {
   const { id: termId, moduleId } = useParams<{ id: string; moduleId: string }>();
+  return <ModuleDetail key={`${termId}:${moduleId}`} termId={termId} moduleId={moduleId} />;
+}
+
+function ModuleDetail({ termId, moduleId }: { termId: string; moduleId: string }) {
   const { showToast } = useToast();
 
   const [mod, setMod] = useState<Module | null>(null);
@@ -26,27 +29,27 @@ export default function ModuleDetailPage() {
   const [loading, setLoading] = useState(true);
   const [newObjective, setNewObjective] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const [m, term] = await Promise.all([
+  const load = useCallback(() => {
+    return Promise.all([
       api.getModule(moduleId),
       api.getTerm(termId),
-    ]);
-    setMod(m);
-    setTermName(term.name);
-    setLoading(false);
+    ]).then(([m, term]) => {
+      setMod(m);
+      setTermName(term.name);
+      setLoading(false);
+    });
   }, [moduleId, termId]);
 
-  const loadFromEffect = useEffectEvent(load);
   useEffect(() => {
-    void loadFromEffect();
+    void load();
   }, [load]);
 
   async function updateField(field: string, value: unknown) {
     try {
       await api.updateModule(moduleId, { [field]: value });
       showToast("Module updated");
-      load();
+      setLoading(true);
+      void load();
     } catch (err) {
       showToast((err as Error).message, "error");
     }
@@ -56,7 +59,8 @@ export default function ModuleDetailPage() {
     try {
       await api.updateSession(sessionId, { description });
       showToast("Description updated");
-      load();
+      setLoading(true);
+      void load();
     } catch (err) {
       showToast((err as Error).message, "error");
     }

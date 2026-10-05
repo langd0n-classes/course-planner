@@ -41,6 +41,8 @@ describe("preview authentication configuration", () => {
 
     expect(isSignInEmailAllowed("alice.chen@example.edu", env)).toBe(true);
     expect(isSignInEmailAllowed("owner@example.edu", env)).toBe(true);
+    expect(isSignInEmailAllowed(" OWNER@EXAMPLE.EDU ", env)).toBe(true);
+    expect(isSignInEmailAllowed("ALICE.CHEN@EXAMPLE.EDU", env)).toBe(true);
     expect(isSignInEmailAllowed("stranger@example.edu", env)).toBe(false);
   });
 });

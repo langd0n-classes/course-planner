@@ -73,11 +73,11 @@ course-planner.
   | `scripts/vercel-build.sh` on production | **Yes** — it runs `migrate deploy` |
   | `scripts/vercel-build.sh` on preview | No — it skips migrations |
 
-  Seeding a deployed environment needs an Instructor row matching the address you
-  sign in with, because `getAuthenticatedInstructor` looks the instructor up by
-  session email. Pass `SEED_INSTRUCTOR_EMAIL` (and optionally
-  `SEED_INSTRUCTOR_NAME`). **The seed deletes existing instructors, courses, and
-  Term data before it writes.** Never point it at data you want to keep.
+  Authenticated routes create or reuse the Instructor row for the normalized
+  session email. Seeding can still create a matching Instructor in advance: pass
+  `SEED_INSTRUCTOR_EMAIL` (and optionally `SEED_INSTRUCTOR_NAME`). The default
+  seed adds missing demo rows without changing existing data.
+  `npm run db:seed -- --force` deletes all application data before reseeding.
 
   Without `--security-opt label=disable`, SELinux denies the bind mount and the
   run fails with `EACCES` on the repo files. That failure looks like a

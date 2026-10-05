@@ -3,8 +3,6 @@
 
 import { describe, it, expect } from "vitest";
 import type {
-  ActivityTypeDto,
-  ActivityDto,
   ActivityVersionDto,
   TermActivityDto,
   TermActivityRevisionDto,
@@ -13,17 +11,14 @@ import type {
 import {
   createMeetingActivityType,
   createMeetingActivityTypeVersion,
-  createCourseworkActivityType,
   createCourseworkActivityTypeVersion,
   createMeetingActivityDetail,
   createCourseworkActivityDetail,
-  createMeetingActivity,
   createMeetingActivityVersion,
   createCourseworkActivity,
   createCourseworkActivityVersion,
   createMilestoneTemplate,
   createTermActivityMilestone,
-  createTermActivityRevisionTopicAction,
   createTermActivityRevision,
   createTermActivity,
   createTermCalendarException,
@@ -410,7 +405,6 @@ describe("redesign-fixtures", () => {
     });
 
     it("term activity revision references base activity version", () => {
-      const activity = createCourseworkActivity();
       const version = createCourseworkActivityVersion();
       const revision = createTermActivityRevision({
         baseActivityVersionId: version.id,

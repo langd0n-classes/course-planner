@@ -1,25 +1,28 @@
 "use client";
 
-import { useState, useEffect, useEffectEvent, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api, type ImpactReport } from "@/lib/api-client";
 
 export default function ImpactPage() {
   const { id: termId } = useParams<{ id: string }>();
+  return <ImpactReportView key={termId} termId={termId} />;
+}
+
+function ImpactReportView({ termId }: { termId: string }) {
   const [report, setReport] = useState<ImpactReport | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const r = await api.getTermImpact(termId);
-    setReport(r);
-    setLoading(false);
+  const load = useCallback(() => {
+    return api.getTermImpact(termId).then((r) => {
+      setReport(r);
+      setLoading(false);
+    });
   }, [termId]);
 
-  const loadFromEffect = useEffectEvent(load);
   useEffect(() => {
-    void loadFromEffect();
+    void load();
   }, [load]);
 
   if (loading) return <p className="text-gray-500">Loading impact report...</p>;
@@ -153,7 +156,10 @@ export default function ImpactPage() {
       )}
 
       <button
-        onClick={load}
+        onClick={() => {
+          setLoading(true);
+          void load();
+        }}
         className="mt-4 border px-4 py-2 rounded text-sm hover:bg-gray-100"
       >
         Refresh Report
