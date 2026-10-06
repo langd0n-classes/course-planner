@@ -5,7 +5,7 @@ import { useEffect, useEffectEvent, useState } from "react";
 import { redesignApi } from "@/lib/redesign-api-client";
 import type { Id } from "@/lib/redesign-contract";
 import type { TopicBrowserEntry } from "@/lib/redesign-workspace";
-import TopicEditor from "./TopicEditor";
+import TopicEditor, { type TopicSaveResult } from "./TopicEditor";
 
 type Props = { courseId: Id; topicId: Id };
 
@@ -16,7 +16,7 @@ export default function TopicWorkspacePage({ courseId, topicId }: Props) {
 
   async function loadTopic(showLoading = true) {
     if (showLoading) setLoading(true);
-    setError(null);
+    if (showLoading) setError(null);
     try {
       const [topics, prerequisites] = await Promise.all([
         redesignApi.listTopics(courseId),
@@ -36,10 +36,12 @@ export default function TopicWorkspacePage({ courseId, topicId }: Props) {
             .map((edge) => edge.prerequisiteTopicId),
         })),
       );
+      return null;
     } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Unable to load Topic.",
-      );
+      const message =
+        caught instanceof Error ? caught.message : "Unable to load Topic.";
+      if (showLoading) setError(message);
+      return message;
     } finally {
       setLoading(false);
     }
@@ -55,11 +57,15 @@ export default function TopicWorkspacePage({ courseId, topicId }: Props) {
     input: Parameters<
       React.ComponentProps<typeof TopicEditor>["onSaveTopic"]
     >[1],
-  ) {
+  ): Promise<TopicSaveResult> {
     const selected = entries.find((entry) => entry.topic.id === id);
     if (!selected?.currentVersion)
       throw new Error("This Topic has no current version to edit.");
     const current = selected.currentVersion;
+    let savedVersionId: Id | null = null;
+    const savedParts: string[] = [];
+    let failedStep = "version";
+    let saveError: string | null = null;
     try {
       if (
         current.title !== input.title ||
@@ -67,7 +73,7 @@ export default function TopicWorkspacePage({ courseId, topicId }: Props) {
         (current.description ?? "") !== input.description ||
         (!!input.changeSummary && current.changeSummary !== input.changeSummary)
       ) {
-        await redesignApi.createTopicVersion(id, {
+        const created = await redesignApi.createTopicVersion(id, {
           expectedCurrentVersionId: current.id,
           title: input.title,
           category: input.category || null,
@@ -75,14 +81,30 @@ export default function TopicWorkspacePage({ courseId, topicId }: Props) {
           changeSummary: input.changeSummary || null,
           publish: false,
         });
+        savedVersionId = created.id;
+        savedParts.push("Topic version");
       }
+      failedStep = "code";
       if (selected.topic.stableCode !== input.stableCode) {
         await redesignApi.updateTopic(id, { stableCode: input.stableCode });
+        savedParts.push("code");
       }
-      await redesignApi.replaceTopicPrerequisites(id, input.prerequisiteTopicIds);
-    } finally {
-      await loadTopic(false);
+      failedStep = "prerequisites";
+      await redesignApi.replaceTopicPrerequisites(
+        id,
+        input.prerequisiteTopicIds,
+      );
+    } catch (caught) {
+      const detail =
+        caught instanceof Error ? caught.message : "Unable to save Topic.";
+      const completed =
+        savedParts.length === 0
+          ? "Nothing saved"
+          : `${savedParts.join(" and ")} saved, but ${failedStep} failed`;
+      saveError = `${completed}. ${detail}`;
     }
+    const reloadError = await loadTopic(false);
+    return { saveError, reloadError, savedVersionId };
   }
 
   return (
@@ -121,6 +143,7 @@ export default function TopicWorkspacePage({ courseId, topicId }: Props) {
             )
           }
           onSaveTopic={saveTopic}
+          onReloadTopic={() => loadTopic(false)}
         />
       )}
     </div>

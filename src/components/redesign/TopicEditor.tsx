@@ -7,6 +7,12 @@ import {
   type TopicBrowserEntry,
 } from "@/lib/redesign-workspace";
 
+export type TopicSaveResult = {
+  saveError: string | null;
+  reloadError: string | null;
+  savedVersionId: Id | null;
+};
+
 type Props = {
   topicId: Id;
   entries: TopicBrowserEntry[];
@@ -21,7 +27,8 @@ type Props = {
       changeSummary: string;
       prerequisiteTopicIds: Id[];
     },
-  ) => Promise<void>;
+  ) => Promise<TopicSaveResult>;
+  onReloadTopic: () => Promise<string | null>;
 };
 
 export default function TopicEditor({
@@ -29,6 +36,7 @@ export default function TopicEditor({
   entries,
   topicTitleById,
   onSaveTopic,
+  onReloadTopic,
 }: Props) {
   const [draftTitle, setDraftTitle] = useState("");
   const [draftCode, setDraftCode] = useState("");
@@ -39,10 +47,51 @@ export default function TopicEditor({
   const [selectedPrerequisites, setSelectedPrerequisites] = useState<Id[]>([]);
   const [codeOverridden, setCodeOverridden] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saveCompleted, setSaveCompleted] = useState(false);
+  const [reloadError, setReloadError] = useState<string | null>(null);
+  const [baseVersionId, setBaseVersionId] = useState<Id | null>(null);
+  const [savedVersionId, setSavedVersionId] = useState<Id | null>(null);
+  const [approvedVersionId, setApprovedVersionId] = useState<Id | null>(null);
   const [saving, setSaving] = useState(false);
 
   const selected = entries.find((entry) => entry.topic.id === topicId) ?? null;
   const suggestedCode = suggestTopicStableCode(draftTitle);
+  const currentVersionId = selected?.currentVersion?.id ?? null;
+  const serverChanged = Boolean(
+    currentVersionId &&
+    baseVersionId &&
+    currentVersionId !== baseVersionId &&
+    currentVersionId !== savedVersionId,
+  );
+  const needsChoice = serverChanged && approvedVersionId !== currentVersionId;
+  const fieldDifferences = selected
+    ? [
+        ["Topic title", draftTitle, selected.currentVersion?.title ?? ""],
+        ["Topic code", draftCode, selected.topic.stableCode],
+        ["Category", draftCategory, selected.currentVersion?.category ?? ""],
+        [
+          "Topic description",
+          draftDescription,
+          selected.currentVersion?.description ?? "",
+        ],
+        [
+          "Topic change summary",
+          changeSummary,
+          selected.currentVersion?.changeSummary ?? "",
+        ],
+        [
+          "Prerequisites",
+          [...selectedPrerequisites]
+            .sort()
+            .map((id) => topicTitleById.get(id) ?? id)
+            .join(", "),
+          [...selected.prerequisiteTopicIds]
+            .sort()
+            .map((id) => topicTitleById.get(id) ?? id)
+            .join(", "),
+        ],
+      ].filter(([, draft, server]) => draft !== server)
+    : [];
 
   const resetDraftFromServer = useEffectEvent(() => {
     setDraftDescription(selected?.currentVersion?.description ?? "");
@@ -53,6 +102,11 @@ export default function TopicEditor({
     setSelectedPrerequisites(selected?.prerequisiteTopicIds ?? []);
     setCodeOverridden(false);
     setError(null);
+    setSaveCompleted(false);
+    setReloadError(null);
+    setBaseVersionId(selected?.currentVersion?.id ?? null);
+    setSavedVersionId(null);
+    setApprovedVersionId(null);
   });
 
   useEffect(() => {
@@ -67,11 +121,12 @@ export default function TopicEditor({
   }
 
   async function handleSaveTopic() {
-    if (!selected) return;
+    if (!selected || needsChoice || reloadError) return;
     setSaving(true);
     setError(null);
+    setSaveCompleted(false);
     try {
-      await onSaveTopic(selected.topic.id, {
+      const result = await onSaveTopic(selected.topic.id, {
         stableCode: draftCode,
         title: draftTitle,
         category: draftCategory,
@@ -79,7 +134,17 @@ export default function TopicEditor({
         changeSummary,
         prerequisiteTopicIds: selectedPrerequisites,
       });
-      setResetCount((count) => count + 1);
+      if (result.savedVersionId) setSavedVersionId(result.savedVersionId);
+      setSaveCompleted(!result.saveError);
+      setError(
+        result.saveError ??
+          (result.reloadError
+            ? "Changes saved, but the latest Topic could not be reloaded."
+            : null),
+      );
+      setReloadError(result.reloadError);
+      if (!result.saveError && !result.reloadError)
+        setResetCount((count) => count + 1);
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : "Unable to save topic.",
@@ -87,6 +152,14 @@ export default function TopicEditor({
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleReloadTopic() {
+    setSaving(true);
+    const nextError = await onReloadTopic();
+    setReloadError(nextError);
+    if (!nextError && saveCompleted) setError(null);
+    setSaving(false);
   }
 
   return (
@@ -265,7 +338,61 @@ export default function TopicEditor({
           {error ? (
             <div role="alert" className="text-sm text-rose-700">
               <p>{error}</p>
-              <p>The saved Topic state above has been refreshed. Your form edits are preserved.</p>
+              {reloadError ? (
+                <p>Reload failed: {reloadError}. Your draft is still here.</p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {reloadError ? (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => void handleReloadTopic()}
+              className="rounded-lg border border-rose-300 px-4 py-2 text-sm"
+            >
+              Reload saved Topic
+            </button>
+          ) : null}
+
+          {serverChanged ? (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-slate-900">
+              <p className="font-semibold">
+                The saved Topic version changed while you were editing.
+              </p>
+              <p>Review these differences before saving your draft again.</p>
+              <dl className="mt-3 space-y-2">
+                {fieldDifferences.map(([label, draft, server]) => (
+                  <div key={label}>
+                    <dt className="font-medium">{label}</dt>
+                    <dd>Your draft: {draft || "(empty)"}</dd>
+                    <dd>Saved version: {server || "(empty)"}</dd>
+                  </div>
+                ))}
+              </dl>
+              {needsChoice ? (
+                <div className="mt-3 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setResetCount((count) => count + 1)}
+                    className="rounded-lg border border-slate-400 px-3 py-2"
+                  >
+                    Use saved version
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setApprovedVersionId(currentVersionId)}
+                    className="rounded-lg border border-amber-500 px-3 py-2"
+                  >
+                    Keep my draft
+                  </button>
+                </div>
+              ) : (
+                <p className="mt-3 font-medium">
+                  You chose to keep your draft. Saving will replace the
+                  differing saved values.
+                </p>
+              )}
             </div>
           ) : null}
 
@@ -283,6 +410,8 @@ export default function TopicEditor({
               onClick={handleSaveTopic}
               disabled={
                 saving ||
+                needsChoice ||
+                Boolean(reloadError) ||
                 !selected.currentVersion ||
                 !draftTitle.trim() ||
                 !draftCode.trim()

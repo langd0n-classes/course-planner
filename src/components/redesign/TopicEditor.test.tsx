@@ -5,7 +5,13 @@ import TopicEditor from "./TopicEditor";
 
 describe("TopicEditor", () => {
   it("shows code after title and saves topic edits and prerequisites", async () => {
-    const onSaveTopic = vi.fn().mockResolvedValue(undefined);
+    const onSaveTopic = vi
+      .fn()
+      .mockResolvedValue({
+        saveError: null,
+        reloadError: null,
+        savedVersionId: "tv-2",
+      });
 
     render(
       <TopicEditor
@@ -61,6 +67,7 @@ describe("TopicEditor", () => {
           ])
         }
         onSaveTopic={onSaveTopic}
+        onReloadTopic={vi.fn().mockResolvedValue(null)}
       />,
     );
 
@@ -88,7 +95,13 @@ describe("TopicEditor", () => {
   });
 
   it("lets Tab accept the suggested topic code without trapping focus", () => {
-    const onSaveTopic = vi.fn().mockResolvedValue(undefined);
+    const onSaveTopic = vi
+      .fn()
+      .mockResolvedValue({
+        saveError: null,
+        reloadError: null,
+        savedVersionId: "tv-2",
+      });
 
     render(
       <TopicEditor
@@ -118,6 +131,7 @@ describe("TopicEditor", () => {
         ]}
         topicTitleById={new Map([["topic-1", "Selecting"]])}
         onSaveTopic={onSaveTopic}
+        onReloadTopic={vi.fn().mockResolvedValue(null)}
       />,
     );
 
@@ -166,13 +180,20 @@ describe("Topic detail edits", () => {
   ];
 
   it("shows version details, cancels edits locally, and saves description and summary", async () => {
-    const onSaveTopic = vi.fn().mockResolvedValue(undefined);
+    const onSaveTopic = vi
+      .fn()
+      .mockResolvedValue({
+        saveError: null,
+        reloadError: null,
+        savedVersionId: "v2",
+      });
     render(
       <TopicEditor
         topicId="t1"
         entries={buckets[0]!.topics}
         topicTitleById={new Map()}
         onSaveTopic={onSaveTopic}
+        onReloadTopic={vi.fn().mockResolvedValue(null)}
       />,
     );
     expect(screen.getByText(/Revision 3 · Published/)).toBeInTheDocument();
@@ -213,6 +234,7 @@ describe("Topic detail edits", () => {
         entries={buckets[0]!.topics}
         topicTitleById={new Map()}
         onSaveTopic={vi.fn().mockRejectedValue(new Error("Version conflict"))}
+        onReloadTopic={vi.fn().mockResolvedValue(null)}
       />,
     );
     fireEvent.change(screen.getByLabelText("Topic description"), {

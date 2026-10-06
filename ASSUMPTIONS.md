@@ -374,3 +374,7 @@ Decisions made where the requirements were underspecified. Each can be revisited
 - A failed Topic save refreshes the displayed server revision and prerequisite
   chain while retaining the unsaved form values. The displayed revision shows
   which part of a partial save succeeded before the instructor retries.
+- If that refresh finds a different Topic version created by someone else, the
+  editor compares the draft with the saved fields and blocks retry until the
+  instructor chooses the saved version or explicitly keeps the draft. A failed
+  refresh leaves the editor mounted and blocks retry until a reload succeeds.
