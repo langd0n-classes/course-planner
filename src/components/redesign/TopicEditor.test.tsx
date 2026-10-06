@@ -1,11 +1,17 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import TopicEditor from "./TopicEditor";
 
 describe("TopicEditor", () => {
   it("shows code after title and saves topic edits and prerequisites", async () => {
-    const onSaveTopic = vi.fn().mockResolvedValue(undefined);
+    const onSaveTopic = vi
+      .fn()
+      .mockResolvedValue({
+        saveError: null,
+        reloadError: null,
+        savedVersionId: "tv-2",
+      });
 
     render(
       <TopicEditor
@@ -61,6 +67,7 @@ describe("TopicEditor", () => {
           ])
         }
         onSaveTopic={onSaveTopic}
+        onReloadTopic={vi.fn().mockResolvedValue(null)}
       />,
     );
 
@@ -88,7 +95,13 @@ describe("TopicEditor", () => {
   });
 
   it("lets Tab accept the suggested topic code without trapping focus", () => {
-    const onSaveTopic = vi.fn().mockResolvedValue(undefined);
+    const onSaveTopic = vi
+      .fn()
+      .mockResolvedValue({
+        saveError: null,
+        reloadError: null,
+        savedVersionId: "tv-2",
+      });
 
     render(
       <TopicEditor
@@ -118,6 +131,7 @@ describe("TopicEditor", () => {
         ]}
         topicTitleById={new Map([["topic-1", "Selecting"]])}
         onSaveTopic={onSaveTopic}
+        onReloadTopic={vi.fn().mockResolvedValue(null)}
       />,
     );
 
@@ -165,14 +179,142 @@ describe("Topic detail edits", () => {
     },
   ];
 
+  function topicEntries({
+    stableCode = "T1",
+    prerequisiteTopicIds = [],
+    versionId = "v1",
+    changeSummary = "Previous change",
+    title = "Topic",
+  }: {
+    stableCode?: string;
+    prerequisiteTopicIds?: string[];
+    versionId?: string;
+    changeSummary?: string;
+    title?: string;
+  } = {}) {
+    return [
+      {
+        topic: {
+          ...buckets[0]!.topics[0]!.topic,
+          stableCode,
+          currentVersionId: versionId,
+        },
+        currentVersion: {
+          ...buckets[0]!.topics[0]!.currentVersion,
+          id: versionId,
+          changeSummary,
+          title,
+        },
+        prerequisiteTopicIds,
+      },
+      {
+        topic: {
+          id: "t2",
+          courseId: "c1",
+          learningModuleId: null,
+          stableCode: "T2",
+          currentVersionId: "v2",
+          archivedAt: null,
+        },
+        currentVersion: {
+          id: "v2",
+          topicId: "t2",
+          revision: 1,
+          title: "Prerequisite topic",
+          category: "Concept",
+          description: null,
+          changeSummary: null,
+          publishedAt: null,
+        },
+        prerequisiteTopicIds: [],
+      },
+    ];
+  }
+
+  function watchConflictBanner() {
+    const seen = { mounted: 0, focused: 0 };
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        record.addedNodes.forEach((node) => {
+          if (
+            node instanceof HTMLElement &&
+            (node.id === "topic-save-conflict" ||
+              node.querySelector("#topic-save-conflict"))
+          ) {
+            seen.mounted++;
+          }
+        });
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    const originalFocus = HTMLElement.prototype.focus;
+    const spy = vi
+      .spyOn(HTMLElement.prototype, "focus")
+      .mockImplementation(function (this: HTMLElement, ...args) {
+        if (
+          this.id === "topic-save-conflict" ||
+          this.id === "topic-save-conflict-heading"
+        ) {
+          seen.focused++;
+        }
+        return originalFocus.apply(this, args);
+      });
+    return {
+      seen,
+      stop() {
+        // Flush pending mutation records before disconnecting.
+        for (const record of observer.takeRecords()) {
+          record.addedNodes.forEach((node) => {
+            if (
+              node instanceof HTMLElement &&
+              (node.id === "topic-save-conflict" ||
+                node.querySelector("#topic-save-conflict"))
+            ) {
+              seen.mounted++;
+            }
+          });
+        }
+        observer.disconnect();
+        spy.mockRestore();
+      },
+    };
+  }
+
+  it("never mounts or focuses a conflict banner during a normal load", async () => {
+    const watcher = watchConflictBanner();
+    render(
+      <TopicEditor
+        topicId="t1"
+        entries={topicEntries()}
+        topicTitleById={new Map([["t2", "Prerequisite topic"]])}
+        onSaveTopic={vi.fn()}
+        onReloadTopic={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    await Promise.resolve();
+    watcher.stop();
+
+    expect(watcher.seen).toEqual({ mounted: 0, focused: 0 });
+    expect(
+      screen.queryByRole("region", { name: /saved topic.*editing/i }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows version details, cancels edits locally, and saves description and summary", async () => {
-    const onSaveTopic = vi.fn().mockResolvedValue(undefined);
+    const onSaveTopic = vi
+      .fn()
+      .mockResolvedValue({
+        saveError: null,
+        reloadError: null,
+        savedVersionId: "v2",
+      });
     render(
       <TopicEditor
         topicId="t1"
         entries={buckets[0]!.topics}
         topicTitleById={new Map()}
         onSaveTopic={onSaveTopic}
+        onReloadTopic={vi.fn().mockResolvedValue(null)}
       />,
     );
     expect(screen.getByText(/Revision 3 · Published/)).toBeInTheDocument();
@@ -212,7 +354,12 @@ describe("Topic detail edits", () => {
         topicId="t1"
         entries={buckets[0]!.topics}
         topicTitleById={new Map()}
-        onSaveTopic={vi.fn().mockRejectedValue(new Error("Version conflict"))}
+        onSaveTopic={vi.fn().mockResolvedValue({
+          saveError: "Version conflict",
+          reloadError: null,
+          savedVersionId: null,
+        })}
+        onReloadTopic={vi.fn().mockResolvedValue(null)}
       />,
     );
     fireEvent.change(screen.getByLabelText("Topic description"), {
@@ -225,5 +372,202 @@ describe("Topic detail edits", () => {
     expect(screen.getByLabelText("Topic description")).toHaveValue(
       "Keep my work",
     );
+  });
+
+  it("blocks a retry when a colleague adds a prerequisite after a code-only save fails", async () => {
+    const onSaveTopic = vi.fn().mockResolvedValue({
+      saveError: "Unable to save Topic.",
+      reloadError: null,
+      savedVersionId: null,
+    });
+    const props = {
+      topicId: "t1",
+      topicTitleById: new Map([["t2", "Prerequisite topic"]]),
+      onSaveTopic,
+      onReloadTopic: vi.fn().mockResolvedValue(null),
+    };
+    const { rerender } = render(<TopicEditor {...props} entries={topicEntries()} />);
+
+    fireEvent.change(screen.getByLabelText("Topic code"), {
+      target: { value: "T1-REVISED" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
+    await screen.findByText("Unable to save Topic.");
+
+    rerender(
+      <TopicEditor {...props} entries={topicEntries({ prerequisiteTopicIds: ["t2"] })} />,
+    );
+
+    expect(
+      screen.getByRole("region", { name: /saved topic changed while you were editing/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save topic" })).toBeDisabled();
+  });
+
+  it("does not require a choice when only the change summary differs", async () => {
+    const onSaveTopic = vi.fn().mockResolvedValue({
+      saveError: "Unable to save Topic.",
+      reloadError: null,
+      savedVersionId: null,
+    });
+    const props = {
+      topicId: "t1",
+      topicTitleById: new Map([["t2", "Prerequisite topic"]]),
+      onSaveTopic,
+      onReloadTopic: vi.fn().mockResolvedValue(null),
+    };
+    const { rerender } = render(<TopicEditor {...props} entries={topicEntries()} />);
+
+    fireEvent.change(screen.getByLabelText("Topic change summary"), {
+      target: { value: "My explanation" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
+    await screen.findByText("Unable to save Topic.");
+    rerender(
+      <TopicEditor
+        {...props}
+        entries={topicEntries({ versionId: "v3", changeSummary: "Colleague explanation" })}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Save topic" })).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Keep my draft" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/You chose to keep your draft/)).not.toBeInTheDocument();
+  });
+
+  it("hides the conflict banner when the draft has no differing fields", async () => {
+    const props = {
+      topicId: "t1",
+      topicTitleById: new Map([["t2", "Prerequisite topic"]]),
+      onSaveTopic: vi.fn(),
+      onReloadTopic: vi.fn().mockResolvedValue(null),
+    };
+    const { rerender } = render(<TopicEditor {...props} entries={topicEntries()} />);
+
+    rerender(<TopicEditor {...props} entries={topicEntries({ versionId: "v3" })} />);
+
+    expect(
+      screen.queryByRole("region", { name: /saved topic.*editing/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("requires a new choice and refocuses the heading after an approved conflict changes again", async () => {
+    const onSaveTopic = vi.fn().mockResolvedValue({
+      saveError: "Unable to save Topic.",
+      reloadError: null,
+      savedVersionId: null,
+    });
+    const props = {
+      topicId: "t1",
+      topicTitleById: new Map([["t2", "Prerequisite topic"]]),
+      onSaveTopic,
+      onReloadTopic: vi.fn().mockResolvedValue(null),
+    };
+    const { rerender } = render(<TopicEditor {...props} entries={topicEntries()} />);
+
+    fireEvent.change(screen.getByLabelText("Topic title"), {
+      target: { value: "My topic draft" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
+    await screen.findByText("Unable to save Topic.");
+    rerender(
+      <TopicEditor {...props} entries={topicEntries({ prerequisiteTopicIds: ["t2"] })} />,
+    );
+
+    const heading = screen.getByRole("heading", {
+      name: "The saved Topic changed while you were editing.",
+    });
+    await waitFor(() => expect(heading).toHaveFocus());
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Keep my draft" }));
+    expect(screen.getByRole("button", { name: "Save topic" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
+    await waitFor(() => expect(onSaveTopic).toHaveBeenCalledTimes(2));
+    const saveButton = screen.getByRole("button", { name: "Save topic" });
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    act(() => saveButton.focus());
+    expect(saveButton).toHaveFocus();
+
+    rerender(
+      <TopicEditor
+        {...props}
+        entries={topicEntries({
+          stableCode: "T1-COLLEAGUE",
+          prerequisiteTopicIds: ["t2"],
+        })}
+      />,
+    );
+
+    const secondHeading = screen.getByRole("heading", {
+      name: "The saved Topic changed while you were editing.",
+    });
+    await waitFor(() => expect(secondHeading).toHaveFocus());
+    expect(screen.getByRole("button", { name: "Save topic" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Keep my draft" })).toBeInTheDocument();
+  });
+
+  it("keeps focus in the field while typing during a conflict", async () => {
+    const props = {
+      topicId: "t1",
+      topicTitleById: new Map([["t2", "Prerequisite topic"]]),
+      onSaveTopic: vi.fn().mockResolvedValue({
+        saveError: "Unable to save Topic.",
+        reloadError: null,
+        savedVersionId: null,
+      }),
+      onReloadTopic: vi.fn().mockResolvedValue(null),
+    };
+    const { rerender } = render(<TopicEditor {...props} entries={topicEntries()} />);
+    fireEvent.change(screen.getByLabelText("Topic title"), {
+      target: { value: "Mine" },
+    });
+    fireEvent.change(screen.getByLabelText("Topic code"), {
+      target: { value: "T1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
+    await screen.findByText("Unable to save Topic.");
+    rerender(
+      <TopicEditor
+        {...props}
+        entries={topicEntries({ versionId: "v3", title: "Theirs" })}
+      />,
+    );
+    expect(
+      screen.getByRole("region", { name: /saved topic.*editing/i }),
+    ).toBeInTheDocument();
+
+    const title = screen.getByLabelText("Topic title");
+    act(() => title.focus());
+    fireEvent.change(title, { target: { value: "Theirs" } });
+    expect(
+      screen.queryByRole("region", { name: /saved topic.*editing/i }),
+    ).not.toBeInTheDocument();
+    expect(title).toHaveFocus();
+    fireEvent.change(title, { target: { value: "Theirs!" } });
+    expect(
+      screen.getByRole("region", { name: /saved topic.*editing/i }),
+    ).toBeInTheDocument();
+    expect(title).toHaveFocus();
+
+    fireEvent.change(title, { target: { value: "Theirs" } });
+    rerender(
+      <TopicEditor
+        {...props}
+        entries={topicEntries({
+          versionId: "v4",
+          title: "Theirs",
+          changeSummary: "Colleague explanation",
+        })}
+      />,
+    );
+    const summary = screen.getByLabelText("Topic change summary");
+    act(() => summary.focus());
+    fireEvent.change(summary, { target: { value: "M" } });
+    expect(
+      screen.getByRole("region", { name: /saved topic.*editing/i }),
+    ).toBeInTheDocument();
+    expect(summary).toHaveFocus();
   });
 });
