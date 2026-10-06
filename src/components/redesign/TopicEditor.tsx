@@ -13,6 +13,12 @@ export type TopicSaveResult = {
   savedVersionId: Id | null;
 };
 
+type ServerSnapshot = {
+  versionId: Id | null;
+  stableCode: string;
+  prerequisiteTopicIds: Id[];
+};
+
 type Props = {
   topicId: Id;
   entries: TopicBrowserEntry[];
@@ -52,28 +58,42 @@ export default function TopicEditor({
   const [baseVersionId, setBaseVersionId] = useState<Id | null>(null);
   const [baseCode, setBaseCode] = useState("");
   const [basePrerequisites, setBasePrerequisites] = useState<Id[]>([]);
+  const [baseTopicId, setBaseTopicId] = useState<Id | null>(null);
   const [savedVersionId, setSavedVersionId] = useState<Id | null>(null);
-  const [approvedVersionId, setApprovedVersionId] = useState<Id | null>(null);
+  const [approvedServerSnapshot, setApprovedServerSnapshot] =
+    useState<ServerSnapshot | null>(null);
   const [saving, setSaving] = useState(false);
-  const conflictBannerRef = useRef<HTMLDivElement>(null);
+  const conflictHeadingRef = useRef<HTMLHeadingElement>(null);
 
   const selected = entries.find((entry) => entry.topic.id === topicId) ?? null;
   const suggestedCode = suggestTopicStableCode(draftTitle);
   const currentVersionId = selected?.currentVersion?.id ?? null;
+  const currentPrerequisites = [...(selected?.prerequisiteTopicIds ?? [])].sort();
+  const currentServerSnapshot: ServerSnapshot | null = selected
+    ? {
+        versionId: currentVersionId,
+        stableCode: selected.topic.stableCode,
+        prerequisiteTopicIds: currentPrerequisites,
+      }
+    : null;
+  const baseStateIsSet = baseTopicId === selected?.topic.id;
   const versionChanged = Boolean(
+    baseStateIsSet &&
     currentVersionId &&
     baseVersionId &&
     currentVersionId !== baseVersionId &&
     currentVersionId !== savedVersionId,
   );
   const codeChanged =
+    baseStateIsSet &&
     baseCode !== selected?.topic.stableCode &&
     draftCode !== selected?.topic.stableCode;
   const prerequisitesChanged =
+    baseStateIsSet &&
     [...basePrerequisites].sort().join("\u0000") !==
-      [...(selected?.prerequisiteTopicIds ?? [])].sort().join("\u0000") &&
+      currentPrerequisites.join("\u0000") &&
     [...selectedPrerequisites].sort().join("\u0000") !==
-      [...(selected?.prerequisiteTopicIds ?? [])].sort().join("\u0000");
+      currentPrerequisites.join("\u0000");
   const serverChanged = versionChanged || codeChanged || prerequisitesChanged;
   const fieldDifferences = selected
     ? [
@@ -107,10 +127,29 @@ export default function TopicEditor({
         ],
       ].filter(([, draft, server]) => draft !== server)
     : [];
+  const choiceDifferences = fieldDifferences.filter(
+    ([label]) => label !== "Topic change summary",
+  );
+  const approvalMatchesServer = Boolean(
+    approvedServerSnapshot &&
+      currentServerSnapshot &&
+      approvedServerSnapshot.versionId === currentServerSnapshot.versionId &&
+      approvedServerSnapshot.stableCode === currentServerSnapshot.stableCode &&
+      approvedServerSnapshot.prerequisiteTopicIds.join("\u0000") ===
+        currentServerSnapshot.prerequisiteTopicIds.join("\u0000"),
+  );
+  const conflictIsVisible = serverChanged && fieldDifferences.length > 0;
+  const conflictSnapshotKey = currentServerSnapshot
+    ? [
+        currentServerSnapshot.versionId,
+        currentServerSnapshot.stableCode,
+        currentServerSnapshot.prerequisiteTopicIds.join("\u0000"),
+      ].join("\u0001")
+    : "";
   const needsChoice =
-    serverChanged &&
-    fieldDifferences.length > 0 &&
-    approvedVersionId !== currentVersionId;
+    conflictIsVisible &&
+    choiceDifferences.length > 0 &&
+    !approvalMatchesServer;
 
   const resetDraftFromServer = useEffectEvent(() => {
     setDraftDescription(selected?.currentVersion?.description ?? "");
@@ -126,8 +165,9 @@ export default function TopicEditor({
     setBaseVersionId(selected?.currentVersion?.id ?? null);
     setBaseCode(selected?.topic.stableCode ?? "");
     setBasePrerequisites(selected?.prerequisiteTopicIds ?? []);
+    setBaseTopicId(selected?.topic.id ?? null);
     setSavedVersionId(null);
-    setApprovedVersionId(null);
+    setApprovedServerSnapshot(null);
   });
 
   useEffect(() => {
@@ -135,8 +175,8 @@ export default function TopicEditor({
   }, [resetCount, selected?.topic.id]);
 
   useEffect(() => {
-    if (serverChanged) conflictBannerRef.current?.focus();
-  }, [serverChanged]);
+    if (conflictIsVisible) conflictHeadingRef.current?.focus();
+  }, [conflictIsVisible, conflictSnapshotKey]);
 
   function handleTitleChange(value: string) {
     setDraftTitle(value);
@@ -380,16 +420,22 @@ export default function TopicEditor({
             </button>
           ) : null}
 
-          {serverChanged ? (
+          {conflictIsVisible ? (
             <div
-              ref={conflictBannerRef}
               id="topic-save-conflict"
-              role="alert"
-              tabIndex={-1}
+              role="region"
+              aria-labelledby="topic-save-conflict-heading"
               className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"
             >
-              <h2 className="font-semibold">
-                The saved Topic version changed while you were editing.
+              <h2
+                ref={conflictHeadingRef}
+                id="topic-save-conflict-heading"
+                tabIndex={-1}
+                className="font-semibold"
+              >
+                {versionChanged
+                  ? "The saved Topic version changed while you were editing."
+                  : "The saved Topic changed while you were editing."}
               </h2>
               <p>Review these differences before saving your draft again.</p>
               <dl className="mt-3 space-y-2">
@@ -412,18 +458,20 @@ export default function TopicEditor({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setApprovedVersionId(currentVersionId)}
+                    onClick={() =>
+                      setApprovedServerSnapshot(currentServerSnapshot)
+                    }
                     className="rounded-lg border border-amber-500 px-3 py-2"
                   >
                     Keep my draft
                   </button>
                 </div>
-              ) : (
+              ) : approvalMatchesServer ? (
                 <p className="mt-3 font-medium">
                   You chose to keep your draft. Saving will replace the
                   differing saved values.
                 </p>
-              )}
+              ) : null}
             </div>
           ) : null}
 

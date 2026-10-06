@@ -235,13 +235,12 @@ describe("TopicWorkspacePage", () => {
       screen.queryByText("Topic change summary", { selector: "dt" }),
     ).not.toBeInTheDocument();
     expect(screen.getByText("Your draft: Counting")).toBeInTheDocument();
-    const conflictBanner = screen
-      .getByRole("heading", {
-        name: "The saved Topic version changed while you were editing.",
-      })
-      .closest('[role="alert"]');
-    expect(conflictBanner).toHaveFocus();
-    expect(conflictBanner).toHaveAttribute("role", "alert");
+    const conflictHeading = screen.getByRole("heading", {
+      name: "The saved Topic version changed while you were editing.",
+    });
+    const conflictBanner = conflictHeading.closest('[role="region"]');
+    expect(conflictHeading).toHaveFocus();
+    expect(conflictBanner).toHaveAttribute("role", "region");
     expect(screen.getByRole("button", { name: "Save topic" })).toHaveAttribute(
       "aria-describedby",
       "topic-save-conflict",
@@ -308,7 +307,7 @@ describe("TopicWorkspacePage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
     expect(
       await screen.findByRole("heading", {
-        name: "The saved Topic version changed while you were editing.",
+        name: "The saved Topic changed while you were editing.",
       }),
     ).toBeInTheDocument();
     expect(screen.getByText("Prerequisites", { selector: "dt" })).toBeInTheDocument();
@@ -330,7 +329,7 @@ describe("TopicWorkspacePage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
     expect(
       await screen.findByRole("heading", {
-        name: "The saved Topic version changed while you were editing.",
+        name: "The saved Topic changed while you were editing.",
       }),
     ).toBeInTheDocument();
     expect(screen.getByText("Topic code", { selector: "dt" })).toBeInTheDocument();
@@ -354,9 +353,13 @@ describe("TopicWorkspacePage", () => {
       target: { value: "Same edit" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
-    await screen.findByRole("heading", {
-      name: "The saved Topic version changed while you were editing.",
-    });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("region", {
+          name: /saved topic.*editing/i,
+        }),
+      ).not.toBeInTheDocument(),
+    );
     expect(
       screen.queryByRole("button", { name: "Keep my draft" }),
     ).not.toBeInTheDocument();
