@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import TopicEditor from "./TopicEditor";
 
@@ -184,11 +184,13 @@ describe("Topic detail edits", () => {
     prerequisiteTopicIds = [],
     versionId = "v1",
     changeSummary = "Previous change",
+    title = "Topic",
   }: {
     stableCode?: string;
     prerequisiteTopicIds?: string[];
     versionId?: string;
     changeSummary?: string;
+    title?: string;
   } = {}) {
     return [
       {
@@ -201,6 +203,7 @@ describe("Topic detail edits", () => {
           ...buckets[0]!.topics[0]!.currentVersion,
           id: versionId,
           changeSummary,
+          title,
         },
         prerequisiteTopicIds,
       },
@@ -228,7 +231,57 @@ describe("Topic detail edits", () => {
     ];
   }
 
-  it("does not mount or focus a conflict banner during a normal load", () => {
+  function watchConflictBanner() {
+    const seen = { mounted: 0, focused: 0 };
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        record.addedNodes.forEach((node) => {
+          if (
+            node instanceof HTMLElement &&
+            (node.id === "topic-save-conflict" ||
+              node.querySelector("#topic-save-conflict"))
+          ) {
+            seen.mounted++;
+          }
+        });
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    const originalFocus = HTMLElement.prototype.focus;
+    const spy = vi
+      .spyOn(HTMLElement.prototype, "focus")
+      .mockImplementation(function (this: HTMLElement, ...args) {
+        if (
+          this.id === "topic-save-conflict" ||
+          this.id === "topic-save-conflict-heading"
+        ) {
+          seen.focused++;
+        }
+        return originalFocus.apply(this, args);
+      });
+    return {
+      seen,
+      stop() {
+        // Flush pending mutation records before disconnecting.
+        for (const record of observer.takeRecords()) {
+          record.addedNodes.forEach((node) => {
+            if (
+              node instanceof HTMLElement &&
+              (node.id === "topic-save-conflict" ||
+                node.querySelector("#topic-save-conflict"))
+            ) {
+              seen.mounted++;
+            }
+          });
+        }
+        observer.disconnect();
+        spy.mockRestore();
+      },
+    };
+  }
+
+  it("never mounts or focuses a conflict banner during a normal load", async () => {
+    const watcher = watchConflictBanner();
     render(
       <TopicEditor
         topicId="t1"
@@ -238,14 +291,13 @@ describe("Topic detail edits", () => {
         onReloadTopic={vi.fn().mockResolvedValue(null)}
       />,
     );
+    await Promise.resolve();
+    watcher.stop();
 
+    expect(watcher.seen).toEqual({ mounted: 0, focused: 0 });
     expect(
       screen.queryByRole("region", { name: /saved topic.*editing/i }),
     ).not.toBeInTheDocument();
-    expect(document.activeElement).not.toHaveAttribute(
-      "id",
-      "topic-save-conflict-heading",
-    );
   });
 
   it("shows version details, cancels edits locally, and saves description and summary", async () => {
@@ -433,6 +485,10 @@ describe("Topic detail edits", () => {
     expect(screen.getByRole("button", { name: "Save topic" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
     await waitFor(() => expect(onSaveTopic).toHaveBeenCalledTimes(2));
+    const saveButton = screen.getByRole("button", { name: "Save topic" });
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    act(() => saveButton.focus());
+    expect(saveButton).toHaveFocus();
 
     rerender(
       <TopicEditor
@@ -450,5 +506,68 @@ describe("Topic detail edits", () => {
     await waitFor(() => expect(secondHeading).toHaveFocus());
     expect(screen.getByRole("button", { name: "Save topic" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Keep my draft" })).toBeInTheDocument();
+  });
+
+  it("keeps focus in the field while typing during a conflict", async () => {
+    const props = {
+      topicId: "t1",
+      topicTitleById: new Map([["t2", "Prerequisite topic"]]),
+      onSaveTopic: vi.fn().mockResolvedValue({
+        saveError: "Unable to save Topic.",
+        reloadError: null,
+        savedVersionId: null,
+      }),
+      onReloadTopic: vi.fn().mockResolvedValue(null),
+    };
+    const { rerender } = render(<TopicEditor {...props} entries={topicEntries()} />);
+    fireEvent.change(screen.getByLabelText("Topic title"), {
+      target: { value: "Mine" },
+    });
+    fireEvent.change(screen.getByLabelText("Topic code"), {
+      target: { value: "T1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
+    await screen.findByText("Unable to save Topic.");
+    rerender(
+      <TopicEditor
+        {...props}
+        entries={topicEntries({ versionId: "v3", title: "Theirs" })}
+      />,
+    );
+    expect(
+      screen.getByRole("region", { name: /saved topic.*editing/i }),
+    ).toBeInTheDocument();
+
+    const title = screen.getByLabelText("Topic title");
+    act(() => title.focus());
+    fireEvent.change(title, { target: { value: "Theirs" } });
+    expect(
+      screen.queryByRole("region", { name: /saved topic.*editing/i }),
+    ).not.toBeInTheDocument();
+    expect(title).toHaveFocus();
+    fireEvent.change(title, { target: { value: "Theirs!" } });
+    expect(
+      screen.getByRole("region", { name: /saved topic.*editing/i }),
+    ).toBeInTheDocument();
+    expect(title).toHaveFocus();
+
+    fireEvent.change(title, { target: { value: "Theirs" } });
+    rerender(
+      <TopicEditor
+        {...props}
+        entries={topicEntries({
+          versionId: "v4",
+          title: "Theirs",
+          changeSummary: "Colleague explanation",
+        })}
+      />,
+    );
+    const summary = screen.getByLabelText("Topic change summary");
+    act(() => summary.focus());
+    fireEvent.change(summary, { target: { value: "M" } });
+    expect(
+      screen.getByRole("region", { name: /saved topic.*editing/i }),
+    ).toBeInTheDocument();
+    expect(summary).toHaveFocus();
   });
 });

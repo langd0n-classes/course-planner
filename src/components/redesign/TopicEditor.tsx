@@ -174,9 +174,13 @@ export default function TopicEditor({
     resetDraftFromServer();
   }, [resetCount, selected?.topic.id]);
 
-  useEffect(() => {
+  const focusConflictHeading = useEffectEvent(() => {
     if (conflictIsVisible) conflictHeadingRef.current?.focus();
-  }, [conflictIsVisible, conflictSnapshotKey]);
+  });
+
+  useEffect(() => {
+    focusConflictHeading();
+  }, [conflictSnapshotKey]);
 
   function handleTitleChange(value: string) {
     setDraftTitle(value);
