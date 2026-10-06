@@ -64,7 +64,7 @@ export default function TopicWorkspacePage({ courseId, topicId }: Props) {
     const current = selected.currentVersion;
     let savedVersionId: Id | null = null;
     const savedParts: string[] = [];
-    let failedStep = "version";
+    let failedStep = "the Topic version";
     let saveError: string | null = null;
     try {
       if (
@@ -84,12 +84,12 @@ export default function TopicWorkspacePage({ courseId, topicId }: Props) {
         savedVersionId = created.id;
         savedParts.push("Topic version");
       }
-      failedStep = "code";
+      failedStep = "the Topic code change";
       if (selected.topic.stableCode !== input.stableCode) {
         await redesignApi.updateTopic(id, { stableCode: input.stableCode });
-        savedParts.push("code");
+        savedParts.push("Topic code change");
       }
-      failedStep = "prerequisites";
+      failedStep = "prerequisite changes";
       await redesignApi.replaceTopicPrerequisites(
         id,
         input.prerequisiteTopicIds,

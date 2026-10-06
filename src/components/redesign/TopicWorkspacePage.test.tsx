@@ -42,6 +42,9 @@ function backend() {
     setServerPrerequisites: (ids: string[]) => {
       savedPrerequisites = ids;
     },
+    setServerCode: (stableCode: string) => {
+      savedTopic = { ...savedTopic, stableCode };
+    },
     listTopics: vi.fn(async () => [savedTopic, other]),
     listTopicPrerequisites: vi.fn(async () =>
       savedPrerequisites.map((prerequisiteTopicId) => ({
@@ -190,6 +193,7 @@ describe("TopicWorkspacePage", () => {
         revision: 3,
         title: "Updated by colleague",
         category: "New category",
+        changeSummary: "Colleague summary",
       });
       api.setServerPrerequisites([]);
       throw new Error("Concurrent Topic revision");
@@ -201,9 +205,9 @@ describe("TopicWorkspacePage", () => {
       target: { value: "Keep my edits" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Concurrent Topic revision",
-    );
+    expect(
+      await screen.findByText(/Nothing saved\. Concurrent Topic revision/),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("Topic description")).toHaveValue(
       "Keep my edits",
     );
@@ -216,7 +220,7 @@ describe("TopicWorkspacePage", () => {
       }),
     );
     await waitFor(() => expect(api.getTopic).toHaveBeenCalledTimes(4));
-    expect(screen.getByRole("alert")).toHaveTextContent("Nothing saved");
+    expect(screen.getByText(/Nothing saved\. Concurrent Topic revision/)).toBeInTheDocument();
     expect(
       screen.getByText("Topic title", { selector: "dt" }),
     ).toBeInTheDocument();
@@ -227,7 +231,21 @@ describe("TopicWorkspacePage", () => {
     expect(
       screen.getByText("Prerequisites", { selector: "dt" }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Topic change summary", { selector: "dt" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Your draft: Counting")).toBeInTheDocument();
+    const conflictBanner = screen
+      .getByRole("heading", {
+        name: "The saved Topic version changed while you were editing.",
+      })
+      .closest('[role="alert"]');
+    expect(conflictBanner).toHaveFocus();
+    expect(conflictBanner).toHaveAttribute("role", "alert");
+    expect(screen.getByRole("button", { name: "Save topic" })).toHaveAttribute(
+      "aria-describedby",
+      "topic-save-conflict",
+    );
     expect(screen.getByRole("button", { name: "Save topic" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Keep my draft" }));
     await waitFor(() =>
@@ -272,6 +290,76 @@ describe("TopicWorkspacePage", () => {
     expect(screen.getByLabelText("Topic description")).toHaveValue(
       "Original description",
     );
+    expect(screen.getByRole("button", { name: "Save topic" })).toBeEnabled();
+  });
+
+  it("blocks a retry when a colleague changes only prerequisites", async () => {
+    const api = backend();
+    api.createTopicVersion.mockImplementationOnce(async () => {
+      api.setServerPrerequisites([]);
+      throw new Error("Save rejected");
+    });
+    setMockBackend(api);
+    render(<TopicWorkspacePage courseId="c1" topicId="t1" />);
+    await screen.findByDisplayValue("Probability");
+    fireEvent.change(screen.getByLabelText("Topic description"), {
+      target: { value: "Keep my edits" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
+    expect(
+      await screen.findByRole("heading", {
+        name: "The saved Topic version changed while you were editing.",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Prerequisites", { selector: "dt" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save topic" })).toBeDisabled();
+  });
+
+  it("blocks a retry when a colleague changes only the Topic code", async () => {
+    const api = backend();
+    api.createTopicVersion.mockImplementationOnce(async () => {
+      api.setServerCode("COLLEAGUE-CODE");
+      throw new Error("Save rejected");
+    });
+    setMockBackend(api);
+    render(<TopicWorkspacePage courseId="c1" topicId="t1" />);
+    await screen.findByDisplayValue("Probability");
+    fireEvent.change(screen.getByLabelText("Topic description"), {
+      target: { value: "Keep my edits" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
+    expect(
+      await screen.findByRole("heading", {
+        name: "The saved Topic version changed while you were editing.",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Topic code", { selector: "dt" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save topic" })).toBeDisabled();
+  });
+
+  it("does not require a choice when the saved version matches the draft", async () => {
+    const api = backend();
+    api.createTopicVersion.mockImplementationOnce(async () => {
+      api.setServerVersion({
+        id: "v3",
+        revision: 3,
+        description: "Same edit",
+      });
+      throw new Error("Concurrent Topic revision");
+    });
+    setMockBackend(api);
+    render(<TopicWorkspacePage courseId="c1" topicId="t1" />);
+    await screen.findByDisplayValue("Probability");
+    fireEvent.change(screen.getByLabelText("Topic description"), {
+      target: { value: "Same edit" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
+    await screen.findByRole("heading", {
+      name: "The saved Topic version changed while you were editing.",
+    });
+    expect(
+      screen.queryByRole("button", { name: "Keep my draft" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save topic" })).toBeEnabled();
   });
 
@@ -332,7 +420,7 @@ describe("TopicWorkspacePage", () => {
     expect(api.createTopicVersion).toHaveBeenCalledTimes(1);
     expect(api.updateTopic).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Topic version saved, but code failed",
+      "Topic version saved, but the Topic code change failed",
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
@@ -371,7 +459,7 @@ describe("TopicWorkspacePage", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Topic version and code saved, but prerequisites failed",
+      "Topic version and Topic code change saved, but prerequisite changes failed",
     );
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Prerequisite service unavailable",
@@ -435,6 +523,9 @@ describe("TopicWorkspacePage", () => {
     fireEvent.change(screen.getByLabelText("Topic description"), {
       target: { value: "Saved description" },
     });
+    fireEvent.change(screen.getByLabelText("Topic change summary"), {
+      target: { value: "Clarify meaning" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Save topic" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Changes saved, but the latest Topic could not be reloaded",
@@ -452,6 +543,7 @@ describe("TopicWorkspacePage", () => {
     expect(screen.getByLabelText("Topic description")).toHaveValue(
       "Saved description",
     );
+    expect(screen.getByLabelText("Topic change summary")).toHaveValue("");
   });
 
   it("disables content saves for a Topic without a version", async () => {

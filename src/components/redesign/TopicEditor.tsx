@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { Id } from "@/lib/redesign-contract";
 import {
   suggestTopicStableCode,
@@ -50,20 +50,31 @@ export default function TopicEditor({
   const [saveCompleted, setSaveCompleted] = useState(false);
   const [reloadError, setReloadError] = useState<string | null>(null);
   const [baseVersionId, setBaseVersionId] = useState<Id | null>(null);
+  const [baseCode, setBaseCode] = useState("");
+  const [basePrerequisites, setBasePrerequisites] = useState<Id[]>([]);
   const [savedVersionId, setSavedVersionId] = useState<Id | null>(null);
   const [approvedVersionId, setApprovedVersionId] = useState<Id | null>(null);
   const [saving, setSaving] = useState(false);
+  const conflictBannerRef = useRef<HTMLDivElement>(null);
 
   const selected = entries.find((entry) => entry.topic.id === topicId) ?? null;
   const suggestedCode = suggestTopicStableCode(draftTitle);
   const currentVersionId = selected?.currentVersion?.id ?? null;
-  const serverChanged = Boolean(
+  const versionChanged = Boolean(
     currentVersionId &&
     baseVersionId &&
     currentVersionId !== baseVersionId &&
     currentVersionId !== savedVersionId,
   );
-  const needsChoice = serverChanged && approvedVersionId !== currentVersionId;
+  const codeChanged =
+    baseCode !== selected?.topic.stableCode &&
+    draftCode !== selected?.topic.stableCode;
+  const prerequisitesChanged =
+    [...basePrerequisites].sort().join("\u0000") !==
+      [...(selected?.prerequisiteTopicIds ?? [])].sort().join("\u0000") &&
+    [...selectedPrerequisites].sort().join("\u0000") !==
+      [...(selected?.prerequisiteTopicIds ?? [])].sort().join("\u0000");
+  const serverChanged = versionChanged || codeChanged || prerequisitesChanged;
   const fieldDifferences = selected
     ? [
         ["Topic title", draftTitle, selected.currentVersion?.title ?? ""],
@@ -74,11 +85,15 @@ export default function TopicEditor({
           draftDescription,
           selected.currentVersion?.description ?? "",
         ],
-        [
-          "Topic change summary",
-          changeSummary,
-          selected.currentVersion?.changeSummary ?? "",
-        ],
+        ...(changeSummary
+          ? [
+              [
+                "Topic change summary",
+                changeSummary,
+                selected.currentVersion?.changeSummary ?? "",
+              ],
+            ]
+          : []),
         [
           "Prerequisites",
           [...selectedPrerequisites]
@@ -92,6 +107,10 @@ export default function TopicEditor({
         ],
       ].filter(([, draft, server]) => draft !== server)
     : [];
+  const needsChoice =
+    serverChanged &&
+    fieldDifferences.length > 0 &&
+    approvedVersionId !== currentVersionId;
 
   const resetDraftFromServer = useEffectEvent(() => {
     setDraftDescription(selected?.currentVersion?.description ?? "");
@@ -105,6 +124,8 @@ export default function TopicEditor({
     setSaveCompleted(false);
     setReloadError(null);
     setBaseVersionId(selected?.currentVersion?.id ?? null);
+    setBaseCode(selected?.topic.stableCode ?? "");
+    setBasePrerequisites(selected?.prerequisiteTopicIds ?? []);
     setSavedVersionId(null);
     setApprovedVersionId(null);
   });
@@ -112,6 +133,10 @@ export default function TopicEditor({
   useEffect(() => {
     resetDraftFromServer();
   }, [resetCount, selected?.topic.id]);
+
+  useEffect(() => {
+    if (serverChanged) conflictBannerRef.current?.focus();
+  }, [serverChanged]);
 
   function handleTitleChange(value: string) {
     setDraftTitle(value);
@@ -158,7 +183,7 @@ export default function TopicEditor({
     setSaving(true);
     const nextError = await onReloadTopic();
     setReloadError(nextError);
-    if (!nextError && saveCompleted) setError(null);
+    if (!nextError && saveCompleted) setResetCount((count) => count + 1);
     setSaving(false);
   }
 
@@ -356,10 +381,16 @@ export default function TopicEditor({
           ) : null}
 
           {serverChanged ? (
-            <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-slate-900">
-              <p className="font-semibold">
+            <div
+              ref={conflictBannerRef}
+              id="topic-save-conflict"
+              role="alert"
+              tabIndex={-1}
+              className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"
+            >
+              <h2 className="font-semibold">
                 The saved Topic version changed while you were editing.
-              </p>
+              </h2>
               <p>Review these differences before saving your draft again.</p>
               <dl className="mt-3 space-y-2">
                 {fieldDifferences.map(([label, draft, server]) => (
@@ -416,6 +447,7 @@ export default function TopicEditor({
                 !draftTitle.trim() ||
                 !draftCode.trim()
               }
+              aria-describedby={needsChoice ? "topic-save-conflict" : undefined}
               className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-400"
             >
               {saving ? "Saving..." : "Save topic"}

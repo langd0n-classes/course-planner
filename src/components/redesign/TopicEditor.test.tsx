@@ -233,7 +233,11 @@ describe("Topic detail edits", () => {
         topicId="t1"
         entries={buckets[0]!.topics}
         topicTitleById={new Map()}
-        onSaveTopic={vi.fn().mockRejectedValue(new Error("Version conflict"))}
+        onSaveTopic={vi.fn().mockResolvedValue({
+          saveError: "Version conflict",
+          reloadError: null,
+          savedVersionId: null,
+        })}
         onReloadTopic={vi.fn().mockResolvedValue(null)}
       />,
     );
