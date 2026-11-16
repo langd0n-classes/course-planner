@@ -779,7 +779,7 @@ describe("suggestTopicStableCode", () => {
 
 
 describe.each(["mid-flight", "back-test"] as const)("past-dated Term: %s", (scenario) => {
-  it("reports elapsed calendar progress when first onboarded", () => {
+  it("open question: completedClassDays includes today before its meeting happens", () => {
     const fixture = createPastDatedTermFixture(scenario);
     const timeline = buildTermCalendarTimeline(fixture);
     expect(timeline.todaySignal).toBe(scenario === "mid-flight" ? "today_class_day" : "after_term");
@@ -788,7 +788,7 @@ describe.each(["mid-flight", "back-test"] as const)("past-dated Term: %s", (scen
     expect(timeline.progressPercent).toBe(scenario === "mid-flight" ? 50 : 100);
   });
 
-  it("keeps the next meeting ordinal relative to the whole Term", () => {
+  it("keeps the next meeting ordinal relative to the whole Term after every meeting is scheduled", () => {
     const fixture = createPastDatedTermFixture(scenario);
     // Input order must not restart or determine the ordinal.
     const driver = buildTermDailyDriver({ ...fixture, termActivities: [...fixture.termActivities].reverse() });
@@ -810,4 +810,16 @@ describe.each(["mid-flight", "back-test"] as const)("past-dated Term: %s", (scen
       .map(([id, revisions]) => [id, { planned: null, delivered: revisions.planned }]));
     expect(buildTermDailyDriver({ ...fixture, revisionsByTermActivityId: deliveredOnly }).changedActivityIds).toEqual([]);
   });
+});
+
+
+it("reports between_class_days on a mid-flight weekend", () => {
+  const fixture = { ...createPastDatedTermFixture("mid-flight"), today: "2025-02-08" };
+  const timeline = buildTermCalendarTimeline(fixture);
+  expect(timeline.todaySignal).toBe("between_class_days");
+  expect(timeline.completedClassDays).toBe(20);
+  expect(timeline.totalClassDays).toBe(40);
+  const driver = buildTermDailyDriver(fixture);
+  expect(driver.nextMeeting?.meetingOrdinal).toBe(21);
+  expect(driver.nextMeeting?.revision.detail).toMatchObject({ startsAt: "2025-02-10T14:00:00Z" });
 });
