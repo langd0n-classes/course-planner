@@ -37,7 +37,8 @@ Rules:
   it, and the script is run by hand against one named database. A database
   that was never bootstrapped cannot serve demo traffic and cannot be reset.
 - The app checks the marker once for each server instance, before the first
-  demo request is served.
+  demo request is served. When the check throws, the request fails. Build
+  step 4 adds this call and tests both results.
 - Any other value of the flag, including unset, is normal mode. Normal mode
   never reads the marker.
 
