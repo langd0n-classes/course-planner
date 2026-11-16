@@ -78,6 +78,12 @@ Limits:
 - A cap on visitor workspaces between resets. At the cap, a new visitor gets
   a page that says the demo is full and gives the reset time.
 - A rate limit on demo-load and on write routes, keyed by client address.
+- A row cap for each visitor workspace. At the cap, a write returns an error
+  that says the demo workspace is full. One visitor cannot fill the database
+  between resets.
+- An age limit for each visitor workspace. A workspace with no request for 24
+  hours is deleted by the next reset even if a reset is skipped or fails
+  part-way.
 
 ### 3. Reset
 
@@ -135,7 +141,7 @@ simulated implementation, and OPS.md keeps it as the active one.
 | The demo flag is set on production | The sign-in variables conflict with the flag; the app fails closed. The marker is absent. |
 | The demo project points at the production database | No marker in that database: no demo traffic is served and the reset refuses. |
 | The reset route is called by a stranger | `CRON_SECRET`, demo mode, and the marker are all required. |
-| A visitor floods the database | Workspace cap, rate limits, daily reset. |
+| A visitor floods the database | Workspace cap, row cap for each workspace, rate limits, daily reset. |
 | A visitor uploads a large file | The exemplar-import route has no size limit today. Demo mode disables that route. |
 | A model API is called | No SDK in the build; a test fails if one is added. |
 | A visitor sees another visitor's content | One Instructor for each visitor; existing ownership checks. |
@@ -150,7 +156,7 @@ simulated implementation, and OPS.md keeps it as the active one.
 | 4 | Visitor cookie in the proxy; demo branch in `getAuthenticatedInstructor`; layout without sign-out | M |
 | 5 | Load the demo Course on first visit; banner; `noindex` header | S |
 | 6 | Reset route, cron entry, hand-run script, bootstrap script | M |
-| 7 | Workspace cap, rate limits, exemplar-import disabled | M |
+| 7 | Workspace cap, row cap and age limit for each workspace, rate limits, exemplar-import disabled | M |
 | 8 | Operator: Vercel project, Neon database, variables, bootstrap, smoke test | Manual |
 
 Steps 2 and 3 change no behavior of the running app. Steps 4 to 7 are inert
