@@ -384,3 +384,5 @@ Decisions made where the requirements were underspecified. Each can be revisited
   `COURSE_PLANNER_PREVIEW_EMAIL`. A non-whitespace value causes a configuration
   error that stops the app when the guard is connected.
 - No migration creates the marker table.
+- The marker table is looked up in the `public` schema. A deployment that uses
+  another schema must change `DEMO_MARKER_SCHEMA`.

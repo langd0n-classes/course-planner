@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  DEMO_MARKER_SCHEMA,
   DEMO_MARKER_TABLE,
   DemoModeConfigError,
   assertDemoDatabase,
@@ -102,10 +103,13 @@ describe("demo mode configuration", () => {
 describe("demo database marker", () => {
   it.each([null, "_demo_marker"])("checks marker presence (%s)", async (marker) => {
     const db = fakeDb(marker);
+    expect(DEMO_MARKER_SCHEMA).toBe("public");
     expect(DEMO_MARKER_TABLE).toBe("_demo_marker");
     expect(await hasDemoMarker(db)).toBe(marker !== null);
-    const [query] = db.query.mock.calls[0] as unknown as [TemplateStringsArray];
-    expect(query.join("").trim()).toBe("SELECT to_regclass('public._demo_marker')::text AS marker");
+    const [query, ...values] = db.query.mock.calls[0] as unknown as [TemplateStringsArray, ...unknown[]];
+    expect(values).toEqual(["public._demo_marker"]);
+    expect(query.join("").trim()).toBe("SELECT to_regclass(::text)::text AS marker");
+    expect(query.join("")).not.toContain("_demo_marker");
   });
 
   it("treats an empty result as a missing marker", async () => {

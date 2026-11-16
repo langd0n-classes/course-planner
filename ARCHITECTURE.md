@@ -311,9 +311,13 @@ prerequisite, and content revision calls retain their existing contracts.
 
 ## Demo-mode guard (#78)
 
-`src/lib/demo-mode.ts` exports `demoModeConfig` and `isDemoMode` for server
-configuration validation, `hasDemoMarker` for the database marker lookup,
-and `assertDemoDatabase` to require both keys. It also exports
-`DemoModeConfigError` and the `DEMO_MARKER_TABLE` constant. Configuration errors
-name conflicting variables without exposing their values. No runtime code
-calls the guard yet.
+Demo mode requires two keys: the server variable `COURSE_PLANNER_DEMO=true`
+and the marker table `public._demo_marker`.
+
+The flag together with a configured sign-in variable raises
+`DemoModeConfigError`. The error names the variables without exposing their
+values.
+
+`assertDemoDatabase` in `src/lib/demo-mode.ts` checks the flag and the marker
+table. A test in `src/services/no-model-sdk.test.ts` fails when a model SDK
+or a model API key name enters the build.

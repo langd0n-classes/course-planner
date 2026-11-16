@@ -40,11 +40,13 @@ export function isDemoMode(env: DemoEnvironment = process.env): boolean {
   return demoModeConfig(env).enabled;
 }
 
+export const DEMO_MARKER_SCHEMA = "public";
 export const DEMO_MARKER_TABLE = "_demo_marker";
 
 export async function hasDemoMarker(db: DemoDatabase): Promise<boolean> {
+  const qualifiedName = `${DEMO_MARKER_SCHEMA}.${DEMO_MARKER_TABLE}`;
   const [row] = await db.$queryRaw<{ marker: string | null }[]>`
-    SELECT to_regclass('public._demo_marker')::text AS marker
+    SELECT to_regclass(${qualifiedName}::text)::text AS marker
   `;
   // A missing row is treated as a missing marker, so the guard stays closed.
   return (row?.marker ?? null) !== null;
