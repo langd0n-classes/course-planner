@@ -1,6 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- structural Prisma test doubles */
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createPastDatedTermFixture } from "@/lib/redesign-fixtures";
+
+afterEach(() => vi.useRealTimers());
 import { ConcurrencyConflictError } from "./errors";
 import {
   applyTermActivityAdoption,
@@ -131,11 +134,18 @@ describe("Term Activity adoption", () => {
     ]);
   });
 
-  it("applies pinned adoption rows and materializes planned revision snapshots", async () => {
+  it.each(["mid-flight", "back-test"] as const)("open question: %s adoption creates an undated planned snapshot rather than inferred delivery", async (scenario) => {
+    const fixture = createPastDatedTermFixture(scenario);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(`${fixture.today}T12:00:00Z`));
     const termActivityCreates: any[] = [];
     const termActivityUpdates: any[] = [];
+    const meetingCreates: any[] = [];
     const tx = {
-      term: { findUnique: async () => baseTerm() },
+      term: { findUnique: async () => ({ ...baseTerm(),
+        startDate: new Date(fixture.createRequest.startDate),
+        endDate: new Date(fixture.createRequest.endDate),
+      }) },
       termLearningModule: {
         findUnique: async () => ({ id: "tlm-1", termId: "term-1", courseId: "course-1", learningModuleId: "lm-1" }),
       },
@@ -201,7 +211,7 @@ describe("Term Activity adoption", () => {
           milestones: [],
         }),
       },
-      termMeetingActivityRevision: { create: async () => ({}) },
+      termMeetingActivityRevision: { create: async ({ data }: any) => { meetingCreates.push(data); return data; } },
       termCourseworkActivityRevision: { create: async () => ({}) },
       termAssessmentActivityRevision: { create: async () => ({}) },
       termActivityRevisionTopicAction: { create: async () => ({}) },
@@ -236,6 +246,11 @@ describe("Term Activity adoption", () => {
     }));
     expect(termActivityUpdates[0]).toEqual({ plannedRevisionId: "tar-1" });
     expect(applied.termActivities[0].plannedActivityVersionId).toBe("av-1");
+    expect(applied.termActivities[0].deliveredRevisionId).toBeNull();
+    expect(applied.termActivities[0].lifecycleState).toBeNull();
+    expect(meetingCreates).toEqual([expect.objectContaining({
+      startsAt: null, endsAt: null, status: null, calendarSlotId: null,
+    })]);
   });
 
   it("rejects closed-term adoption apply", async () => {

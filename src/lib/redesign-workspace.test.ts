@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createPastDatedTermFixture } from "./redesign-fixtures";
 import {
   buildActivityBoardColumns,
   buildTopicFlow,
@@ -773,5 +774,40 @@ describe("suggestTopicStableCode", () => {
     expect(suggestTopicStableCode("SQL joins & null handling")).toBe(
       "topic-sql-joins-null-handling",
     );
+  });
+});
+
+
+describe.each(["mid-flight", "back-test"] as const)("past-dated Term: %s", (scenario) => {
+  it("reports elapsed calendar progress when first onboarded", () => {
+    const fixture = createPastDatedTermFixture(scenario);
+    const timeline = buildTermCalendarTimeline(fixture);
+    expect(timeline.todaySignal).toBe(scenario === "mid-flight" ? "today_class_day" : "after_term");
+    expect(timeline.completedClassDays).toBe(scenario === "mid-flight" ? 20 : 40);
+    expect(timeline.totalClassDays).toBe(40);
+    expect(timeline.progressPercent).toBe(scenario === "mid-flight" ? 50 : 100);
+  });
+
+  it("keeps the next meeting ordinal relative to the whole Term", () => {
+    const fixture = createPastDatedTermFixture(scenario);
+    // Input order must not restart or determine the ordinal.
+    const driver = buildTermDailyDriver({ ...fixture, termActivities: [...fixture.termActivities].reverse() });
+    expect(driver.totalMeetings).toBe(40);
+    if (scenario === "mid-flight") {
+      expect(driver.nextMeeting?.meetingOrdinal).toBe(20);
+      expect(driver.nextMeeting?.activity.id).toBe(fixture.termActivities[19]!.id);
+    } else {
+      expect(driver.nextMeeting).toBeNull();
+    }
+    expect(driver.nextMilestone).toBeNull();
+  });
+
+  it("open question: initial onboarding establishes a plan without a changed-from-plan signal", () => {
+    const fixture = createPastDatedTermFixture(scenario);
+    expect(buildTermDailyDriver(fixture).changedActivityIds).toEqual([]);
+    // No earlier plan exists at all: even a delivered-only record has no baseline to compare.
+    const deliveredOnly = Object.fromEntries(Object.entries(fixture.revisionsByTermActivityId)
+      .map(([id, revisions]) => [id, { planned: null, delivered: revisions.planned }]));
+    expect(buildTermDailyDriver({ ...fixture, revisionsByTermActivityId: deliveredOnly }).changedActivityIds).toEqual([]);
   });
 });

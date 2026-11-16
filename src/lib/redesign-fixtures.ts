@@ -2,6 +2,9 @@
 // All factories return fresh nested objects/arrays; no Prisma, database, or network imports.
 
 import type {
+  CalendarSlotDto,
+  SessionDto,
+  CreateTermRequest,
   ActivityDto,
   ActivityVersionDto,
   ActivityTypeDto,
@@ -667,4 +670,61 @@ export function createUpsertTermMeetingPatternRequest(
     endsOn: TERM_END,
     ...overrides,
   };
+}
+
+/** Forty weekday meetings, onboarded at meeting 20 or after the last meeting.
+ * Scheduling is explicit: adoption itself creates undated planned revisions.
+ */
+export function createPastDatedTermFixture(scenario: "mid-flight" | "back-test") {
+  const dates = Array.from({ length: 40 }, (_, index) => {
+    const date = new Date("2025-01-13T12:00:00Z");
+    date.setUTCDate(date.getUTCDate() + Math.floor(index / 5) * 7 + index % 5);
+    return date.toISOString().slice(0, 10);
+  });
+  const today = scenario === "mid-flight" ? dates[19]! : "2025-03-10";
+  const calendarSlots: CalendarSlotDto[] = dates.map((date, index) => ({
+    id: `past-slot-${index + 1}`, termId: TERM_ID, date,
+    academicCalendarEventId: null, slotType: "class_day", label: null,
+    source: null, instructionalCapacity: "normal", capacitySource: "baseline", capacityReason: null,
+  }));
+  const sessions: SessionDto[] = calendarSlots.map((slot, index) => ({
+    id: `past-session-${index + 1}`, termId: TERM_ID, termLearningModuleId: null,
+    calendarSlotId: slot.id, sequence: index + 1, sessionType: "lecture",
+    code: `L${index + 1}`, title: `Meeting ${index + 1}`, date: slot.date,
+    scheduleOverrideLabel: null, description: null, format: null, notes: null,
+    status: "scheduled", instructionalMode: "standard", canceledAt: null,
+    canceledReason: null, archivedAt: null,
+  }));
+  const termActivities = dates.map((_, index) => createTermActivity({
+    id: `past-activity-${index + 1}`, activityId: MEETING_ACTIVITY_ID,
+    plannedActivityVersionId: MEETING_ACTIVITY_VERSION_ID,
+    activityTypeVersionId: MEETING_TYPE_VERSION_ID, adoptedLabel: "Lecture",
+    ordinal: index + 1, lifecycleState: null,
+    plannedRevisionId: `past-revision-${index + 1}`, deliveredRevisionId: null,
+  }));
+  const revisionsByTermActivityId = Object.fromEntries(termActivities.map((activity, index) => [
+    activity.id, {
+      planned: createTermActivityRevision({
+        id: activity.plannedRevisionId!, termActivityId: activity.id,
+        baseActivityVersionId: MEETING_ACTIVITY_VERSION_ID,
+        title: `Meeting ${index + 1}`, summary: null,
+        createdAt: `${today}T12:00:00Z`,
+        detail: createMeetingRevisionDetail({
+          calendarSlotId: calendarSlots[index]!.id,
+          startsAt: `${dates[index]}T14:00:00Z`, endsAt: `${dates[index]}T15:00:00Z`,
+        }),
+        topicActions: [], milestones: [],
+      }),
+      delivered: null,
+    },
+  ]));
+  const createRequest: CreateTermRequest = {
+    mode: "apply", courseId: COURSE_ID,
+    institutionId: "00000000-0000-4000-8000-000000000003",
+    academicCalendarId: CALENDAR_ID, code: "S25", name: "Spring 2025",
+    startDate: dates[0]!, endDate: dates[39]!,
+    meetingPattern: { roles: [{ roleKey: "lecture", label: "Lecture", sessionType: "lecture",
+      days: ["monday", "tuesday", "wednesday", "thursday", "friday"] }] },
+  };
+  return { scenario, today, createRequest, calendarSlots, sessions, termActivities, revisionsByTermActivityId };
 }
