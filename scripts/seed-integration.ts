@@ -13,12 +13,15 @@ if (!url || new URL(url).pathname !== "/cp15") {
 process.env.DATABASE_URL = url;
 process.env.DATABASE_URL_UNPOOLED = url;
 const db = new PrismaClient();
+// One fixed date for every seed run and assertion, so a semester boundary
+// between two runs cannot change the expected Terms.
+const SEED_TEST_TODAY = "2026-11-16T12:00:00Z";
 const seedCli = (force = false) =>
   execFileSync(
     "./node_modules/.bin/tsx",
     ["prisma/seed.ts", ...(force ? ["--force"] : [])],
     {
-      env: { ...process.env, DATABASE_URL: url, DATABASE_URL_UNPOOLED: url },
+      env: { ...process.env, DATABASE_URL: url, DATABASE_URL_UNPOOLED: url, SEED_TEST_TODAY },
       stdio: "pipe",
     },
   );
@@ -42,7 +45,7 @@ async function main() {
     seedCli(true);
     const first = await contents();
 
-    const [current, next] = demoSemesters(new Date());
+    const [current, next] = demoSemesters(new Date(SEED_TEST_TODAY));
     const exemplarTerms = await db.term.findMany({
       where: { courseId: seedId("exemplar-course") },
       include: { activities: true, calendarSlots: true },

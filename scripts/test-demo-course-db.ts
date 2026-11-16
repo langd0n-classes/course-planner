@@ -7,23 +7,26 @@ async function main() {
   const db = new PrismaClient();
   try {
     const runId = randomUUID();
+    // One fixed date for every load and assertion, so a semester boundary
+    // between two calls cannot change the expected Terms.
+    const today = new Date("2026-11-16T12:00:00Z");
     const other = await db.instructor.create({ data: { email: `other-${runId}@example.test`, name: "Other" } });
     const owner = await db.instructor.create({ data: { email: `owner-${runId}@example.test`, name: "Owner" } });
-    await loadDemoCourse(db, other.id);
+    await loadDemoCourse(db, other.id, undefined, today);
     const otherBefore = await db.instructor.findUniqueOrThrow({
       where: { id: other.id },
       include: { courses: { include: { terms: { include: { activities: true, calendarSlots: true, learningModules: true } }, activities: true, learningModules: true } } },
     });
     const otherTypesBefore = await db.activityType.count({ where: { instructorId: other.id } });
 
-    const first = await loadDemoCourse(db, owner.id);
+    const first = await loadDemoCourse(db, owner.id, undefined, today);
     assert.equal(first.created, true);
     const course = await db.course.findUniqueOrThrow({
       where: { id: first.courseId },
       include: { terms: { include: { activities: true, calendarSlots: true, meetingPatterns: true, learningModules: true } }, activities: true, learningModules: true },
     });
     assert.equal(course.terms.length, 2);
-    const [current, next] = demoSemesters(new Date());
+    const [current, next] = demoSemesters(today);
     const termFor = (code: string) => {
       const term = course.terms.find((candidate) => candidate.code === code);
       assert.ok(term, `Term ${code} is missing`);
@@ -53,7 +56,7 @@ async function main() {
       db.course.count(), db.term.count(), db.institution.count(), db.academicCalendar.count(),
       db.calendarSlot.count(), db.termActivity.count(), db.instructorInstitution.count(),
     ]);
-    const second = await loadDemoCourse(db, owner.id);
+    const second = await loadDemoCourse(db, owner.id, undefined, today);
     assert.deepEqual(second, { courseId: first.courseId, created: false });
     const countsAfter = await Promise.all([
       db.course.count(), db.term.count(), db.institution.count(), db.academicCalendar.count(),
@@ -84,7 +87,7 @@ async function main() {
     const ambiguous = await db.instructor.create({ data: { email: `ambiguous-${runId}@example.test`, name: "Ambiguous" } });
     const coursesBefore = await db.course.count();
     await assert.rejects(
-      loadDemoCourse(db, ambiguous.id, { apply: async () => ({ ambiguities: [{ path: "activities[0]" }] }) } as never),
+      loadDemoCourse(db, ambiguous.id, { apply: async () => ({ ambiguities: [{ path: "activities[0]" }] }) } as never, today),
       /ambiguities/,
     );
     assert.equal(await db.course.count(), coursesBefore);
