@@ -308,3 +308,12 @@ versions. The secondary `TopicBrowser` links to
 `/courses/[courseId]/topics/[topicId]`, where `TopicWorkspacePage` loads Course
 Topics and prerequisites and `TopicEditor` edits the selected Topic. Identity,
 prerequisite, and content revision calls retain their existing contracts.
+
+## Demo-mode guard (#78)
+
+`src/lib/demo-mode.ts` exports `demoModeConfig` and `isDemoMode` for server
+configuration validation, `hasDemoMarker` for the database marker lookup,
+and `assertDemoDatabase` to require both keys. It also exports
+`DemoModeConfigError` and the `DEMO_MARKER_TABLE` constant. Configuration errors
+name conflicting variables without exposing their values. No runtime code
+calls the guard yet.

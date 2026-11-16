@@ -374,3 +374,13 @@ Decisions made where the requirements were underspecified. Each can be revisited
 - A failed Topic save refreshes the displayed server revision and prerequisite
   chain while retaining the unsaved form values. The displayed revision shows
   which part of a partial save succeeded before the instructor retries.
+
+## Public demo guard (#78)
+
+- Demo mode requires both the server variable `COURSE_PLANNER_DEMO=true` and
+  the database marker table `public._demo_marker`.
+- The flag conflicts with each sign-in variable: `GOOGLE_CLIENT_ID`,
+  `GOOGLE_CLIENT_SECRET`, `ALLOWED_EMAIL`, `COURSE_PLANNER_PREVIEW_AUTH`, and
+  `COURSE_PLANNER_PREVIEW_EMAIL`. A non-whitespace value causes a configuration
+  error that stops the app when the guard is connected.
+- No migration creates the marker table.
