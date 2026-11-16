@@ -403,3 +403,9 @@ Decisions made where the requirements were underspecified. Each can be revisited
   date for a part-way Term is also separate.
 - A meeting with no Term Learning Module has no position in the sequence. It is
   listed as not placed, and the single-Activity edit dates it.
+- A local time that occurs twice, when the clock goes back, resolves to the
+  earlier instant in every time zone. An end time must be after the start time.
+- The end of a placed meeting is the pattern's or the request's end time; else
+  the start plus the Activity version's default duration; else none.
+- One local time that does not exist on one class day stops the whole preview
+  with that error. The instructor changes the time and previews again.

@@ -106,11 +106,14 @@ export default function PlaceMeetingsPanel({ termId, onApplied }: Props) {
   }
   return (
     <section
-      aria-label="Place meetings"
+      aria-labelledby="place-meetings-heading"
       className="mt-4 space-y-4 border-t border-slate-200 pt-4"
       aria-busy={busy}
     >
-      <h2 className="text-lg font-semibold text-slate-900">
+      <h2
+        id="place-meetings-heading"
+        className="text-lg font-semibold text-slate-900"
+      >
         Place meetings on the calendar
       </h2>
       <form onSubmit={previewAgain} className="space-y-4">
@@ -148,6 +151,7 @@ export default function PlaceMeetingsPanel({ termId, onApplied }: Props) {
               <input
                 className={fieldClass}
                 required
+                placeholder="America/New_York"
                 value={zone}
                 disabled={busy}
                 onChange={(e) => {

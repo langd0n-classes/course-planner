@@ -43,9 +43,12 @@ const dateOnly = (date: Date | string) =>
     ? date.slice(0, 10)
     : date.toISOString().slice(0, 10);
 
+const formatters = new Map<string, Intl.DateTimeFormat>();
 function formatter(timeZone: string) {
+  const cached = formatters.get(timeZone);
+  if (cached) return cached;
   try {
-    return new Intl.DateTimeFormat("en-CA", {
+    const created = new Intl.DateTimeFormat("en-CA", {
       timeZone,
       year: "numeric",
       month: "2-digit",
@@ -55,6 +58,8 @@ function formatter(timeZone: string) {
       second: "2-digit",
       hourCycle: "h23",
     });
+    formatters.set(timeZone, created);
+    return created;
   } catch {
     throw new DomainInvariantError(`Invalid time zone: ${timeZone}`);
   }
@@ -79,23 +84,36 @@ function validateTime(time: DefaultMeetingTime) {
       );
     }
   }
+  if (time.endTimeLocal !== null && time.endTimeLocal <= time.startTimeLocal) {
+    throw new DomainInvariantError(
+      `The end time ${time.endTimeLocal} must be after the start time ${time.startTimeLocal}`,
+    );
+  }
 }
-/** Resolve the offset at the requested date, rather than reusing today's offset. */
+function renderedAsUtc(instant: number, timeZone: string) {
+  const p = localParts(new Date(instant), timeZone);
+  return Date.parse(
+    `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}Z`,
+  );
+}
+/**
+ * Resolves a local wall time with the zone offsets in force one day before
+ * and one day after it, so the offset is the one for that date. A local time
+ * that occurs twice (the clock goes back) resolves to the earlier instant. A
+ * local time that does not occur (the clock goes forward) is rejected.
+ */
 function localInstant(date: string, time: string, timeZone: string) {
   const target = Date.parse(`${date}T${time}:00Z`);
-  let instant = target;
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const p = localParts(new Date(instant), timeZone);
-    const rendered = Date.parse(
-      `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}Z`,
+  const day = 86_400_000;
+  const candidates = [target - day, target + day]
+    .map((probe) => target - (renderedAsUtc(probe, timeZone) - probe))
+    .filter((candidate) => renderedAsUtc(candidate, timeZone) === target);
+  if (candidates.length === 0) {
+    throw new DomainInvariantError(
+      `Local time does not exist: ${date} ${time} in ${timeZone}`,
     );
-    const correction = target - rendered;
-    if (correction === 0) return new Date(instant);
-    instant += correction;
   }
-  throw new DomainInvariantError(
-    `Local time does not exist: ${date} ${time} in ${timeZone}`,
-  );
+  return new Date(Math.min(...candidates));
 }
 
 export function planMeetingPlacement(input: MeetingPlacementInput) {

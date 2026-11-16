@@ -68,7 +68,10 @@ async function buildPreview(tx: RedesignTx, input: Input) {
       meetingDetail: { defaultDurationMinutes: number | null } | null;
     };
   };
-  const meetings: MeetingPlacementInput["meetings"] = (rows as Row[]).map(
+  // A meeting with no planned revision has nothing to copy into a new revision.
+  const meetings: MeetingPlacementInput["meetings"] = (rows as Row[])
+    .filter((row) => row.plannedRevision?.meetingDetail)
+    .map(
     (row) => ({
       termActivityId: row.id,
       activityTypeVersionId: row.activityTypeVersionId,
@@ -99,7 +102,8 @@ async function buildPreview(tx: RedesignTx, input: Input) {
         activityTypeVersionId: string | null;
       }[]
     ).flatMap((e) => {
-      const date = e.targetDate ?? e.calendarSlot?.date ?? e.startsAt;
+      // Same order as computeTermCalendarPreview in academic-calendar-service.
+      const date = e.targetDate ?? e.startsAt ?? e.calendarSlot?.date;
       return date
         ? [
             {

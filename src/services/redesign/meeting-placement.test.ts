@@ -328,3 +328,49 @@ it("places all 40 meetings from the Term start so a part-way Term retains the ne
   expect(driver.nextMeeting?.activity.id).toBe("m-20");
   expect(driver.nextMeeting?.meetingOrdinal).toBe(21);
 });
+
+describe("local time resolution", () => {
+  const one = (
+    date: string,
+    defaultMeetingTime: MeetingPlacementInput["defaultMeetingTime"],
+  ) =>
+    planMeetingPlacement(
+      input({ meetings: [meeting("a")], slots: [slot(date)], defaultMeetingTime }),
+    ).placements[0].startsAt.toISOString();
+
+  it.each([
+    ["America/New_York", "2027-11-07", "01:30", "2027-11-07T05:30:00.000Z"],
+    ["Europe/Berlin", "2027-10-31", "02:30", "2027-10-31T00:30:00.000Z"],
+    ["Australia/Sydney", "2027-04-04", "02:30", "2027-04-03T15:30:00.000Z"],
+  ])(
+    "resolves a local time that occurs twice in %s to the earlier instant",
+    (timeZone, date, startTimeLocal, expected) => {
+      expect(one(date, { ...time, timeZone, startTimeLocal })).toBe(expected);
+    },
+  );
+
+  it.each([
+    ["America/New_York", "2027-03-14"],
+    ["Europe/Berlin", "2027-03-28"],
+  ])("rejects a local time that does not occur in %s", (timeZone, date) => {
+    expect(() =>
+      one(date, { ...time, timeZone, startTimeLocal: "02:30" }),
+    ).toThrow(DomainInvariantError);
+  });
+
+  it("converts a zone east of UTC near midnight", () => {
+    expect(
+      one("2027-06-01", {
+        ...time,
+        timeZone: "Pacific/Auckland",
+        startTimeLocal: "00:00",
+      }),
+    ).toBe("2027-05-31T12:00:00.000Z");
+  });
+
+  it("rejects an end time that is not after the start time", () => {
+    expect(() =>
+      one("2026-03-06", { ...time, endTimeLocal: "08:00" }),
+    ).toThrow(DomainInvariantError);
+  });
+});

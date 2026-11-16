@@ -800,6 +800,7 @@ export const meetingPlacementPreviewRequestSchema = z.object({
     timeZone: z.string().min(1).refine(value => {
       try { new Intl.DateTimeFormat("en", { timeZone: value }); return true; } catch { return false; }
     }, "Invalid time zone"),
-  }).nullable().optional().transform(value => value ?? null),
+  }).refine(value => value.endTimeLocal === null || value.endTimeLocal > value.startTimeLocal, "The end time must be after the start time")
+    .nullable().optional().transform(value => value ?? null),
 });
 export const meetingPlacementApplyRequestSchema = meetingPlacementPreviewRequestSchema.extend({ previewToken: z.string().min(1) });
