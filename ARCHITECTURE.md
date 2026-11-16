@@ -276,6 +276,15 @@ pulling in the sibling CRUD or cockpit packets:
   is the single source for meeting-role normalization, override application,
   calendar-fit checks, provenance, and warning/conflict reporting. Term clone
   reuses the same service for target-slot generation.
+- **Meeting placement**. `src/services/redesign/meeting-placement.ts` pairs
+  undated meeting activities with eligible class days without database access.
+  `meeting-placement-service.ts` loads owned Term inputs, hashes preview
+  placements, and applies immutable revision snapshots with planned-pointer
+  compare-and-swap checks in one transaction. `POST /api/terms/[id]/placement-preview`
+  returns labeled placements, unplaced meetings, and empty class days;
+  `POST /api/terms/[id]/placement-apply` validates that preview and returns the
+  number placed. The typed redesign client connects both routes to
+  `PlaceMeetingsPanel`, the Term workspace notice, and the daily-driver action.
 - **Session scheduling records its evidence**. A scheduled Session now either
   points at a materialized `CalendarSlot` (`calendarSlotId`) or carries an
   explicit `scheduleOverrideLabel`; closed-Term Session/Assessment Artifacts

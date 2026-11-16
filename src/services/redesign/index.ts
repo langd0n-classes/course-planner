@@ -22,3 +22,4 @@ export * from "./syllabus-import-service";
 export * from "./term-service";
 export * from "./term-activity-service";
 export * from "./types";
+export { previewMeetingPlacement, applyMeetingPlacement } from "./meeting-placement-service";

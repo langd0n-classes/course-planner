@@ -295,7 +295,7 @@ async function buildAdoptionCandidates(
   };
 }
 
-async function createRevisionSnapshot(
+export async function createRevisionSnapshot(
   tx: RedesignTx,
   input: {
     termActivityId: string;
@@ -389,7 +389,7 @@ async function createRevisionSnapshot(
   });
 }
 
-const revisionInclude = {
+export const revisionInclude = {
   meetingDetail: true,
   courseworkDetail: true,
   assessmentDetail: true,

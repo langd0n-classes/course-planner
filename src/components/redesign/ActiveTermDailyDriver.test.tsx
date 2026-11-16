@@ -379,3 +379,20 @@ describe("ActiveTermDailyDriver", () => {
     ]);
   });
 });
+
+it("offers placement when there is no next meeting and a planned meeting is undated", () => {
+  const planned = revision("undated");
+  if (planned.detail.behaviorFamily === "meeting") { planned.detail.startsAt = null; planned.detail.calendarSlotId = null; }
+  const onPlaceMeetings = vi.fn();
+  render(<ActiveTermDailyDriver termActivities={[activity("undated")]} revisionsByTermActivityId={{ undated: { planned, delivered: null } }} today="2026-02-10" learningModuleLabels={new Map()} topicLabels={new Map()} editable={false} onApplied={vi.fn()} onPlaceMeetings={onPlaceMeetings} />);
+  fireEvent.click(screen.getByRole("button", { name: "Place meetings on the calendar" }));
+  expect(onPlaceMeetings).toHaveBeenCalled();
+});
+it("does not offer placement for archived or canceled meetings", () => {
+  const canceled = revision("canceled");
+  if (canceled.detail.behaviorFamily === "meeting") { canceled.detail.startsAt = null; canceled.detail.calendarSlotId = null; canceled.detail.status = "canceled"; }
+  const archived = revision("archived");
+  if (archived.detail.behaviorFamily === "meeting") { archived.detail.startsAt = null; archived.detail.calendarSlotId = null; }
+  render(<ActiveTermDailyDriver termActivities={[activity("canceled"), { ...activity("archived"), archivedAt: "2026-01-01T00:00:00Z" }]} revisionsByTermActivityId={{ canceled: { planned: canceled, delivered: null }, archived: { planned: archived, delivered: null } }} today="2026-02-10" learningModuleLabels={new Map()} topicLabels={new Map()} editable={false} onApplied={vi.fn()} onPlaceMeetings={vi.fn()} />);
+  expect(screen.queryByRole("button", { name: "Place meetings on the calendar" })).not.toBeInTheDocument();
+});

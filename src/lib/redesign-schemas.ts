@@ -791,3 +791,15 @@ export const termCalendarApplyRequestSchema = z.object({
   expectedCurrentCalendarSlotCount: z.number().int().min(0),
   meetingPatterns: z.array(upsertTermMeetingPatternSchema),
 });
+
+const placementLocalTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+export const meetingPlacementPreviewRequestSchema = z.object({
+  defaultMeetingTime: z.object({
+    startTimeLocal: placementLocalTimeSchema,
+    endTimeLocal: placementLocalTimeSchema.nullish().transform(value => value ?? null),
+    timeZone: z.string().min(1).refine(value => {
+      try { new Intl.DateTimeFormat("en", { timeZone: value }); return true; } catch { return false; }
+    }, "Invalid time zone"),
+  }).nullable().optional().transform(value => value ?? null),
+});
+export const meetingPlacementApplyRequestSchema = meetingPlacementPreviewRequestSchema.extend({ previewToken: z.string().min(1) });

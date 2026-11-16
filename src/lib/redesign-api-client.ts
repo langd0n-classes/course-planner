@@ -8,6 +8,10 @@
 // or Storybook fixtures. Production always uses real HTTP.
 
 import type {
+  MeetingPlacementPreviewRequest,
+  MeetingPlacementPreviewResponse,
+  MeetingPlacementApplyRequest,
+  MeetingPlacementApplyResponse,
   AcademicCalendarDto,
   AcademicCalendarVersionDto,
   ActivityDto,
@@ -702,6 +706,11 @@ const _api = {
     termActivities: d.termActivities,
     revisionsByTermActivityId: d.revisionsByTermActivityId ?? {},
   })),
+
+  previewMeetingPlacement: (termId: Id, request: MeetingPlacementPreviewRequest): Promise<MeetingPlacementPreviewResponse> =>
+    post<MeetingPlacementPreviewResponse>(`/api/terms/${termId}/placement-preview`, request),
+  applyMeetingPlacement: (termId: Id, request: MeetingPlacementApplyRequest): Promise<MeetingPlacementApplyResponse> =>
+    post<MeetingPlacementApplyResponse>(`/api/terms/${termId}/placement-apply`, request),
 
   previewTermActivityAdoption: (
     termId: Id,

@@ -374,3 +374,32 @@ Decisions made where the requirements were underspecified. Each can be revisited
 - A failed Topic save refreshes the displayed server revision and prerequisite
   chain while retaining the unsaved form values. The displayed revision shows
   which part of a partial save succeeded before the instructor retries.
+
+## Meeting placement on the Term calendar (#85)
+
+- Placement starts at the Term's first eligible class day, including past dates.
+  Learning Module sequence determines order before the meeting ordinal. Existing
+  planned dates and canceled meetings are preserved.
+- Each meeting type has its own slot sequence. Different types may share a class
+  day. A type-specific cancellation does not hide that day from the empty-slot
+  report; a cancellation for all types does.
+- The fallback start time, optional end time, and time zone belong to the
+  preview/apply request. They are not stored on the Term. Meeting instants are
+  stored in new planned revisions; coursework milestones retain their dates.
+- If patterns overlap for one type on one date, placement uses the first pattern
+  ordered by startsOn, then pattern id. Pattern dates are inclusive. Local end
+  times refer to the same date as the start time.
+- A local time in a daylight-saving gap is rejected. The time conversion resolves
+  the offset for each calendar date. A dated meeting without a slot reserves its
+  local date using the applicable pattern's zone (or the request fallback zone).
+  Without either source of time zone, only its explicit slot can be reserved.
+- The panel requires a new preview after editing a fallback time or receiving an
+  apply conflict. Apply returns `placedCount`; the workspace reloads after apply.
+- The fallback meeting time exists because a Term created in the workspace
+  stores meeting days and no time. `TermMeetingPattern` rows hold times, and
+  only the Term calendar apply writes them.
+- Coursework milestones are not dated by this step. Adoption creates no Term
+  milestones, so there is nothing to date (#87). The "records complete from"
+  date for a part-way Term is also separate.
+- A meeting with no Term Learning Module has no position in the sequence. It is
+  listed as not placed, and the single-Activity edit dates it.
