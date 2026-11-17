@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
+import { previewMeetingPlacement, applyMeetingPlacement } from "../src/services/redesign/meeting-placement-service";
+import { previewMilestoneDating, applyMilestoneDating } from "../src/services/redesign/milestone-dating-service";
 import { demoSemesters, loadDemoCourse } from "../src/services/redesign/demo-course-service";
 
 async function main() {
@@ -76,6 +78,63 @@ async function main() {
     // The unlinked demo template has nothing to follow, so adoption creates no milestone for it.
     assert.equal(milestones.filter((row) => row.anchorPolicy === "standalone").length, 0);
     assert.ok(milestones.every((row) => row.occursAt === null && row.sourceTemplateId && row.timeZone === "UTC"));
+    const datingInput = { instructorId: owner.id, termId: currentTerm.id };
+    const placementInput = { ...datingInput, defaultMeetingTime: { startTimeLocal: "10:00", endTimeLocal: "10:50", timeZone: "UTC" } };
+    const placement = await previewMeetingPlacement(db, placementInput);
+    await applyMeetingPlacement(db, { ...placementInput, previewToken: placement.previewToken });
+    const dating = await previewMilestoneDating(db, datingInput);
+    assert.equal(dating.dates.length, 4);
+    assert.equal(dating.creates.length, 0);
+    const datingState = () => db.termActivity.findMany({
+      where: { termId: currentTerm.id }, orderBy: { id: "asc" },
+      include: { revisions: { orderBy: { revision: "asc" }, include: {
+        milestones: { orderBy: { id: "asc" } }, topicActions: { orderBy: { id: "asc" } },
+        meetingDetail: true, courseworkDetail: true, assessmentDetail: true,
+      } } },
+    });
+    const beforeStale = await datingState();
+    await assert.rejects(applyMilestoneDating(db, { ...datingInput, previewToken: "stale" }), { name: "ConcurrencyConflictError" });
+    assert.deepEqual(await datingState(), beforeStale);
+    const changedActivity = beforeStale.find(row => row.plannedRevisionId && row.revisions.some(revision => revision.milestones.length))!;
+    await db.termActivity.update({ where: { id: changedActivity.id }, data: { plannedRevisionId: null } });
+    const afterConcurrentChange = await datingState();
+    await assert.rejects(applyMilestoneDating(db, { ...datingInput, previewToken: dating.previewToken }), { name: "ConcurrencyConflictError" });
+    assert.deepEqual(await datingState(), afterConcurrentChange);
+    await db.termActivity.update({ where: { id: changedActivity.id }, data: { plannedRevisionId: changedActivity.plannedRevisionId } });
+    const previousRevision = changedActivity.revisions.find(revision => revision.id === changedActivity.plannedRevisionId)!;
+    const withoutMilestones = await db.termActivityRevision.create({ data: {
+      termActivityId: changedActivity.id,
+      baseActivityVersionId: previousRevision.baseActivityVersionId,
+      revision: Math.max(...changedActivity.revisions.map(revision => revision.revision)) + 1,
+      title: previousRevision.title,
+      courseworkDetail: previousRevision.courseworkDetail ? { create: {} } : undefined,
+      assessmentDetail: previousRevision.assessmentDetail ? { create: {} } : undefined,
+    } });
+    await db.termActivity.update({ where: { id: changedActivity.id }, data: { plannedRevisionId: withoutMilestones.id } });
+    const removedPreview = await previewMilestoneDating(db, datingInput);
+    assert.equal(removedPreview.creates.filter(item => item.termActivityId === changedActivity.id).length, 0);
+    await db.termActivity.update({ where: { id: changedActivity.id }, data: { plannedRevisionId: changedActivity.plannedRevisionId } });
+    await db.termActivityRevision.delete({ where: { id: withoutMilestones.id } });
+    console.log("Postgres milestone dating: earlier template milestones prevent restoring instructor removals passed");
+    console.log("Postgres milestone dating: stale token and concurrent Activity change conflict without persisted writes passed");
+    const dated = await applyMilestoneDating(db, { ...datingInput, previewToken: dating.previewToken });
+    assert.equal(dated.datedCount, dating.dates.length);
+    assert.equal(dated.createdCount, dating.creates.length);
+    const datedRows = await db.termActivity.findMany({ where: { termId: currentTerm.id }, include: { plannedRevision: { include: { milestones: true } } } });
+    // Fall starts on Wednesday September 2; the two meetings use Wednesday and Friday.
+    const expectedInstants = {
+      "Practice opens": "2026-09-02T10:00:00.000Z",
+      "Practice due": "2026-09-09T17:00:00.000Z",
+      "Model check opens": "2026-09-04T10:00:00.000Z",
+      "Model check due": "2026-09-11T17:00:00.000Z",
+    };
+    assert.deepEqual(Object.fromEntries(datedRows.flatMap(row => row.plannedRevision?.milestones ?? []).map(m => [m.label, m.occursAt?.toISOString()])), expectedInstants);
+    const repeatedDating = await previewMilestoneDating(db, datingInput);
+    assert.equal(repeatedDating.alreadyDatedCount, 4);
+    const revisionCount = await db.termActivityRevision.count({ where: { termActivity: { termId: currentTerm.id } } });
+    assert.deepEqual(await applyMilestoneDating(db, { ...datingInput, previewToken: repeatedDating.previewToken }), { kind: "applied", datedCount: 0, createdCount: 0 });
+    assert.equal(await db.termActivityRevision.count({ where: { termActivity: { termId: currentTerm.id } } }), revisionCount);
+    console.log("Postgres milestone dating: four expected instants, matching preview/apply counts, repeat apply without writes passed");
     const nextTerm = termFor(next.code);
     assert.equal(nextTerm.learningModules.length, 0);
     assert.equal(nextTerm.activities.length, 0);

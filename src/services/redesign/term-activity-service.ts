@@ -695,7 +695,7 @@ export async function previewTermActivityAdoption(
           activityVersionId: candidate.activityVersionId,
           adoptedLabel: candidate.adoptedLabel,
           milestoneCount: candidate.milestoneTemplates.length - notCreated.length,
-          standaloneMilestones: notCreated,
+          notCreatedMilestones: notCreated,
           ordinal: candidate.ordinal,
           termLearningModuleId: candidate.termLearningModuleId,
         };

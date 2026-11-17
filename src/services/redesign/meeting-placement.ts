@@ -71,7 +71,7 @@ function localParts(instant: Date, timeZone: string) {
       .map((p) => [p.type, p.value]),
   );
 }
-function localDate(instant: Date | string, timeZone: string) {
+export function localDate(instant: Date | string, timeZone: string) {
   const p = localParts(new Date(instant), timeZone);
   return `${p.year}-${p.month}-${p.day}`;
 }
@@ -102,7 +102,7 @@ function renderedAsUtc(instant: number, timeZone: string) {
  * that occurs twice (the clock goes back) resolves to the earlier instant. A
  * local time that does not occur (the clock goes forward) is rejected.
  */
-function localInstant(date: string, time: string, timeZone: string) {
+export function localInstant(date: string, time: string, timeZone: string) {
   const target = Date.parse(`${date}T${time}:00Z`);
   const day = 86_400_000;
   const candidates = [target - day, target + day]

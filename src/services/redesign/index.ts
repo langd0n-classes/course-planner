@@ -25,3 +25,5 @@ export * from "./types";
 export { previewMeetingPlacement, applyMeetingPlacement } from "./meeting-placement-service";
 
 export * from "./effort-service";
+
+export { previewMilestoneDating, applyMilestoneDating } from "./milestone-dating-service";
