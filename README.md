@@ -124,7 +124,7 @@ The default seed uses stable demo identifiers. Re-running it preserves existing 
 
 ## Documentation
 
-- [ASSUMPTIONS.md](ASSUMPTIONS.md) — Design decisions and defaults
+- [docs/assumptions/](docs/assumptions/) — Design decisions and defaults, one file for each change
 - [ARCHITECTURE.md](ARCHITECTURE.md) — System architecture and directory structure
 - [TESTING.md](TESTING.md) — Test organization and commands
 - [ROADMAP.md](ROADMAP.md) — Future features beyond MVP
