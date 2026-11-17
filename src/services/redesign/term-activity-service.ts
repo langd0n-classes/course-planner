@@ -308,10 +308,10 @@ async function buildAdoptionCandidates(
   };
 }
 
-function milestoneFields(milestone: TermActivityMilestoneInput) {
+/** Fields that identify a milestone. Date, zone, notes, and provenance may change without making it a new milestone. */
+function milestoneIdentity(milestone: TermActivityMilestoneInput) {
   return [milestone.role, milestone.label, milestone.anchorPolicy, milestone.linkedTermActivityId ?? null,
-    milestone.sourceTemplateId ?? null, milestone.timeZone ?? null,
-    milestone.occursAt ? new Date(milestone.occursAt).toISOString() : null, milestone.notes ?? null, milestone.provenance ?? null];
+    milestone.sourceTemplateId ?? null];
 }
 
 async function validateSnapshotMilestones(
@@ -324,7 +324,7 @@ async function validateSnapshotMilestones(
     if (milestone.linkedTermActivityId === input.termActivityId) {
       const index = unmatchedLegacySelfLinks.findIndex(source =>
         (source.id == null || milestone.id == null || source.id === milestone.id) &&
-        isDeepStrictEqual(milestoneFields(source), milestoneFields(milestone)),
+        isDeepStrictEqual(milestoneIdentity(source), milestoneIdentity(milestone)),
       );
       if (index === -1) throw new DomainInvariantError("A milestone cannot link to its own Term Activity");
       unmatchedLegacySelfLinks.splice(index, 1);

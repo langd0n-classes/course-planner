@@ -139,11 +139,22 @@ it.each(["id", "fields"])("accepts an unchanged inherited legacy self-link suppl
   await applyTermActivityRevision(f.db, { ...input, previewToken: preview.previewToken, expectedCurrentRevisionId: "p" });
   expect(f.tx.termActivityMilestone.create).toHaveBeenCalledOnce();
 });
-it.each(["edited", "duplicated"])("rejects an inherited legacy self-link that is %s", async mode => {
+it.each(["relabeled", "duplicated", "given another id"])("rejects an inherited legacy self-link that is %s", async mode => {
   const f = fixture();
   Object.assign(f.milestone, { id: "legacy", linkedTermActivityId: "a", anchorPolicy: "follow_activity" });
-  const milestones = mode === "edited" ? [{ ...f.milestone, label: "Edited" }] : [{ ...f.milestone }, { ...f.milestone }];
+  const milestones = mode === "relabeled" ? [{ ...f.milestone, label: "Edited" }]
+    : mode === "duplicated" ? [{ ...f.milestone }, { ...f.milestone }]
+    : [{ ...f.milestone, id: "other" }];
   await expect(previewTermActivityRevision(f.db, { ...f.input, draft: { ...f.input.draft, milestones: milestones as any } })).rejects.toThrow("own Term Activity");
+});
+it("accepts a new date and zone on an inherited legacy self-link, as milestone dating and daily-driver corrections send", async () => {
+  const f = fixture();
+  Object.assign(f.milestone, { id: "legacy", linkedTermActivityId: "a", anchorPolicy: "follow_activity", occursAt: null, timeZone: null });
+  const dated = { ...f.milestone, occursAt: "2026-11-24T17:00:00.000Z", timeZone: "America/New_York" };
+  const input = { ...f.input, draft: { ...f.input.draft, milestones: [dated as any] } };
+  const preview = await previewTermActivityRevision(f.db, input);
+  await applyTermActivityRevision(f.db, { ...input, previewToken: preview.previewToken, expectedCurrentRevisionId: "p" });
+  expect(f.tx.termActivityMilestone.create).toHaveBeenCalledOnce();
 });
 it.each(["own", "fallback", "UTC"])("normalizes slots using the %s pattern zone", async mode => {
   const f = fixture();
