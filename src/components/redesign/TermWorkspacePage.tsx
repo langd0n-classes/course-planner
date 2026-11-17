@@ -15,6 +15,8 @@ import type {
   TermCalendarExceptionDto,
   TermLifecycleTransition,
   TopicVersionDto,
+  TopicPrerequisiteDto,
+  MilestoneDatingPreviewResponse,
 } from "@/lib/redesign-contract";
 import { buildTermCalendarTimeline, deriveTermPlanningGaps } from "@/lib/redesign-workspace";
 import {
@@ -23,6 +25,9 @@ import {
   formatInstructionalCapacityLabel,
   isCapacityAdvisory,
 } from "./CalendarCapacityPresentation";
+import { checkTermOrder } from "@/lib/term-order-checks";
+import TermOrderFindingsPanel from "./TermOrderFindingsPanel";
+import DateMilestonesPanel from "./DateMilestonesPanel";
 import PlaceMeetingsPanel from "./PlaceMeetingsPanel";
 import AdoptLearningModulePanel from "./AdoptLearningModulePanel";
 import ActivityAdoptionPanel from "./ActivityAdoptionPanel";
@@ -122,6 +127,11 @@ export default function TermWorkspacePage({ termId }: Props) {
   const [availableTopicVersions, setAvailableTopicVersions] = useState<TopicVersionDto[]>([]);
   const [topicVersionsById, setTopicVersionsById] = useState(new Map<Id, TopicVersionDto>());
   const [editingTermLearningModuleId, setEditingTermLearningModuleId] = useState<Id | null>(null);
+  const [prerequisites, setPrerequisites] = useState<TopicPrerequisiteDto[]>([]);
+  const [prerequisitesFailed, setPrerequisitesFailed] = useState(false);
+  const [datingPreview, setDatingPreview] = useState<MilestoneDatingPreviewResponse | null>(null);
+  const [datingFailed, setDatingFailed] = useState(false);
+  const [showDateMilestones, setShowDateMilestones] = useState(false);
   const [showPlaceMeetings, setShowPlaceMeetings] = useState(false);
   const [showAdoptPanel, setShowAdoptPanel] = useState(false);
   const [pendingTransition, setPendingTransition] = useState<TermLifecycleTransition | null>(null);
@@ -146,6 +156,21 @@ export default function TermWorkspacePage({ termId }: Props) {
     return !activity.archivedAt && revision?.detail.behaviorFamily === "meeting" && revision.detail.status !== "canceled" && !revision.detail.startsAt && !revision.detail.calendarSlotId;
   });
   const todayIso = useMemo(() => getTodayIsoDate(), []);
+  const termTimeZone = term?.meetingPatterns?.[0]?.timeZone ?? null;
+  const orderResult = useMemo(() => checkTermOrder({
+    termActivities, revisionsByTermActivityId: activityRevisions, calendarSlots,
+    topicVersions: [...topicVersionsById.values()], prerequisites,
+    topicLabels: Object.fromEntries([...topicVersionsById.values()].map(topic => [topic.topicId, topic.title])),
+    timeZone: termTimeZone,
+  }), [termActivities, activityRevisions, calendarSlots, topicVersionsById, prerequisites, termTimeZone]);
+  const hasDatedMeetings = termActivities.some(activity => {
+    const revisions = activityRevisions[activity.id];
+    const revision = revisions?.delivered ?? revisions?.planned;
+    return !activity.archivedAt && revision?.detail.behaviorFamily === "meeting" && Boolean(revision.detail.startsAt || revision.detail.calendarSlotId);
+  });
+  const datingCount = new Set([...(datingPreview?.dates ?? []), ...(datingPreview?.creates ?? [])]
+    .map(m => `${m.termActivityId}:${m.milestoneId ?? m.sourceTemplateId}`)).size;
+
 
   async function loadWorkspace() {
     setLoading(true);
@@ -163,6 +188,8 @@ export default function TermWorkspacePage({ termId }: Props) {
         loadedLearningModules,
         loadedTopics,
         loadedActivities,
+        loadedPrerequisites,
+        loadedDating,
       ] = await Promise.all([
         redesignApi.getCourse(loadedTerm.courseId),
         redesignApi.listTermLearningModules(termId),
@@ -174,6 +201,8 @@ export default function TermWorkspacePage({ termId }: Props) {
         redesignApi.listLearningModules(loadedTerm.courseId),
         redesignApi.listTopics(loadedTerm.courseId),
         redesignApi.listTermActivitiesWithRevisions(termId),
+        redesignApi.listTopicPrerequisites(loadedTerm.courseId).then(pairs => ({ pairs, failed: false })).catch(() => ({ pairs: [], failed: true })),
+        loadedTerm.status === "closed" ? Promise.resolve(null) : redesignApi.previewMilestoneDating(termId, {}).catch(() => null),
       ]);
 
       const [learningModuleDetails, moduleVersions, diffs, topicDetails] = await Promise.all([
@@ -228,14 +257,23 @@ export default function TermWorkspacePage({ termId }: Props) {
         if (detail.currentVersion) currentTopicVersions.push(detail.currentVersion);
       }
 
+      for (const revisions of Object.values(loadedActivities.revisionsByTermActivityId)) {
+        for (const revision of [revisions.planned, revisions.delivered]) {
+          for (const action of revision?.topicActions ?? []) referencedTopicVersionIds.add(action.topicVersionId);
+        }
+      }
       const resolvedTopicVersions = await Promise.all(
         [...referencedTopicVersionIds].map((topicVersionId) => redesignApi.getTopicVersion(topicVersionId)),
       );
       const nextTopicVersionsById = new Map<Id, TopicVersionDto>();
-      for (const topicVersion of resolvedTopicVersions) {
+      for (const topicVersion of [...currentTopicVersions, ...resolvedTopicVersions]) {
         nextTopicVersionsById.set(topicVersion.id, topicVersion);
       }
 
+      setPrerequisites(loadedPrerequisites.pairs);
+      setPrerequisitesFailed(loadedPrerequisites.failed);
+      setDatingPreview(loadedDating);
+      setDatingFailed(loadedTerm.status !== "closed" && loadedDating === null);
       setTerm(loadedTerm);
       setCourse(loadedCourse);
       setCourseLearningModules(loadedLearningModules);
@@ -533,6 +571,19 @@ export default function TermWorkspacePage({ termId }: Props) {
         <button type="button" className="mt-2 text-sm font-medium text-sky-800 underline" onClick={() => setShowPlaceMeetings(true)}>Place meetings on the calendar</button>
         {showPlaceMeetings ? <><button type="button" className="ml-4 text-sm text-slate-600 underline" onClick={() => setShowPlaceMeetings(false)}>Close placement</button><PlaceMeetingsPanel termId={termId} onApplied={async () => { setShowPlaceMeetings(false); await loadWorkspace(); }} /></> : null}
       </section> : null}
+      {term.status !== "closed" && datingCount > 0 ? <section aria-label="Milestone dating" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p className="text-sm text-slate-700">{datingCount} milestone(s) ready to date or create.</p>
+        <button type="button" className="mt-2 text-sm font-medium text-sky-800 underline" onClick={() => setShowDateMilestones(true)}>Date milestones</button>
+        {showDateMilestones ? <>
+          <button type="button" className="ml-4 text-sm text-slate-600 underline" onClick={() => setShowDateMilestones(false)}>Close milestone dating</button>
+          <DateMilestonesPanel termId={termId} timeZone={termTimeZone} onApplied={async () => { setShowDateMilestones(false); await loadWorkspace(); }} />
+        </> : null}
+      </section> : null}
+      {datingFailed ? <p role="status" className="text-sm text-amber-800">Milestone dates could not be checked. <button type="button" className="underline" onClick={() => void loadWorkspace()}>Retry</button></p> : null}
+      {hasDatedMeetings ? <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        {prerequisitesFailed ? <p className="mb-3 text-sm text-amber-800">Prerequisite order was not checked because the prerequisite pairs could not be loaded.</p> : null}
+        <TermOrderFindingsPanel result={orderResult} activityLabels={Object.fromEntries(termActivities.map(activity => [activity.id, activity.adoptedLabel]))} />
+      </div> : null}
       <TermActivityEffortList courseId={term.courseId} activities={termActivities} revisions={activityRevisions} status={term.status} onApplied={loadWorkspace} />
 
       <ActiveTermDailyDriver

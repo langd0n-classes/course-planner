@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import { ok, badRequest, notFound, unauthorized } from "@/lib/api-helpers";
 import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
-import { toTermDto } from "@/lib/redesign-serializers";
+import { toTermDto, toTermMeetingPatternDto } from "@/lib/redesign-serializers";
 import { updateTermSchema } from "@/lib/redesign-schemas";
 import { DomainInvariantError, getOwnedTermForInstructor } from "@/services/redesign";
 import { archiveTerm, updateTerm } from "@/services/redesign/term-service";
@@ -17,13 +17,20 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   if (!instructor) return unauthorized();
 
   let term;
+  let meetingPatterns;
   try {
-    term = await prisma.$transaction((tx: RedesignTx) => getOwnedTermForInstructor(tx, instructor.id, id));
+    const loaded = await prisma.$transaction(async (tx: RedesignTx) => {
+      const owned = await getOwnedTermForInstructor(tx, instructor.id, id);
+      const patterns = await tx.termMeetingPattern.findMany({ where: { termId: id }, orderBy: [{ startsOn: "asc" }, { id: "asc" }] });
+      return { owned, patterns };
+    });
+    term = loaded.owned;
+    meetingPatterns = loaded.patterns;
   } catch (error) {
     if (error instanceof DomainInvariantError) return notFound(error.message);
     throw error;
   }
-  return ok({ term: toTermDto(term) } satisfies GetTermResponse);
+  return ok({ term: { ...toTermDto(term), meetingPatterns: meetingPatterns.map(toTermMeetingPatternDto) } } satisfies GetTermResponse);
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

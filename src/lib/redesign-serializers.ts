@@ -1086,7 +1086,7 @@ export function toTermAdoptionPreviewDto(
       ordinal: candidate.ordinal,
       termLearningModuleId: candidate.termLearningModuleId,
       milestoneCount: candidate.milestoneCount,
-      standaloneMilestones: candidate.standaloneMilestones.map((milestone) => ({
+      notCreatedMilestones: candidate.notCreatedMilestones.map((milestone) => ({
         sourceTemplateId: milestone.sourceTemplateId, label: milestone.label, reason: milestone.reason,
       })),
     })),
@@ -1099,4 +1099,17 @@ export function toCourseEffortSizeDto(row: Omit<CourseEffortSizeDto, "createdAt"
 }
 export function toCourseEffortPartKindDto(row: Omit<CourseEffortPartKindDto, "createdAt"> & { createdAt: Date }): CourseEffortPartKindDto {
   return { ...row, createdAt: row.createdAt.toISOString() };
+}
+
+export function toMilestoneDatingPreviewDto(
+  result: Awaited<ReturnType<typeof import("@/services/redesign/milestone-dating-service").previewMilestoneDating>>,
+): import("./redesign-contract").MilestoneDatingPreviewResponse {
+  const item = (m: import("./redesign-contract").MilestoneDatingItemDto) => ({
+    termActivityId: m.termActivityId, adoptedLabel: m.adoptedLabel,
+    milestoneId: m.milestoneId, sourceTemplateId: m.sourceTemplateId, label: m.label,
+    linkedTermActivityId: m.linkedTermActivityId, linkedMeetingLabel: m.linkedMeetingLabel,
+  });
+  return { kind: "preview", previewToken: result.previewToken, alreadyDatedCount: result.alreadyDatedCount,
+    dates: result.dates.map(m => ({ ...item(m), occursAt: m.occursAt.toISOString(), timeZone: m.timeZone })),
+    creates: result.creates.map(item), undated: result.undated.map(m => ({ ...item(m), reason: m.reason })) };
 }

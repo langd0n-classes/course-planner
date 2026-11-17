@@ -106,7 +106,7 @@ describe("Term Activity adoption", () => {
     // undated standalone milestone, so a template with nothing to follow is not created.
     const followed = ["same apply", "already adopted"].includes(linkCase);
     expect(preview.candidates[0]).toMatchObject({ milestoneCount: followed ? 2 : 0,
-      standaloneMilestones: followed ? [] : templates.map((t) => ({
+      notCreatedMilestones: followed ? [] : templates.map((t) => ({
         sourceTemplateId: t.id, label: t.label, reason: linkCase === "archived" ? "Linked Activity is archived in this Term" : linkCase === "self" ? "A milestone cannot follow its own Activity" : linkCase === "no link" ? "The template has no linked Activity to follow" : "Linked Activity is not adopted in this Term",
       })),
     });

@@ -10,7 +10,7 @@ it("shows milestone counts and missing-link reasons before applying the reviewed
   const preview = { kind: "preview" as const, previewToken: "token", expectedCurrentActivityCount: 0, alreadyAdopted: [],
     candidates: [{ activityId: "work", activityVersionId: "work-v1", adoptedLabel: "Practice", ordinal: 1,
       termLearningModuleId: "offering", milestoneCount: 2,
-      standaloneMilestones: [{ sourceTemplateId: "due", label: "Practice due", reason: "Linked Activity is not adopted in this Term" }] }],
+      notCreatedMilestones: [{ sourceTemplateId: "due", label: "Practice due", reason: "Linked Activity is not adopted in this Term" }] }],
     impact: { issues: [], topicActionDuplicates: [], calendarConflicts: [] } };
   const apply = vi.fn(async () => ({ kind: "applied" as const, termActivities: [] }));
   const onAdopted = vi.fn();
@@ -28,7 +28,7 @@ it("shows milestone counts and missing-link reasons before applying the reviewed
 const response = { kind: "preview" as const, previewToken: "token", expectedCurrentActivityCount: 1,
   alreadyAdopted: [{ activityId: "old", adoptedLabel: "Existing practice" }],
   candidates: [{ activityId: "new", activityVersionId: "v", adoptedLabel: "New practice", ordinal: 1,
-    termLearningModuleId: null, milestoneCount: 0, standaloneMilestones: [] }],
+    termLearningModuleId: null, milestoneCount: 0, notCreatedMilestones: [] }],
   impact: { issues: [], topicActionDuplicates: [], calendarConflicts: [] } };
 
 function mount() {
@@ -68,4 +68,11 @@ it.each([500, 409])("handles apply error %s and prevents duplicate applies while
   expect(await screen.findByRole("alert")).toHaveTextContent(status === 409 ? "The Term changed. Preview again." : "Apply failed");
   if (status === 409) expect(screen.queryByText(/New practice:/)).not.toBeInTheDocument();
   else expect(screen.getByRole("button", { name: "Adopt Activities" })).toBeInTheDocument();
+});
+
+it("says an unlinked template will not be created and must be added by hand", async () => {
+  setMockBackend({ previewTermActivityAdoption: async () => ({ ...response, candidates: [{ ...response.candidates[0], notCreatedMilestones: [{ sourceTemplateId: "unlinked", label: "Review", reason: "No linked Activity" }] }] }) });
+  mount();
+  fireEvent.click(screen.getByRole("button", { name: "Preview Activity adoption" }));
+  expect(await screen.findByText(/Review.*will not be created/)).toHaveTextContent("Add it by hand");
 });

@@ -870,3 +870,6 @@ export const meetingPlacementPreviewRequestSchema = z.object({
     .nullable().optional().transform(value => value ?? null),
 });
 export const meetingPlacementApplyRequestSchema = meetingPlacementPreviewRequestSchema.extend({ previewToken: z.string().min(1) });
+
+export const milestoneDatingPreviewRequestSchema = z.object({});
+export const milestoneDatingApplyRequestSchema = z.object({ previewToken: z.string().min(1) });

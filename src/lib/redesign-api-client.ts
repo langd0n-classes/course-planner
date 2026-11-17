@@ -9,6 +9,10 @@ import type { CourseEffortSizeDto, CourseEffortPartKindDto, CourseEffortSizeRequ
 // or Storybook fixtures. Production always uses real HTTP.
 
 import type {
+  MilestoneDatingPreviewRequest,
+  MilestoneDatingPreviewResponse,
+  MilestoneDatingApplyRequest,
+  MilestoneDatingApplyResponse,
   MeetingPlacementPreviewRequest,
   MeetingPlacementPreviewResponse,
   MeetingPlacementApplyRequest,
@@ -721,6 +725,10 @@ const _api = {
     revisionsByTermActivityId: d.revisionsByTermActivityId ?? {},
   })),
 
+  previewMilestoneDating: (termId: Id, request: MilestoneDatingPreviewRequest = {}): Promise<MilestoneDatingPreviewResponse> =>
+    post<MilestoneDatingPreviewResponse>(`/api/terms/${termId}/milestone-dating-preview`, request),
+  applyMilestoneDating: (termId: Id, request: MilestoneDatingApplyRequest): Promise<MilestoneDatingApplyResponse> =>
+    post<MilestoneDatingApplyResponse>(`/api/terms/${termId}/milestone-dating-apply`, request),
   previewMeetingPlacement: (termId: Id, request: MeetingPlacementPreviewRequest): Promise<MeetingPlacementPreviewResponse> =>
     post<MeetingPlacementPreviewResponse>(`/api/terms/${termId}/placement-preview`, request),
   applyMeetingPlacement: (termId: Id, request: MeetingPlacementApplyRequest): Promise<MeetingPlacementApplyResponse> =>

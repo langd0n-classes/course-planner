@@ -637,6 +637,7 @@ export type TermDto = {
   startDate: IsoDate;
   endDate: IsoDate;
   meetingPattern: unknown | null;
+  meetingPatterns?: TermMeetingPatternDto[];
   status: TermStatus;
   closedAt: IsoDateTime | null;
   clonedFromId: Id | null;
@@ -967,7 +968,7 @@ export type TermAdoptionPreviewRequest = {
 };
 export type TermActivityAdoptionCandidateDto = {
   milestoneCount: number;
-  standaloneMilestones: Array<{ sourceTemplateId: Id; label: string; reason: string }>;
+  notCreatedMilestones: Array<{ sourceTemplateId: Id; label: string; reason: string }>;
   activityId: Id;
   activityVersionId: Id;
   adoptedLabel: string;
@@ -1454,6 +1455,8 @@ export const CANONICAL_ROUTES = [
   "/api/activity-versions/[id]/topic-scope",
 
   // B.2R accepted contract: Term plan and run
+  "/api/terms/[id]/milestone-dating-preview",
+  "/api/terms/[id]/milestone-dating-apply",
   "/api/terms/[id]/placement-preview",
   "/api/terms/[id]/placement-apply",
   "/api/terms/[id]/adoption-preview",
@@ -1499,3 +1502,25 @@ export type EffortPartInput = EffortRange & { sequence: number; label: string; p
 export type CourseEffortSizeRequest = EffortRange & { label: string };
 export type CourseEffortPartKindRequest = { label: string };
 export type ReorderCourseEffortRequest = { ids: Id[] };
+
+export type MilestoneDatingReason = "linked_meeting_undated" | "linked_activity_not_a_meeting" | "no_template" | "no_default_time" | "no_time_zone" | "local_time_does_not_exist";
+export type MilestoneDatingItemDto = {
+  termActivityId: Id;
+  adoptedLabel: string;
+  milestoneId: Id | null;
+  sourceTemplateId: Id | null;
+  label: string;
+  linkedTermActivityId: Id | null;
+  linkedMeetingLabel: string | null;
+};
+export type MilestoneDatingPreviewRequest = Record<string, never>;
+export type MilestoneDatingPreviewResponse = {
+  kind: "preview";
+  previewToken: string;
+  dates: (MilestoneDatingItemDto & { occursAt: string; timeZone: string })[];
+  creates: MilestoneDatingItemDto[];
+  undated: (MilestoneDatingItemDto & { reason: MilestoneDatingReason })[];
+  alreadyDatedCount: number;
+};
+export type MilestoneDatingApplyRequest = { previewToken: string };
+export type MilestoneDatingApplyResponse = { kind: "applied"; datedCount: number; createdCount: number };
