@@ -374,3 +374,92 @@ Decisions made where the requirements were underspecified. Each can be revisited
 - A failed Topic save refreshes the displayed server revision and prerequisite
   chain while retaining the unsaved form values. The displayed revision shows
   which part of a partial save succeeded before the instructor retries.
+
+## Past-dated Term onboarding (#75)
+
+- **Open question — should elapsed meetings arrive planned or delivered?**
+  Current adoption pins an initial planned revision, leaves the delivered
+  pointer and lifecycle state null, and creates meeting detail with null dates,
+  calendar slot, and status. A past Term start or end does not infer delivery.
+  Scheduling is a separate operation. Adoption has no date input and reads
+  neither the clock nor Term dates; the onboarding policy remains undecided.
+- **Open question — what does changed-from-plan mean without an earlier plan?**
+  Initial adoption establishes the baseline and produces no changed-from-plan
+  signal. The daily driver also reports no change for a delivered-only record
+  with no planned revision to compare. Whether onboarding should explain the
+  absence of an earlier plan remains undecided.
+- **Open question — how should missing past coverage affect health?**
+  Current impact health reports tracked Topics with no recorded coverage as
+  uncovered, including when all associated meetings are past. There is no
+  date-based exemption or distinction between unrecorded history and a known
+  coverage gap. How much historical reconstruction to request, and how to
+  present that uncertainty, remain undecided. Reconstruction is outside #75.
+- **Open question — do delivered Activity Topic actions count toward workspace health?**
+  Delivered Topic actions on Term Activity revisions do not count toward the
+  workspace coverage health. The Term workspace uses `computeTermImpact`,
+  which reads Session Coverage records. Recording delivery through Activity
+  revisions can therefore leave every tracked Topic uncovered in that health.
+  Which source should drive workspace health remains undecided.
+- **Open question — how do adopted meetings get dates for a past-dated Term?**
+  Creation materializes calendar slots, but adoption creates 40 undated
+  planned meeting revisions in both characterization scenarios. The daily
+  driver reports `nextMeeting: null` for that output. The scheduled fixture's
+  Meeting 20 of 40 result is correct only after each meeting is scheduled.
+  Current scheduling requires editing individual Activity revisions; the
+  onboarding scheduling workflow remains undecided.
+- **Open question — should completedClassDays include today's meeting?**
+  Current calendar progress counts today as completed. At noon before meeting
+  20, it reports 20 of 40 completed while the scheduled daily driver still
+  identifies meeting 20 as next. The meaning of completedClassDays and its
+  agreement with the next-meeting display remain undecided.
+
+## Demo data carries the current and next Term (#70)
+
+- **The demo data rolls with the date.** The in-app demo load and the default
+  seed both give the exemplar course two Terms: the Spring or Fall semester
+  that is in progress (or the next to begin when none is), and the semester
+  after it. Issue #70 offered two paths: rolling demo data, or more calendars
+  entered once through the calendar editor. Entered-once calendars go stale
+  again each semester, so the demo data computes its Terms from the date.
+- **Demo dates come from weekday rules, not from a registrar.** Spring classes
+  begin on the Tuesday after the third Monday of January. Fall classes begin on
+  the first Wednesday of September. Classes end on the Friday of the fifteenth
+  calendar week. The Demo Institution and Example University are not real, and
+  the generic-app rule excludes one institution's calendar from app data. The
+  earlier fixed dates (January 15, September 1) could fall on a weekend. The
+  rules give 2026-09-02 and 2027-01-19, which are also real start dates at the
+  exemplar's source institution; that agreement is a check on plausibility, not
+  a requirement.
+- **The current Term is populated; the next Term has its calendar only.**
+  Pacing views need an active Term with adopted Activities. The next Term keeps
+  adoption undone so the instructor can run the adoption preview and apply
+  themselves. This also keeps the load transaction near its earlier size.
+- **One Academic Calendar per academic year.** `(institutionId, academicYear,
+  version)` is unique, so a Fall Term and the following Spring Term share one
+  calendar. A Spring Term and the following Fall Term use two.
+- **A repeat load or seed run adds missing Terms and changes nothing else.** A
+  Term is matched by its code within the Course. An existing Term, calendar, or
+  calendar version is reused as it is. When a repeat run adds the current Term
+  to an existing Course, it adopts the modules that have a current version and
+  skips the instructor's draft-only modules. A new demo Course still fails when
+  a module has no current version, because that is an importer defect.
+- **A demo Course without its demo Institution link is left alone.** The link
+  identifies where the calendars belong. If the instructor removed it, a repeat
+  load returns the Course and adds nothing.
+- **The seeded foundation course keeps its fixed Spring 2026 Term.** That Term
+  has hand-placed slots, sessions, and differing planned and delivered pins that
+  tests depend on. It now serves as the past-Term example.
+- **The demo calendars carry no holidays or recesses.** Adding rule-based
+  events is a possible follow-up; it is outside #70.
+
+## Public demo guard (#78)
+
+- Demo mode requires both the server variable `COURSE_PLANNER_DEMO=true` and
+  the database marker table `public._demo_marker`.
+- The flag conflicts with each sign-in variable: `GOOGLE_CLIENT_ID`,
+  `GOOGLE_CLIENT_SECRET`, `ALLOWED_EMAIL`, `COURSE_PLANNER_PREVIEW_AUTH`, and
+  `COURSE_PLANNER_PREVIEW_EMAIL`. A non-whitespace value causes a configuration
+  error that stops the app when the guard is connected.
+- No migration creates the marker table.
+- The marker table is looked up in the `public` schema. A deployment that uses
+  another schema must change `DEMO_MARKER_SCHEMA`.

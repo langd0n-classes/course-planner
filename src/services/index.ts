@@ -14,8 +14,6 @@ let artifactExporter: ArtifactExporter | null = null;
 export function getAiPlanner(): AiPlanner {
   if (!aiPlanner) {
     // Future: check env vars to decide which implementation to use
-    // if (process.env.OPENAI_API_KEY) aiPlanner = new OpenAiPlanner(...)
-    // if (process.env.ANTHROPIC_API_KEY) aiPlanner = new AnthropicPlanner(...)
     aiPlanner = new MockAiPlanner();
   }
   return aiPlanner;

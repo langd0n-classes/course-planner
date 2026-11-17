@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- structural Prisma test doubles */
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
+
 import { ConcurrencyConflictError } from "./errors";
 import {
   applyTermActivityAdoption,
@@ -236,6 +237,120 @@ describe("Term Activity adoption", () => {
     }));
     expect(termActivityUpdates[0]).toEqual({ plannedRevisionId: "tar-1" });
     expect(applied.termActivities[0].plannedActivityVersionId).toBe("av-1");
+  });
+
+  it("open question: adoption creates an undated planned snapshot rather than inferred delivery", async () => {
+    // Adoption has no date input and reads neither the clock nor Term dates.
+    const termActivityCreates: any[] = [];
+    const termActivityUpdates: any[] = [];
+    const meetingCreates: any[] = [];
+    const tx = {
+      term: { findUnique: async () => baseTerm() },
+      termLearningModule: {
+        findUnique: async () => ({ id: "tlm-1", termId: "term-1", courseId: "course-1", learningModuleId: "lm-1" }),
+      },
+      learningModuleVersion: {
+        findUnique: async () => ({
+          id: "lmv-1",
+          learningModuleId: "lm-1",
+          activities: [{ activityVersionId: "av-1", sequence: 0 }],
+        }),
+      },
+      activityVersion: { findUnique: async () => baseActivityVersion() },
+      courseActivityTypeVersion: { findUnique: async () => ({ courseId: "course-1" }) },
+      termActivity: {
+        count: async () => 0,
+        create: async ({ data }: any) => {
+          termActivityCreates.push(data);
+          return { id: "ta-1", archivedAt: null, plannedRevisionId: null, deliveredRevisionId: null, ...data };
+        },
+        update: async ({ data }: any) => {
+          termActivityUpdates.push(data);
+          return data;
+        },
+        findMany: async () => [{
+          id: "ta-1",
+          termId: "term-1",
+          courseId: "course-1",
+          activityId: "activity-1",
+          plannedActivityVersionId: "av-1",
+          activityTypeVersionId: "atv-1",
+          adoptedLabel: "Lecture",
+          termLearningModuleId: "tlm-1",
+          ordinal: 0,
+          lifecycleState: null,
+          plannedRevisionId: "tar-1",
+          deliveredRevisionId: null,
+          archivedAt: null,
+        }],
+      },
+      termActivityRevision: {
+        create: async ({ data }: any) => ({ id: "tar-1", createdAt: new Date("2026-07-15T00:00:00.000Z"), ...data }),
+        findUnique: async () => ({
+          id: "tar-1",
+          termActivityId: "ta-1",
+          revision: 1,
+          baseActivityVersionId: "av-1",
+          title: "Lecture 1",
+          summary: "Overview",
+          changeReason: null,
+          createdByInstructorId: "instructor-1",
+          createdAt: new Date("2026-07-15T00:00:00.000Z"),
+          meetingDetail: {
+            calendarSlotId: null,
+            startsAt: null,
+            endsAt: null,
+            status: null,
+            modality: "in_person",
+            overrideReason: null,
+            overrideEvidence: null,
+          },
+          courseworkDetail: null,
+          assessmentDetail: null,
+          topicActions: [],
+          milestones: [],
+        }),
+      },
+      termMeetingActivityRevision: { create: async ({ data }: any) => { meetingCreates.push(data); return data; } },
+      termCourseworkActivityRevision: { create: async () => ({}) },
+      termAssessmentActivityRevision: { create: async () => ({}) },
+      termActivityRevisionTopicAction: { create: async () => ({}) },
+      termActivityMilestone: { create: async () => ({}) },
+    };
+
+    const preview = await previewTermActivityAdoption(createTransactionalDb(tx), {
+      instructorId: "instructor-1",
+      termId: "term-1",
+      learningModuleVersionSelections: [{ termLearningModuleId: "tlm-1", learningModuleVersionId: "lmv-1" }],
+      crossCuttingSelections: [],
+    });
+    const captured: { options?: Record<string, number> } = {};
+    const applied = await applyTermActivityAdoption(createOptionCapturingDb(tx, captured), {
+      instructorId: "instructor-1",
+      termId: "term-1",
+      learningModuleVersionSelections: [{ termLearningModuleId: "tlm-1", learningModuleVersionId: "lmv-1" }],
+      crossCuttingSelections: [],
+      previewToken: preview.previewToken,
+      expectedCurrentActivityCount: preview.expectedCurrentActivityCount,
+    });
+
+    // Adoption writes one Term Activity and one revision per candidate, so the
+    // transaction must outlive Prisma's 5s default against a remote database.
+    expect(captured.options?.timeout).toBeGreaterThanOrEqual(60_000);
+    expect(captured.options?.maxWait).toBeGreaterThanOrEqual(5_000);
+
+    expect(termActivityCreates[0]).toEqual(expect.objectContaining({
+      plannedActivityVersionId: "av-1",
+      activityTypeVersionId: "atv-1",
+      adoptedLabel: "Lecture",
+    }));
+    expect(termActivityUpdates[0]).toEqual({ plannedRevisionId: "tar-1" });
+    expect(applied.termActivities[0].plannedActivityVersionId).toBe("av-1");
+    expect(applied.termActivities[0].deliveredRevisionId).toBeNull();
+    expect(applied.termActivities[0].lifecycleState).toBeNull();
+    expect(meetingCreates).toEqual([expect.objectContaining({
+      startsAt: null, endsAt: null, status: null, calendarSlotId: null,
+    })]);
   });
 
   it("rejects closed-term adoption apply", async () => {

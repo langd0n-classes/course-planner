@@ -2,7 +2,7 @@
 
 ## Authenticated Instructor and demo Course
 
-Authenticated routes normalize the session email and resolve it through an Instructor upsert, reading the winning row after concurrent unique-key conflicts. `POST /api/instructors/me/demo-course` loads the generic exemplar into a Course and a current or next Spring or Fall Term owned by that Instructor. The service locks the Instructor row and creates the Course, imported content, dedicated demo Institution and Academic Calendar, Term calendar, and adopted Term Activities in one transaction. A unique `(instructorId, demoKey)` key identifies an existing demo on repeat requests. The workspace homepage exposes the action through the typed redesign API client.
+Authenticated routes normalize the session email and resolve it through an Instructor upsert, reading the winning row after concurrent unique-key conflicts. `POST /api/instructors/me/demo-course` loads the generic exemplar into a Course owned by that Instructor, with two Terms: the Spring or Fall semester that is current (or next to begin), and the semester after it. The service locks the Instructor row and creates the Course, imported content, dedicated demo Institution, one Academic Calendar per academic year, both Term calendars, and the current Term's adopted Activities in one transaction. A unique `(instructorId, demoKey)` key identifies an existing demo on repeat requests; a repeat request adds the Terms that are then current and next and are missing. `demoSemesters` computes the dates from weekday rules. `ensureDemoTerms` is shared with the default seed, which applies it to the seeded exemplar course. The workspace homepage exposes the action through the typed redesign API client.
 
 ## High-Level Overview
 
@@ -322,3 +322,16 @@ versions. The secondary `TopicBrowser` links to
 `/courses/[courseId]/topics/[topicId]`, where `TopicWorkspacePage` loads Course
 Topics and prerequisites and `TopicEditor` edits the selected Topic. Identity,
 prerequisite, and content revision calls retain their existing contracts.
+
+## Demo-mode guard (#78)
+
+Demo mode requires two keys: the server variable `COURSE_PLANNER_DEMO=true`
+and the marker table `public._demo_marker`.
+
+The flag together with a configured sign-in variable raises
+`DemoModeConfigError`. The error names the variables without exposing their
+values.
+
+`assertDemoDatabase` in `src/lib/demo-mode.ts` checks the flag and the marker
+table. A test in `src/services/no-model-sdk.test.ts` fails when a model SDK
+or a model API key name enters the build.
