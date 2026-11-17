@@ -11,6 +11,7 @@ import type {
 import { buildTermDailyDriver } from "@/lib/redesign-workspace";
 
 type Props = {
+  onPlaceMeetings?: () => void;
   termActivities: TermActivityDto[];
   revisionsByTermActivityId: Record<
     Id,
@@ -445,6 +446,10 @@ export default function ActiveTermDailyDriver(props: Props) {
           ) : (
             <p className="mt-2 text-sm text-slate-600">
               No future meeting is scheduled.
+              {props.onPlaceMeetings && props.termActivities.some(activity => {
+                const revision = props.revisionsByTermActivityId[activity.id]?.planned;
+                return !activity.archivedAt && revision?.detail.behaviorFamily === "meeting" && revision.detail.status !== "canceled" && !revision.detail.startsAt && !revision.detail.calendarSlotId;
+              }) ? <button type="button" onClick={props.onPlaceMeetings} className="mt-2 block text-sm font-medium text-sky-800 underline">Place meetings on the calendar</button> : null}
             </p>
           )}
         </div>

@@ -23,6 +23,7 @@ import {
   formatInstructionalCapacityLabel,
   isCapacityAdvisory,
 } from "./CalendarCapacityPresentation";
+import PlaceMeetingsPanel from "./PlaceMeetingsPanel";
 import AdoptLearningModulePanel from "./AdoptLearningModulePanel";
 import DeliveredRevisionEditor from "./DeliveredRevisionEditor";
 import GapNotice from "./GapNotice";
@@ -119,6 +120,7 @@ export default function TermWorkspacePage({ termId }: Props) {
   const [availableTopicVersions, setAvailableTopicVersions] = useState<TopicVersionDto[]>([]);
   const [topicVersionsById, setTopicVersionsById] = useState(new Map<Id, TopicVersionDto>());
   const [editingTermLearningModuleId, setEditingTermLearningModuleId] = useState<Id | null>(null);
+  const [showPlaceMeetings, setShowPlaceMeetings] = useState(false);
   const [showAdoptPanel, setShowAdoptPanel] = useState(false);
   const [pendingTransition, setPendingTransition] = useState<TermLifecycleTransition | null>(null);
   const [transitionBusy, setTransitionBusy] = useState(false);
@@ -137,6 +139,10 @@ export default function TermWorkspacePage({ termId }: Props) {
   const [exceptionError, setExceptionError] = useState<string | null>(null);
   const [calendarAnnouncement, setCalendarAnnouncement] = useState("");
   const transitionButtonRef = useRef<HTMLButtonElement | null>(null);
+  const undatedMeetings = termActivities.filter(activity => {
+    const revision = activityRevisions[activity.id]?.planned;
+    return !activity.archivedAt && revision?.detail.behaviorFamily === "meeting" && revision.detail.status !== "canceled" && !revision.detail.startsAt && !revision.detail.calendarSlotId;
+  });
   const todayIso = useMemo(() => getTodayIsoDate(), []);
 
   async function loadWorkspace() {
@@ -520,6 +526,12 @@ export default function TermWorkspacePage({ termId }: Props) {
         </div>
       </section>
 
+      {term.status !== "closed" && undatedMeetings.length > 0 ? <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-label="Meeting placement">
+        <p className="text-sm text-slate-700">{undatedMeetings.length} undated meeting(s).</p>
+        <button type="button" className="mt-2 text-sm font-medium text-sky-800 underline" onClick={() => setShowPlaceMeetings(true)}>Place meetings on the calendar</button>
+        {showPlaceMeetings ? <><button type="button" className="ml-4 text-sm text-slate-600 underline" onClick={() => setShowPlaceMeetings(false)}>Close placement</button><PlaceMeetingsPanel termId={termId} onApplied={async () => { setShowPlaceMeetings(false); await loadWorkspace(); }} /></> : null}
+      </section> : null}
+
       <ActiveTermDailyDriver
         termActivities={termActivities}
         revisionsByTermActivityId={activityRevisions}
@@ -527,6 +539,7 @@ export default function TermWorkspacePage({ termId }: Props) {
         learningModuleLabels={learningModuleLabels}
         topicLabels={topicLabels}
         editable={term.status === "active"}
+        onPlaceMeetings={term.status !== "closed" ? () => setShowPlaceMeetings(true) : undefined}
         onApplied={loadWorkspace}
       />
 

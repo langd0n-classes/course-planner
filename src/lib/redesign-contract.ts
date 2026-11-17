@@ -1441,6 +1441,8 @@ export const CANONICAL_ROUTES = [
   "/api/activity-versions/[id]/topic-scope",
 
   // B.2R accepted contract: Term plan and run
+  "/api/terms/[id]/placement-preview",
+  "/api/terms/[id]/placement-apply",
   "/api/terms/[id]/adoption-preview",
   "/api/terms/[id]/adoption-apply",
   "/api/terms/[id]/activities",
@@ -1458,3 +1460,21 @@ export const CANONICAL_ROUTES = [
 ] as const;
 
 export type CanonicalRoute = (typeof CANONICAL_ROUTES)[number];
+
+export type DefaultMeetingTimeDto = {
+  startTimeLocal: string;
+  endTimeLocal: string | null;
+  timeZone: string;
+};
+export type MeetingPlacementPreviewRequest = { defaultMeetingTime?: DefaultMeetingTimeDto | null };
+export type MeetingPlacementPreviewResponse = {
+  kind: "preview";
+  previewToken: string;
+  placements: Array<{ termActivityId: Id; adoptedLabel: string; expectedPlannedRevisionId: Id | null; calendarSlotId: Id; date: string; startsAt: string; endsAt: string | null; timeZone: string }>;
+  unplacedMeetings: Array<{ termActivityId: Id; adoptedLabel: string; reason: "no_learning_module" | "no_slot_left" }>;
+  emptySlots: Array<{ calendarSlotId: Id; date: string }>;
+  alreadyDatedCount: number;
+  missingMeetingTime: boolean;
+};
+export type MeetingPlacementApplyRequest = MeetingPlacementPreviewRequest & { previewToken: string };
+export type MeetingPlacementApplyResponse = { kind: "applied"; placedCount: number; storedMeetingPatternCount: number };
