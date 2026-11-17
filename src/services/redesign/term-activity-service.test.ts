@@ -120,13 +120,14 @@ describe("Term Activity adoption", () => {
       sourceTemplateId: t.id, role: t.role, label: t.label, timeZone: t.timeZone, notes: t.notes, occursAt: null,
       linkedTermActivityId: "ta-z-meeting", anchorPolicy: "follow_activity",
     })) : []);
-    expect(effortDetails).toEqual([expect.objectContaining({ effortMinMinutes: null, effortMaxMinutes: null })]);
     // The database check: follow_activity needs a link; fixed_instant and standalone need a date.
     for (const milestone of milestones)
       expect(milestone.anchorPolicy === "follow_activity" ? milestone.linkedTermActivityId : milestone.occursAt).toBeTruthy();
     const repeat = await previewTermActivityAdoption(db, input);
     expect(repeat.candidates).toEqual([]);
     const count = rows.length;
+    // Adoption sets no effort override.
+    expect(effortDetails).toEqual([expect.objectContaining({ effortMinMinutes: null, effortMaxMinutes: null })]);
     expect(await applyTermActivityAdoption(db, { ...input, previewToken: repeat.previewToken, expectedCurrentActivityCount: repeat.expectedCurrentActivityCount })).toMatchObject({ kind: "applied" });
     expect(rows).toHaveLength(count);
     expect(milestones).toHaveLength(followed ? 2 : 0);
