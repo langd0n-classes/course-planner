@@ -976,6 +976,7 @@ export type TermAdoptionPreviewResponse = {
   // Pointer proving no concurrent adoption happened between preview and
   // apply: the number of TermActivity rows already adopted for this Term.
   expectedCurrentActivityCount: number;
+  alreadyAdopted: Array<{ activityId: Id; adoptedLabel: string }>;
   candidates: TermActivityAdoptionCandidateDto[];
   impact: PreviewImpactDto;
 };

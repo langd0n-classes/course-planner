@@ -67,13 +67,13 @@ function baseActivityVersion(overrides: Record<string, unknown> = {}) {
 }
 
 describe("Term Activity adoption", () => {
-  it.each(["same apply", "already adopted", "missing", "no link"])("creates template milestones: %s", async (linkCase) => {
-    const rows: any[] = linkCase === "already adopted" ? [{ id: "ta-z-meeting", activityId: "z-meeting" }] : [];
+  it.each(["same apply", "already adopted", "missing", "no link", "archived", "self"])("creates template milestones: %s", async (linkCase) => {
+    const rows: any[] = ["already adopted", "archived"].includes(linkCase) ? [{ id: "ta-z-meeting", activityId: "z-meeting", adoptedLabel: "Existing meeting", archivedAt: linkCase === "archived" ? new Date() : null }] : [];
     const milestones: any[] = [];
     const templates = [0, 1].map((sequence) => ({
       id: `template-${sequence}`, sequence, role: sequence ? "due" : "release",
       label: sequence ? "Submit work" : "Begin work", timeZone: "UTC", notes: "Keep this note",
-      linkedActivityId: linkCase === "no link" ? null : "z-meeting",
+      linkedActivityId: linkCase === "no link" ? null : linkCase === "self" ? "a-work" : "z-meeting",
     }));
     const tx = {
       term: { findUnique: async () => baseTerm() },
@@ -95,15 +95,20 @@ describe("Term Activity adoption", () => {
       termActivityMilestone: { create: async ({ data }: any) => { milestones.push(data); return data; } },
     };
     const input = { instructorId: "instructor-1", termId: "term-1", learningModuleVersionSelections: [],
-      crossCuttingSelections: (linkCase === "same apply" ? ["a-work", "z-meeting"] : ["a-work"])
+      crossCuttingSelections: (["same apply", "already adopted", "archived"].includes(linkCase) ? ["a-work", "z-meeting"] : ["a-work"])
         .map((id) => ({ activityId: id, activityVersionId: id })) };
     const db = createTransactionalDb(tx);
     const preview = await previewTermActivityAdoption(db, input);
     expect(preview.candidates[0]).toMatchObject({ milestoneCount: 2,
-      standaloneMilestones: linkCase === "missing" ? templates.map((t) => ({
-        sourceTemplateId: t.id, label: t.label, reason: "Linked Activity is not adopted in this Term",
+      standaloneMilestones: ["missing", "archived", "self"].includes(linkCase) ? templates.map((t) => ({
+        sourceTemplateId: t.id, label: t.label, reason: linkCase === "archived" ? "Linked Activity is archived in this Term" : linkCase === "self" ? "A milestone cannot follow its own Activity" : "Linked Activity is not adopted in this Term",
       })) : [],
     });
+    expect(preview.expectedCurrentActivityCount).toBe(rows.length);
+    expect(preview.alreadyAdopted).toEqual(["already adopted", "archived"].includes(linkCase) ? [{ activityId: "z-meeting", adoptedLabel: "Existing meeting" }] : []);
+    templates[0].label += " changed";
+    expect((await previewTermActivityAdoption(db, input)).previewToken).not.toBe(preview.previewToken);
+    templates[0].label = "Begin work";
     await applyTermActivityAdoption(db, { ...input, previewToken: preview.previewToken, expectedCurrentActivityCount: preview.expectedCurrentActivityCount });
     expect(milestones).toEqual(templates.map((t) => expect.objectContaining({
       sourceTemplateId: t.id, role: t.role, label: t.label, timeZone: t.timeZone, notes: t.notes, occursAt: null,
@@ -111,7 +116,10 @@ describe("Term Activity adoption", () => {
       anchorPolicy: ["same apply", "already adopted"].includes(linkCase) ? "follow_activity" : "standalone",
     })));
     const repeat = await previewTermActivityAdoption(db, input);
-    await applyTermActivityAdoption(db, { ...input, previewToken: repeat.previewToken, expectedCurrentActivityCount: repeat.expectedCurrentActivityCount });
+    expect(repeat.candidates).toEqual([]);
+    const count = rows.length;
+    expect(await applyTermActivityAdoption(db, { ...input, previewToken: repeat.previewToken, expectedCurrentActivityCount: repeat.expectedCurrentActivityCount })).toMatchObject({ kind: "applied" });
+    expect(rows).toHaveLength(count);
     expect(milestones).toHaveLength(2);
   });
 

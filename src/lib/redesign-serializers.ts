@@ -1062,6 +1062,7 @@ export function toTermAdoptionPreviewDto(
     kind: preview.kind,
     previewToken: preview.previewToken,
     expectedCurrentActivityCount: preview.expectedCurrentActivityCount,
+    alreadyAdopted: preview.alreadyAdopted.map(({ activityId, adoptedLabel }) => ({ activityId, adoptedLabel })),
     candidates: preview.candidates.map((candidate) => ({
       activityId: candidate.activityId,
       activityVersionId: candidate.activityVersionId,

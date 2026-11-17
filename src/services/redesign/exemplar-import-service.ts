@@ -358,6 +358,12 @@ function sanitizeGradingFields(
 function findAmbiguities(snapshot: ExemplarSnapshot): ExemplarPreview["ambiguities"] {
   const ambiguities: ExemplarPreview["ambiguities"] = [];
   snapshot.activities.forEach((activity, activityIndex) => {
+    activity.milestoneTemplates?.forEach((template, templateIndex) => {
+      if (template.linkedActivityCode && !snapshot.activities.some((row) => row.stableCode === template.linkedActivityCode)) {
+        ambiguities.push({ path: `$.activities[${activityIndex}].milestoneTemplates[${templateIndex}].linkedActivityCode`,
+          reference: template.linkedActivityCode, candidates: [], reason: "no_activity_matches_reference" });
+      }
+    });
     activity.topicActions?.forEach((action, actionIndex) => {
       const resolved = resolveTopicRef(snapshot, action.topicRef);
       if (resolved.kind === "ambiguous") {

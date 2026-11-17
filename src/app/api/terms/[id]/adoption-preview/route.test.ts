@@ -53,6 +53,7 @@ describe("Term adoption preview route", () => {
       kind: "preview",
       previewToken: "preview-token",
       expectedCurrentActivityCount: 0,
+      alreadyAdopted: [],
       candidates: [{ activityId: "activity-1", activityVersionId: "av-1", adoptedLabel: "Lecture", milestoneCount: 2, standaloneMilestones: [{ sourceTemplateId: "template", label: "Due", reason: "Linked Activity is not adopted in this Term" }], ordinal: 0, termLearningModuleId: "tlm-1" }],
       impact: { issues: [], topicActionDuplicates: [], calendarConflicts: [] },
     });

@@ -436,3 +436,28 @@ describe("ExemplarImportService", () => {
     expect(tx.__state).toEqual(before);
   });
 });
+
+it("reports unknown milestone Activity references in the staged preview", () => {
+  const service = new ExemplarImportService();
+  const snapshot = structuredClone(genericDemoExemplarSnapshot);
+  snapshot.activities[1].milestoneTemplates![0].linkedActivityCode = "UNKNOWN";
+  expect(service.preview(service.stage(snapshot)).ambiguities).toContainEqual({
+    path: "$.activities[1].milestoneTemplates[0].linkedActivityCode", reference: "UNKNOWN",
+    candidates: [], reason: "no_activity_matches_reference",
+  });
+});
+
+it("imports a new template linked to an Activity already in the Course", async () => {
+  const tx = createMemoryTx();
+  const service = new ExemplarImportService();
+  const input = { instructorId: "instructor-1", courseId: "course-1", snapshot: genericDemoExemplarSnapshot };
+  await service.apply(transactionalDb(tx), input);
+  const anchor = tx.__state.activities.find((row: any) => row.stableCode === "ACT-INTRO-DATA");
+  const snapshot = structuredClone(genericDemoExemplarSnapshot);
+  const original = snapshot.activities.find((row) => row.stableCode === "ACT-SUMMARY-PRACTICE")!;
+  snapshot.activities.push({ ...original, stableCode: "ACT-NEW-PRACTICE", title: "New practice" });
+  expect(service.preview(service.stage(snapshot)).ambiguities).toEqual([]);
+  await service.apply(transactionalDb(tx), { ...input, snapshot });
+  const activity = tx.__state.activities.find((row: any) => row.stableCode === "ACT-NEW-PRACTICE");
+  expect(tx.__state.activityVersionMilestoneTemplates.filter((row: any) => row.activityVersionId === activity.currentVersionId && row.linkedActivityId).map((row: any) => row.linkedActivityId)).toEqual([anchor.id, anchor.id]);
+});

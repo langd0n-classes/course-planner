@@ -538,6 +538,7 @@ const sampleCreateActivityVersionArtifact = {
 const sampleImpact: PreviewImpactDto = { issues: [], topicActionDuplicates: [], calendarConflicts: [] };
 
 const sampleAdoptionPreview: TermAdoptionPreviewResponse = {
+  alreadyAdopted: [],
   kind: "preview",
   previewToken: "preview-token-1",
   expectedCurrentActivityCount: 0,
