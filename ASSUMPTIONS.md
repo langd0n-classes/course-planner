@@ -451,3 +451,48 @@ Decisions made where the requirements were underspecified. Each can be revisited
   tests depend on. It now serves as the past-Term example.
 - **The demo calendars carry no holidays or recesses.** Adding rule-based
   events is a possible follow-up; it is outside #70.
+
+## Term date-order checks (#98)
+
+- The checker requires `topicVersions`, `calendarSlots`, and `prerequisites`
+  alongside the daily driver's Activity/revision DTO inputs. Topic versions
+  resolve actions to stable Topic IDs so different revisions compare together;
+  slots supply meeting-date fallbacks. Prerequisites already reach the client
+  through `redesignApi.listTopicPrerequisites(courseId)`; no route is added.
+- A date-only value is compared as written. An instant is compared by its
+  local date: a milestone's own time zone first, else the `timeZone` argument
+  (the Term's zone), else UTC. A meeting uses its Calendar Slot date before its
+  `startsAt`, because the slot date is the Term's own local date. The host time
+  zone is never used. Reason: an evening meeting has a UTC date one day later
+  than its class day, which would create or hide a finding.
+- Sentences name a Topic from the optional `topicLabels` argument. A Topic with
+  no label is "A Topic", never an id.
+- Known limit: a coursework item's Introduce and Practice actions are dated by
+  its due date, the same as its Assess actions. Work that students start before
+  the Topic is introduced is not reported when the due date is after the
+  introduction.
+- `never_introduced` produces one finding per Topic using its earliest dated
+  Practice or Assess action. Its absent introduction Activity and date are null.
+  An undated introduction still exists, so it prevents a false absence finding.
+- A linked-due finding has a null Topic ID because a milestone need not have a
+  Topic action. Null Topics sort before named Topics on an equal later date;
+  Topic sorting uses stable IDs because Topic labels are optional inputs.
+- Each undated Activity and each undated milestone is a separate undated item;
+  an Activity without an effective revision is also undated. This makes the
+  incomplete-check count explicit even when one Activity has several gaps.
+- For coursework and assessment actions, use the due milestone date, or the
+  latest dated milestone when no due milestone exists. If there are several due
+  milestones, use the latest dated due milestone; an undated due milestone does
+  not fall back to another role because the due date is unknown. This same
+  Activity date applies to Introduce and Practice actions as well as Assess.
+- Cancellation is recognized on the Term Activity lifecycle state and effective
+  detail status/lifecycle state, so canceled coursework is ignored as well as
+  canceled meetings. Actions with an unknown Topic-version identity are skipped
+  rather than treated as unrelated stable Topics; callers must supply all
+  referenced versions. Equal-date occurrences break ties by Activity ID for
+  stable results independent of input order.
+- The panel receives Activity labels as a record and falls back to Activity IDs
+  when a label is absent. `never_introduced` shows only its existing Activity.
+  `AdoptLearningModulePanel` supplies the visual style because
+  `PlaceMeetingsPanel` is absent. The panel remains separate from the workspace
+  until the later integration step.
