@@ -71,7 +71,7 @@ export default function ActivityAdoptionPanel({ termId, selections, onAdopted }:
                       <p>{candidate.adoptedLabel}: {candidate.milestoneCount} {candidate.milestoneCount === 1 ? "milestone" : "milestones"} to create.</p>
                       {candidate.standaloneMilestones.map((milestone) => (
                         <p key={milestone.sourceTemplateId} className="mt-1 text-amber-800">
-                          {milestone.label} will stand alone: {milestone.reason}.
+                          {milestone.label} will not be created: {milestone.reason}. Add it by hand after adoption.
                         </p>
                       ))}
                     </li>

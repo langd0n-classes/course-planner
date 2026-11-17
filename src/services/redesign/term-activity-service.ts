@@ -645,24 +645,31 @@ export async function previewTermActivityAdoption(
       }),
       expectedCurrentActivityCount,
       alreadyAdopted,
-      candidates: candidates.map((candidate) => ({
-        activityId: candidate.activityId,
-        activityVersionId: candidate.activityVersionId,
-        adoptedLabel: candidate.adoptedLabel,
-        milestoneCount: candidate.milestoneTemplates.length,
-        standaloneMilestones: candidate.milestoneTemplates
+      candidates: candidates.map((candidate) => {
+        // A milestone with no date must follow a Term Activity: the database
+        // rejects an undated standalone milestone. A template that has nothing
+        // to follow is not created, and the preview lists it here.
+        const notCreated = candidate.milestoneTemplates
           .flatMap((template) => {
-            if (!template.linkedActivityId) return [];
+            if (!template.linkedActivityId)
+              return [{ sourceTemplateId: template.id, label: template.label, reason: "The template has no linked Activity to follow" }];
             const reason = template.linkedActivityId === candidate.activityId
               ? "A milestone cannot follow its own Activity"
               : existingActivities.some((row) => row.activityId === template.linkedActivityId && row.archivedAt)
                 ? "Linked Activity is archived in this Term"
                 : !adoptedIds.has(template.linkedActivityId) ? "Linked Activity is not adopted in this Term" : null;
             return reason ? [{ sourceTemplateId: template.id, label: template.label, reason }] : [];
-          }),
-        ordinal: candidate.ordinal,
-        termLearningModuleId: candidate.termLearningModuleId,
-      })),
+          });
+        return {
+          activityId: candidate.activityId,
+          activityVersionId: candidate.activityVersionId,
+          adoptedLabel: candidate.adoptedLabel,
+          milestoneCount: candidate.milestoneTemplates.length - notCreated.length,
+          standaloneMilestones: notCreated,
+          ordinal: candidate.ordinal,
+          termLearningModuleId: candidate.termLearningModuleId,
+        };
+      }),
       impact: emptyImpact(),
     };
   });
@@ -732,14 +739,16 @@ export async function applyTermActivityAdoption(
         createdByInstructorId: input.instructorId,
         detail: candidate.baseRevision.detail,
         topicActions: candidate.baseRevision.topicActions,
-        milestones: candidate.milestoneTemplates.map((template) => {
-          const linkedTermActivityId = template.linkedActivityId === candidate.activityId ? null : [...createdActivities, ...candidates.existingActivities.filter((row) => !row.archivedAt)]
+        milestones: candidate.milestoneTemplates.flatMap((template) => {
+          const linkedTermActivityId = !template.linkedActivityId || template.linkedActivityId === candidate.activityId ? null : [...createdActivities, ...candidates.existingActivities.filter((row) => !row.archivedAt)]
             .find((row) => row.activityId === template.linkedActivityId)?.id ?? null;
-          return {
+          // An undated milestone with nothing to follow is not created; see the preview.
+          if (!linkedTermActivityId) return [];
+          return [{
             sourceTemplateId: template.id, role: template.role, label: template.label,
             timeZone: template.timeZone, notes: template.notes, occursAt: null,
-            linkedTermActivityId, anchorPolicy: linkedTermActivityId ? "follow_activity" : "standalone",
-          };
+            linkedTermActivityId, anchorPolicy: "follow_activity" as const,
+          }];
         }),
       });
       pointerRows.push(
