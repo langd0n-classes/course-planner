@@ -29,7 +29,7 @@ describe.each(["mid-flight", "back-test"] as const)("past-dated Term contract an
     const body = await response.json();
     expect(body.kind).toBe(mode === "preview" ? "preview" : "applied");
     expect(mode === "preview" ? preview : apply).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      startDate: new Date(request.startDate), endDate: new Date(request.endDate), instructorId: "instructor-1",
+      startDate: request.startDate, endDate: request.endDate, instructorId: "instructor-1",
     }));
     if (mode === "apply") {
       expect(body.term.startDate).toBe(request.startDate);

@@ -1,6 +1,7 @@
+import { ConcurrencyConflictError } from "@/services/redesign/errors";
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
-import { ok, badRequest, notFound, unauthorized } from "@/lib/api-helpers";
+import { ok, badRequest, notFound, unauthorized, conflict } from "@/lib/api-helpers";
 import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 import { toTermDto } from "@/lib/redesign-serializers";
 import { updateTermSchema } from "@/lib/redesign-schemas";
@@ -43,12 +44,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       academicCalendarId: parsed.data.academicCalendarId,
       code: parsed.data.code,
       name: parsed.data.name,
-      startDate: parsed.data.startDate ? new Date(parsed.data.startDate) : undefined,
-      endDate: parsed.data.endDate ? new Date(parsed.data.endDate) : undefined,
+      startDate: parsed.data.startDate,
+      endDate: parsed.data.endDate,
       meetingPattern: parsed.data.meetingPattern,
     });
     return ok({ term: toTermDto(term) } satisfies UpdateTermResponse);
   } catch (error) {
+    if (error instanceof ConcurrencyConflictError) return conflict(error.message);
     if (error instanceof DomainInvariantError) {
       return error.message === "Term not found" ? notFound(error.message) : badRequest(error.message);
     }

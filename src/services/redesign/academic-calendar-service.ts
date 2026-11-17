@@ -1,3 +1,4 @@
+import { validateTermDates } from "./term-validation";
 import { createHash } from "node:crypto";
 import { ConcurrencyConflictError, DomainInvariantError } from "./errors";
 import { assertInstructorInstitution } from "./course-service";
@@ -239,6 +240,7 @@ function sortWarnings(warnings: string[]) {
 
 async function computeTermCalendarPreview(tx: RedesignTx, input: PreviewTermCalendarInput): Promise<PreviewResult> {
   const term = await getOwnedTermForInstructor(tx, input.instructorId, input.termId);
+  validateTermDates(term.startDate, term.endDate);
   if (!term.academicCalendarVersionId) {
     throw new DomainInvariantError("Term adopted Academic Calendar version is missing");
   }
@@ -731,6 +733,8 @@ export async function applyTermCalendar(
   input: ApplyTermCalendarInput,
 ) {
   return db.$transaction(async (tx) => {
+    const term = await getOwnedTermForInstructor(tx, input.instructorId, input.termId);
+    if (term.status === "closed") throw new DomainInvariantError("Closed Terms are read-only");
     const preview = await computeTermCalendarPreview(tx, input);
     if (preview.previewToken !== input.previewToken) {
       throw new ConcurrencyConflictError("Preview token mismatch");

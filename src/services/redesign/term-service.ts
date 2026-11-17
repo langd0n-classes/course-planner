@@ -1,3 +1,4 @@
+import { assertTermCodeAvailable, rethrowTermWriteError, validateTermDates } from "./term-validation";
 import { DomainInvariantError } from "./errors";
 import {
   previewCalendarMaterialization,
@@ -15,8 +16,8 @@ export type CreateTermInput = {
   academicCalendarId: string;
   code: string;
   name: string;
-  startDate: Date;
-  endDate: Date;
+  startDate: Date | string;
+  endDate: Date | string;
   meetingPattern?: unknown;
   clonedFromId?: string | null;
 };
@@ -58,12 +59,12 @@ export async function createTerm(db: RedesignDb, input: CreateTermInput) {
 
 export async function previewTermCreation(db: RedesignDb, input: CreateTermInput): Promise<TermCreationPreview> {
   return db.$transaction(async (tx) => {
+    const dates = validateTermDates(input.startDate, input.endDate);
     const { course } = await loadAndValidateTermContext(tx, input);
     const preview = await previewCalendarMaterialization(tx, {
       instructorId: course.instructorId,
       academicCalendarId: input.academicCalendarId,
-      startDate: input.startDate,
-      endDate: input.endDate,
+      ...dates,
       meetingPattern: input.meetingPattern ?? null,
     });
 
@@ -81,12 +82,12 @@ export async function applyTermCreation(
   input: CreateTermInput,
 ): Promise<AppliedTermCreation> {
   return db.$transaction(async (tx) => {
+    const dates = validateTermDates(input.startDate, input.endDate);
     const { course, institutionId } = await loadAndValidateTermContext(tx, input);
     const preview = await previewCalendarMaterialization(tx, {
       instructorId: course.instructorId,
       academicCalendarId: input.academicCalendarId,
-      startDate: input.startDate,
-      endDate: input.endDate,
+      ...dates,
       meetingPattern: input.meetingPattern ?? null,
     });
     if (preview.conflicts.length > 0) {
@@ -100,8 +101,7 @@ export async function applyTermCreation(
         academicCalendarId: input.academicCalendarId,
         code: input.code,
         name: input.name,
-        startDate: input.startDate,
-        endDate: input.endDate,
+        ...dates,
         meetingPattern: input.meetingPattern,
         clonedFromId: input.clonedFromId ?? null,
       },
@@ -129,11 +129,12 @@ export async function applyTermCreation(
       calendarSlotCount: preview.candidates.length,
       warnings: preview.warnings,
     } as const;
-  });
+  }).catch((error: unknown) => rethrowTermWriteError(error, input.code));
 }
 
 async function loadAndValidateTermContext(tx: RedesignTx, input: CreateTermInput) {
   const course = await getOwnedCourseForInstructor(tx, input.instructorId, input.courseId);
+  await assertTermCodeAvailable(tx, course.id, input.code);
   const institutions = await tx.courseInstitution.findMany({ where: { courseId: course.id } });
 
   const institutionId = await resolveTermInstitution(
@@ -199,17 +200,22 @@ export type UpdateTermInput = {
   academicCalendarId?: string;
   code?: string;
   name?: string;
-  startDate?: Date;
-  endDate?: Date;
+  startDate?: Date | string;
+  endDate?: Date | string;
   meetingPattern?: unknown;
 };
 
 export async function updateTerm(db: RedesignDb, termId: string, input: UpdateTermInput) {
+  let code = input.code ?? "";
   return db.$transaction(async (tx) => {
     const term = await getOwnedTermForInstructor(tx, input.instructorId, termId);
     if (term.status === "closed") {
       throw new DomainInvariantError("Closed Terms are read-only");
     }
+
+    const dates = validateTermDates(input.startDate ?? term.startDate, input.endDate ?? term.endDate);
+    code = input.code ?? term.code;
+    await assertTermCodeAvailable(tx, term.courseId, code, term.id);
 
     if (input.academicCalendarId) {
       await assertCalendarInstitution(tx, input.academicCalendarId, term.institutionId);
@@ -221,12 +227,12 @@ export async function updateTerm(db: RedesignDb, termId: string, input: UpdateTe
         academicCalendarId: input.academicCalendarId,
         code: input.code,
         name: input.name,
-        startDate: input.startDate,
-        endDate: input.endDate,
+        startDate: input.startDate === undefined ? undefined : dates.startDate,
+        endDate: input.endDate === undefined ? undefined : dates.endDate,
         meetingPattern: input.meetingPattern,
       },
     });
-  });
+  }).catch((error: unknown) => rethrowTermWriteError(error, code));
 }
 
 // Term deletion is the ordinary archive lifecycle action (design §2 "Archive

@@ -37,7 +37,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       warnings: preview.warnings,
     } satisfies TermCalendarPreviewResponse);
   } catch (error) {
-    if (error instanceof DomainInvariantError) return notFound(error.message);
+    if (error instanceof DomainInvariantError) {
+      return error.message.endsWith("not found") ? notFound(error.message) : badRequest(error.message);
+    }
     throw error;
   }
 }

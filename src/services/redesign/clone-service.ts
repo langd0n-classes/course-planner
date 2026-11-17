@@ -1,3 +1,4 @@
+import { assertTermCodeAvailable, rethrowTermWriteError, validateTermDates } from "./term-validation";
 import { DomainInvariantError } from "./errors";
 import {
   type MeetingRolePattern,
@@ -18,8 +19,8 @@ type CloneRequest = {
   sourceTermId: string;
   code: string;
   name: string;
-  startDate: Date;
-  endDate: Date;
+  startDate: Date | string;
+  endDate: Date | string;
   institutionId: string;
   academicCalendarId: string;
   meetingPattern: unknown;
@@ -84,6 +85,8 @@ function buildSessionCloneEvidence(
 }
 
 async function assertCloneTarget(tx: RedesignTx, sourceTerm: { courseId: string }, input: CloneRequest) {
+  validateTermDates(input.startDate, input.endDate);
+  await assertTermCodeAvailable(tx, sourceTerm.courseId, input.code);
   const [courseInstitution, calendar] = await Promise.all([
     tx.courseInstitution.findUnique({
       where: { courseId_institutionId: { courseId: sourceTerm.courseId, institutionId: input.institutionId } },
@@ -311,8 +314,7 @@ async function previewClone(tx: RedesignTx, input: CloneRequest) {
   const targetCalendar = await previewCalendarMaterialization(tx, {
     instructorId: sourceTerm.course.instructorId,
     academicCalendarId: input.academicCalendarId,
-    startDate: input.startDate,
-    endDate: input.endDate,
+    ...validateTermDates(input.startDate, input.endDate),
     meetingPattern: input.meetingPattern,
   });
   const { unresolvedDates, warnings: mappingWarnings } = mapSessionAndAssessmentDates(
@@ -365,8 +367,7 @@ export async function applyTermClone(db: RedesignDb, input: CloneRequest) {
     const targetCalendar = await previewCalendarMaterialization(tx, {
       instructorId: sourceTerm.course.instructorId,
       academicCalendarId: input.academicCalendarId,
-      startDate: input.startDate,
-      endDate: input.endDate,
+      ...validateTermDates(input.startDate, input.endDate),
       meetingPattern: input.meetingPattern,
     });
     if (targetCalendar.conflicts.length > 0) {
@@ -402,8 +403,7 @@ export async function applyTermClone(db: RedesignDb, input: CloneRequest) {
         academicCalendarId: input.academicCalendarId,
         code: input.code,
         name: input.name,
-        startDate: input.startDate,
-        endDate: input.endDate,
+        ...validateTermDates(input.startDate, input.endDate),
         meetingPattern: input.meetingPattern,
         clonedFromId: sourceTerm.id,
       },
@@ -544,5 +544,5 @@ export async function applyTermClone(db: RedesignDb, input: CloneRequest) {
     // the source Term. Prisma's default 5s interactive-transaction timeout is
     // ample against a local database and not against a remote one.
     { timeout: 300_000, maxWait: 30_000 },
-  );
+  ).catch((error: unknown) => rethrowTermWriteError(error, input.code));
 }

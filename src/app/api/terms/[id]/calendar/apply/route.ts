@@ -29,7 +29,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return ok(applied satisfies TermCalendarApplyResponse);
   } catch (error) {
     if (error instanceof ConcurrencyConflictError) return conflict(error.message);
-    if (error instanceof DomainInvariantError) return notFound(error.message);
+    if (error instanceof DomainInvariantError) {
+      return error.message.endsWith("not found") ? notFound(error.message) : badRequest(error.message);
+    }
     throw error;
   }
 }

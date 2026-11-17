@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { assertSeedForceAllowed } from "./seed-guard";
 import { seedDemoRows } from "./seed-data";
 
 const prisma = new PrismaClient();
@@ -11,6 +12,7 @@ async function main() {
     );
   }
   if (args.includes("--force")) {
+    assertSeedForceAllowed(process.env.DATABASE_URL, process.env.SEED_FORCE_DATABASE);
     // The explicit force path wipes every application table, including tables
     // added since this script was written. Prisma migration history is retained.
     await prisma.$executeRawUnsafe(`DO $$ DECLARE tables text; BEGIN

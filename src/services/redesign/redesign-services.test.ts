@@ -30,6 +30,11 @@ import {
 } from "./academic-calendar-service";
 
 function createTransactionalDb(tx: Record<string, any>) {
+  // Existing scenarios contain no competing Term; composite code lookups
+  // must not return the source Term from an ID-only fixture.
+  const findTerm = tx.term?.findUnique;
+  tx.term = { ...tx.term, findUnique: async (args: any) =>
+    args.where.courseId_code ? null : findTerm?.(args) };
   return {
     $transaction: async <T>(fn: (tx: Record<string, any>) => Promise<T>) => fn(tx),
   };

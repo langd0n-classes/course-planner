@@ -1,3 +1,4 @@
+import { validateTermDates } from "./term-validation";
 import { DomainInvariantError } from "./errors";
 import type { RedesignTx } from "./types";
 
@@ -236,12 +237,6 @@ function upsertCandidate(
   });
 }
 
-function assertDateOrdering(startDate: Date, endDate: Date) {
-  if (startDate.getTime() > endDate.getTime()) {
-    throw new DomainInvariantError("Term startDate must be on or before endDate");
-  }
-}
-
 function assertCalendarFit(boundaries: AcademicCalendarEventRow[], startDate: Date, endDate: Date) {
   const termStarts = boundaries
     .filter((event) => event.eventType === "term_start")
@@ -449,7 +444,7 @@ export async function previewCalendarMaterialization(
   tx: RedesignTx,
   input: PreviewInput,
 ): Promise<CalendarMaterializationPreview> {
-  assertDateOrdering(input.startDate, input.endDate);
+  validateTermDates(input.startDate, input.endDate);
   const meetingRoles = normalizeMeetingRolePatterns(input.meetingPattern);
 
   const [events, boundaries, overrides] = await Promise.all([
