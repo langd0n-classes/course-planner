@@ -32,7 +32,7 @@ it("previews on open, shows pairings and gaps, then applies and refreshes", asyn
   const load = vi.fn(async () => preview);
   const apply = vi.fn(async () => ({
     kind: "applied" as const,
-    placedCount: 1,
+    placedCount: 1, storedMeetingPatternCount: 0,
   }));
   const onApplied = vi.fn();
   setMockBackend({
@@ -64,6 +64,7 @@ it("asks for fallback time, uses browser time zone, and requires a fresh preview
   setMockBackend({ previewMeetingPlacement: load });
   render(<PlaceMeetingsPanel termId="term" onApplied={vi.fn()} />);
   const start = await screen.findByLabelText("Start time");
+  expect(screen.getByText("This time is saved for the Term. Later meetings of this type use it.")).toBeInTheDocument();
   expect(screen.getByLabelText("Time zone")).toHaveValue(
     Intl.DateTimeFormat().resolvedOptions().timeZone,
   );

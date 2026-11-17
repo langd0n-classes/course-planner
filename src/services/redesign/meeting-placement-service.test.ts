@@ -60,7 +60,7 @@ function fixture() {
     plannedActivityVersion: { meetingDetail: { defaultDurationMinutes: 50 } },
     revisions: [{ revision: 5 }],
   };
-  const term = { id: "term", status: "active", course: { instructorId: "i" } };
+  const term = { startDate: new Date("2026-03-01"), endDate: new Date("2026-03-31"), id: "term", status: "active", course: { instructorId: "i" } };
   const tx: Record<string, any> = {
     term: { findUnique: vi.fn(async () => term) },
     termActivity: {
@@ -73,7 +73,7 @@ function fixture() {
         { id: "s", date: new Date("2026-03-06"), slotType: "class_day" },
       ]),
     },
-    termMeetingPattern: { findMany: vi.fn(async () => []) },
+    termMeetingPattern: { findMany: vi.fn(async () => []), create: vi.fn() },
     termCalendarException: { findMany: vi.fn(async () => []) },
     termActivityRevision: {
       create: vi.fn(async () => ({ id: "new" })),
@@ -103,12 +103,14 @@ describe("meeting placement service", () => {
     await expect(
       applyMeetingPlacement(f.db, { ...request, previewToken: "old" }),
     ).rejects.toThrow("Closed Terms are read-only");
+    expect(f.tx.termMeetingPattern.create).not.toHaveBeenCalled();
   });
   it("rejects stale tokens", async () => {
     const f = fixture();
     await expect(
       applyMeetingPlacement(f.db, { ...request, previewToken: "old" }),
     ).rejects.toThrow("stale");
+    expect(f.tx.termMeetingPattern.create).not.toHaveBeenCalled();
     expect(f.tx.termActivityRevision.create).not.toHaveBeenCalled();
   });
   it("detects a meeting changed since preview", async () => {
@@ -121,6 +123,7 @@ describe("meeting placement service", () => {
         previewToken: preview.previewToken,
       }),
     ).rejects.toThrow("stale");
+    expect(f.tx.termMeetingPattern.create).not.toHaveBeenCalled();
   });
   it("copies the snapshot, increments the highest revision and compares the pointer", async () => {
     const f = fixture();
@@ -131,7 +134,7 @@ describe("meeting placement service", () => {
         ...request,
         previewToken: preview.previewToken,
       }),
-    ).toEqual({ kind: "applied", placedCount: 1 });
+    ).toEqual({ kind: "applied", placedCount: 1, storedMeetingPatternCount: 1 });
     expect(f.tx.termActivityRevision.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         title: "Title",
@@ -227,4 +230,56 @@ it("loads only non-archived meeting activities and resolves calendar exceptions"
       },
     }),
   );
+});
+
+it("stores one pattern per placed type with all distinct class weekdays in calendar order", async () => {
+  const f = fixture();
+  const rows = [f.row, { ...f.row, id: "b", ordinal: 2 }, { ...f.row, id: "c", activityTypeVersionId: "lab" }];
+  f.tx.termActivity.findMany.mockResolvedValue([...rows, { ...f.row, id: "unplaced", activityTypeVersionId: "unused", termLearningModule: null }]);
+  f.tx.termActivity.findUnique.mockImplementation(async ({ where }: any) => rows.find(r => r.id === where.id));
+  f.tx.calendarSlot.findMany.mockResolvedValue([
+    { id: "fri", date: new Date("2026-03-06"), slotType: "class_day" },
+    { id: "mon", date: new Date("2026-03-09"), slotType: "class_day" },
+    { id: "fri2", date: new Date("2026-03-13"), slotType: "class_day" },
+    { id: "holiday", date: new Date("2026-03-10"), slotType: "holiday" },
+  ]);
+  const input = { ...request, defaultMeetingTime: { ...request.defaultMeetingTime, endTimeLocal: "10:00" } };
+  const preview = await previewMeetingPlacement(f.db, input);
+  const result = await applyMeetingPlacement(f.db, { ...input, previewToken: preview.previewToken });
+  expect(result.storedMeetingPatternCount).toBe(2);
+  expect(f.tx.termMeetingPattern.create).toHaveBeenCalledTimes(2);
+  for (const activityTypeVersionId of ["type", "lab"]) {
+    expect(f.tx.termMeetingPattern.create).toHaveBeenCalledWith({ data: {
+      termId: "term", activityTypeVersionId, label: null,
+      daysOfWeek: ["monday", "friday"], ...input.defaultMeetingTime,
+      startsOn: f.term.startDate, endsOn: f.term.endDate,
+    } });
+  }
+  expect(f.tx.termMeetingPattern.create.mock.invocationCallOrder[0]).toBeGreaterThan(f.tx.termActivity.updateMany.mock.invocationCallOrder.at(-1));
+});
+it("preserves an existing pattern and reports zero stored patterns", async () => {
+  const f = fixture();
+  const pattern = { id: "existing", activityTypeVersionId: "type", daysOfWeek: ["friday"], startsOn: f.term.startDate, endsOn: f.term.endDate, ...request.defaultMeetingTime };
+  f.tx.termMeetingPattern.findMany.mockResolvedValue([pattern]);
+  const input = { ...request, defaultMeetingTime: null };
+  const preview = await previewMeetingPlacement(f.db, input);
+  expect(await applyMeetingPlacement(f.db, { ...input, previewToken: preview.previewToken })).toEqual({ kind: "applied", placedCount: 1, storedMeetingPatternCount: 0 });
+  expect(f.tx.termMeetingPattern.create).not.toHaveBeenCalled();
+  await expect(f.tx.termMeetingPattern.findMany.mock.results[0].value).resolves.toEqual([pattern]);
+});
+it("reuses the saved time for a remaining undated meeting without a fallback", async () => {
+  const f = fixture();
+  const first = await previewMeetingPlacement(f.db, request);
+  f.tx.termMeetingPattern.create.mockImplementation(async ({ data }: any) => {
+    f.tx.termMeetingPattern.findMany.mockResolvedValue([{ id: "saved", ...data }]);
+  });
+  await applyMeetingPlacement(f.db, { ...request, previewToken: first.previewToken });
+  // A later adopted meeting uses the same available slot and saved time.
+  const remaining = { ...f.row, id: "remaining" };
+  f.tx.termActivity.findMany.mockResolvedValue([remaining]);
+  const withFallback = await previewMeetingPlacement(f.db, request);
+  const saved = await previewMeetingPlacement(f.db, { ...request, defaultMeetingTime: null });
+  expect(saved.missingMeetingTime).toBe(false);
+  expect(saved.placements).toEqual(withFallback.placements);
+  expect(saved.placements[0]).toMatchObject({ calendarSlotId: first.placements[0].calendarSlotId, startsAt: first.placements[0].startsAt, endsAt: first.placements[0].endsAt });
 });

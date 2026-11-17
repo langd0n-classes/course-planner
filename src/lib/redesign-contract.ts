@@ -1477,4 +1477,4 @@ export type MeetingPlacementPreviewResponse = {
   missingMeetingTime: boolean;
 };
 export type MeetingPlacementApplyRequest = MeetingPlacementPreviewRequest & { previewToken: string };
-export type MeetingPlacementApplyResponse = { kind: "applied"; placedCount: number };
+export type MeetingPlacementApplyResponse = { kind: "applied"; placedCount: number; storedMeetingPatternCount: number };

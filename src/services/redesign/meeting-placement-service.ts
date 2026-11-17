@@ -173,6 +173,7 @@ export async function applyMeetingPlacement(
           );
         if (!preview.placements.length)
           throw new DomainInvariantError("No meetings can be placed");
+        const placedTypes = new Set<string>();
         for (const placement of preview.placements) {
           const row = await tx.termActivity.findUnique({
             where: { id: placement.termActivityId },
@@ -186,6 +187,7 @@ export async function applyMeetingPlacement(
             row.plannedRevisionId !== placement.expectedPlannedRevisionId
           )
             throw new ConcurrencyConflictError();
+          placedTypes.add(row.activityTypeVersionId);
           const current = row.plannedRevision;
           if (!current?.meetingDetail)
             throw new DomainInvariantError("Meeting has no planned revision");
@@ -216,7 +218,42 @@ export async function applyMeetingPlacement(
           });
           if (updated.count !== 1) throw new ConcurrencyConflictError();
         }
+        let storedMeetingPatternCount = 0;
+        if (input.defaultMeetingTime) {
+          const patterns = await tx.termMeetingPattern.findMany({
+            where: { termId: input.termId },
+          });
+          const existingTypes = new Set(
+            patterns.map((pattern: { activityTypeVersionId: string }) => pattern.activityTypeVersionId),
+          );
+          const slots = await tx.calendarSlot.findMany({
+            where: { termId: input.termId, slotType: "class_day" },
+          });
+          const weekdays = new Set(
+            slots.filter((slot: { slotType: string }) => slot.slotType === "class_day")
+              .map((slot: { date: Date }) => new Date(slot.date).getUTCDay()),
+          );
+          // Names and order match academic-calendar-service's DAY_INDEX.
+          const daysOfWeek = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+            .filter((_, index) => weekdays.has(index));
+          for (const activityTypeVersionId of placedTypes) {
+            if (existingTypes.has(activityTypeVersionId)) continue;
+            await tx.termMeetingPattern.create({
+              data: {
+                termId: input.termId,
+                activityTypeVersionId,
+                label: null,
+                daysOfWeek,
+                ...input.defaultMeetingTime,
+                startsOn: term.startDate,
+                endsOn: term.endDate,
+              },
+            });
+            storedMeetingPatternCount += 1;
+          }
+        }
         return {
+          storedMeetingPatternCount,
           kind: "applied" as const,
           placedCount: preview.placements.length,
         };

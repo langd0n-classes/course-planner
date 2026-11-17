@@ -383,9 +383,14 @@ Decisions made where the requirements were underspecified. Each can be revisited
 - Each meeting type has its own slot sequence. Different types may share a class
   day. A type-specific cancellation does not hide that day from the empty-slot
   report; a cancellation for all types does.
-- The fallback start time, optional end time, and time zone belong to the
-  preview/apply request. They are not stored on the Term. Meeting instants are
-  stored in new planned revisions; coursework milestones retain their dates.
+- Apply stores the fallback start time, optional end time, and time zone as a
+  `TermMeetingPattern` row for each placed type that had none. The pattern uses
+  all distinct class-day weekdays and spans the Term's start and end dates.
+  Existing patterns remain unchanged. Meeting instants are stored in new planned
+  revisions; coursework milestones retain their dates.
+- `applyTermCalendar` deletes all the Term's pattern rows and writes the rows
+  in its input, so a later Term calendar apply removes a stored time that its
+  input does not include.
 - If patterns overlap for one type on one date, placement uses the first pattern
   ordered by startsOn, then pattern id. Pattern dates are inclusive. Local end
   times refer to the same date as the start time.
@@ -394,10 +399,10 @@ Decisions made where the requirements were underspecified. Each can be revisited
   local date using the applicable pattern's zone (or the request fallback zone).
   Without either source of time zone, only its explicit slot can be reserved.
 - The panel requires a new preview after editing a fallback time or receiving an
-  apply conflict. Apply returns `placedCount`; the workspace reloads after apply.
+  apply conflict. Apply returns `placedCount` and `storedMeetingPatternCount`; the workspace reloads after apply.
 - The fallback meeting time exists because a Term created in the workspace
   stores meeting days and no time. `TermMeetingPattern` rows hold times, and
-  only the Term calendar apply writes them.
+  meeting placement apply also writes them for placed types that have none.
 - Coursework milestones are not dated by this step. Adoption creates no Term
   milestones, so there is nothing to date (#87). The "records complete from"
   date for a part-way Term is also separate.

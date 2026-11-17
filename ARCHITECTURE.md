@@ -283,7 +283,12 @@ pulling in the sibling CRUD or cockpit packets:
   compare-and-swap checks in one transaction. `POST /api/terms/[id]/placement-preview`
   returns labeled placements, unplaced meetings, and empty class days;
   `POST /api/terms/[id]/placement-apply` validates that preview and returns the
-  number placed. The typed redesign client connects both routes to
+  number placed and `storedMeetingPatternCount`. In the same transaction,
+  apply saves the fallback time as a `TermMeetingPattern` for each placed type
+  with no existing pattern, using the Term's class-day weekdays and date bounds.
+  Later previews reuse these times. A later `applyTermCalendar` replaces all
+  pattern rows, removing any saved time omitted from its input.
+  The typed redesign client connects both routes to
   `PlaceMeetingsPanel`, the Term workspace notice, and the daily-driver action.
 - **Session scheduling records its evidence**. A scheduled Session now either
   points at a materialized `CalendarSlot` (`calendarSlotId`) or carries an

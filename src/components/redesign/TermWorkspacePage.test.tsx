@@ -390,7 +390,7 @@ it("opens placement from the undated-meeting notice and reloads after apply", as
   const { backend } = buildTermWorkspaceBackend();
   backend.listTermActivitiesWithRevisions.mockResolvedValue({ termActivities: [undatedMeeting], revisionsByTermActivityId: { meeting: { planned: undatedRevision, delivered: null } } });
   const previewMeetingPlacement = vi.fn(async () => ({ kind: "preview" as const, previewToken: "token", placements: [{ termActivityId: "meeting", adoptedLabel: "Lecture", expectedPlannedRevisionId: "revision", calendarSlotId: "slot", date: "2026-03-06", startsAt: "2026-03-06T14:00:00Z", endsAt: null, timeZone: "UTC" }], unplacedMeetings: [], emptySlots: [], alreadyDatedCount: 0, missingMeetingTime: false }));
-  const applyMeetingPlacement = vi.fn(async () => { backend.listTermActivitiesWithRevisions.mockResolvedValue({ termActivities: [], revisionsByTermActivityId: {} }); return { kind: "applied" as const, placedCount: 1 }; });
+  const applyMeetingPlacement = vi.fn(async () => { backend.listTermActivitiesWithRevisions.mockResolvedValue({ termActivities: [], revisionsByTermActivityId: {} }); return { kind: "applied" as const, placedCount: 1, storedMeetingPatternCount: 0 }; });
   setMockBackend({ ...backend, previewMeetingPlacement, applyMeetingPlacement });
   render(<TermWorkspacePage termId="term-1" />);
   expect(await screen.findByText("1 undated meeting(s).")).toBeInTheDocument();

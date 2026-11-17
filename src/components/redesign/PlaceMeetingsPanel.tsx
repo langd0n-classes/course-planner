@@ -160,6 +160,9 @@ export default function PlaceMeetingsPanel({ termId, onApplied }: Props) {
                 }}
               />
             </label>
+            <p className="text-sm text-slate-600 sm:col-span-3">
+              This time is saved for the Term. Later meetings of this type use it.
+            </p>
           </div>
         ) : null}
         <button

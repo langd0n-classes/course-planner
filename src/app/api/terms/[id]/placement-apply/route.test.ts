@@ -45,10 +45,10 @@ describe("meeting placement apply route", () => {
     expect((await call(body)).status).toBe(400);
   });
   it("passes validated inputs and returns the result", async () => {
-    service.mockResolvedValue({ kind: "applied", placedCount: 1 });
+    service.mockResolvedValue({ kind: "applied", placedCount: 1, storedMeetingPatternCount: 2 });
     const response = await call();
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ kind: "applied", placedCount: 1 });
+    expect(await response.json()).toEqual({ kind: "applied", placedCount: 1, storedMeetingPatternCount: 2 });
     expect(service).toHaveBeenCalledWith(
       {},
       { instructorId: "instructor", termId: "term", ...payload },
