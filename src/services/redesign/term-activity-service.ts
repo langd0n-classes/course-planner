@@ -1,7 +1,8 @@
+import { effectiveRevision } from "@/lib/term-revision-rules";
 import { keepEffortOverride } from "@/lib/effort";
 import { assertEffort } from "./effort-service";
 import { createHash } from "node:crypto";
-import { ConcurrencyConflictError, DomainInvariantError } from "./errors";
+import { ConcurrencyConflictError, DomainInvariantError, NotFoundError } from "./errors";
 import { assertSameCourse } from "./invariants";
 import {
   getOwnedCalendarSlotForInstructor,
@@ -70,7 +71,7 @@ async function findOwnedActivityVersionForTerm(
     version.activityId !== activityId ||
     version.activity.course?.instructorId !== instructorId
   ) {
-    throw new DomainInvariantError("Activity or version not found");
+    throw new NotFoundError("Activity or version not found");
   }
   assertSameCourse(termCourseId, version.activity.courseId, "Term Activity adoption");
   const enabled = await tx.courseActivityTypeVersion.findUnique({
@@ -85,7 +86,7 @@ async function findOwnedActivityVersionForTerm(
     throw new DomainInvariantError("Activity Type version not enabled for the Term's Course");
   }
   if (version.activityTypeVersion.activityType.instructorId !== instructorId) {
-    throw new DomainInvariantError("Activity Type version not found");
+    throw new NotFoundError("Activity Type version not found");
   }
   return version;
 }
@@ -101,7 +102,7 @@ async function findOwnedTermLearningModuleForAdoption(
     where: { id_termId: { id: termLearningModuleId, termId } },
   });
   if (!offering) {
-    throw new DomainInvariantError("Term Learning Module not found");
+    throw new NotFoundError("Term Learning Module not found");
   }
   assertSameCourse(courseId, offering.courseId, "Term Activity adoption");
   const version = await tx.learningModuleVersion.findUnique({
@@ -118,7 +119,7 @@ async function findOwnedTermLearningModuleForAdoption(
     },
   });
   if (!version) {
-    throw new DomainInvariantError("Learning Module version not found");
+    throw new NotFoundError("Learning Module version not found");
   }
   return { offering, version };
 }
@@ -245,7 +246,7 @@ async function buildAdoptionCandidates(
         select: { id: true, courseId: true },
       });
       if (!ownedOffering) {
-        throw new DomainInvariantError("Term Learning Module not found");
+        throw new NotFoundError("Term Learning Module not found");
       }
       assertSameCourse(term.courseId, ownedOffering.courseId, "Term Activity adoption");
     }
@@ -306,6 +307,39 @@ async function buildAdoptionCandidates(
   };
 }
 
+async function validateSnapshotMilestones(
+  tx: RedesignTx,
+  input: { termActivityId: string; baseActivityVersionId: string; milestones: TermActivityMilestoneInput[] },
+) {
+  for (const milestone of input.milestones) {
+    if (milestone.linkedTermActivityId === input.termActivityId) {
+      throw new DomainInvariantError("A milestone cannot link to its own Term Activity");
+    }
+    if (milestone.anchorPolicy === "follow_activity" && !milestone.linkedTermActivityId) {
+      throw new DomainInvariantError("A milestone that follows an Activity needs a linked Term Activity in the same Term");
+    }
+    if ((milestone.anchorPolicy === "fixed_instant" || milestone.anchorPolicy === "standalone") && !milestone.occursAt) {
+      throw new DomainInvariantError("A fixed or standalone milestone needs a date");
+    }
+    if (milestone.linkedTermActivityId) {
+      const [owner, linked] = await Promise.all([
+        tx.termActivity.findUnique({ where: { id: input.termActivityId } }),
+        tx.termActivity.findUnique({ where: { id: milestone.linkedTermActivityId } }),
+      ]);
+      if (!owner || !linked || linked.termId !== owner.termId) {
+        if (milestone.anchorPolicy === "follow_activity") throw new DomainInvariantError("The linked Term Activity must be in the same Term");
+        throw new NotFoundError("Term Activity not found");
+      }
+    }
+    if (milestone.sourceTemplateId) {
+      const template = await tx.activityVersionMilestoneTemplate.findUnique({ where: { id: milestone.sourceTemplateId } });
+      if (!template || template.activityVersionId !== input.baseActivityVersionId) {
+        throw new DomainInvariantError("The milestone template must belong to the base Activity version");
+      }
+    }
+  }
+}
+
 export async function createRevisionSnapshot(
   tx: RedesignTx,
   input: {
@@ -321,6 +355,7 @@ export async function createRevisionSnapshot(
     milestones: TermActivityMilestoneInput[];
   },
 ) {
+  await validateSnapshotMilestones(tx, input);
   const revision = await tx.termActivityRevision.create({
     data: {
       termActivityId: input.termActivityId,
@@ -427,7 +462,7 @@ async function validateTermActivityDraft(
   if (draft.detail.behaviorFamily === "meeting" && draft.detail.calendarSlotId) {
     const slot = await getOwnedCalendarSlotForInstructor(tx, instructorId, draft.detail.calendarSlotId);
     if (slot.termId !== termActivity.termId) {
-      throw new DomainInvariantError("Calendar slot not found");
+      throw new NotFoundError("Calendar slot not found");
     }
   }
 
@@ -437,18 +472,9 @@ async function validateTermActivityDraft(
       include: { topic: { select: { courseId: true, course: { select: { instructorId: true } } } } },
     });
     if (!topicVersion || topicVersion.topic.course?.instructorId !== instructorId) {
-      throw new DomainInvariantError("Topic version not found");
+      throw new NotFoundError("Topic version not found");
     }
     assertSameCourse(termActivity.term.courseId, topicVersion.topic.courseId, "Term Activity topic action");
-  }
-
-  for (const milestone of draft.milestones ?? []) {
-    if (milestone.linkedTermActivityId) {
-      const linked = await getOwnedTermActivityForInstructor(tx, instructorId, milestone.linkedTermActivityId);
-      if (linked.termId !== termActivity.termId) {
-        throw new DomainInvariantError("Term Activity not found");
-      }
-    }
   }
 }
 
@@ -473,21 +499,28 @@ async function buildRevisionPreview(
     },
   });
   if (!hydrated) {
-    throw new DomainInvariantError("Term Activity not found");
+    throw new NotFoundError("Term Activity not found");
   }
 
   const current =
     input.advancePointer === "planned"
       ? hydrated.plannedRevision
-      : (hydrated.deliveredRevision ?? hydrated.plannedRevision);
+      : effectiveRevision({ delivered: hydrated.deliveredRevision, planned: hydrated.plannedRevision });
+  const topicActions: TermActivityRevisionTopicActionInput[] =
+    input.draft.topicActions ?? current?.topicActions ?? [];
+  const milestones: TermActivityMilestoneInput[] =
+    input.draft.milestones ?? current?.milestones ?? [];
   const draft = {
     ...input.draft,
+    topicActions,
+    milestones,
     detail: keepEffortOverride(
       input.draft.detail,
       current?.courseworkDetail ?? current?.assessmentDetail,
     ),
   };
   await validateTermActivityDraft(tx, input.instructorId, hydrated, draft);
+  await validateSnapshotMilestones(tx, { termActivityId: hydrated.id, baseActivityVersionId: hydrated.plannedActivityVersionId, milestones: draft.milestones });
 
   const nextRevision = (hydrated.revisions[0]?.revision ?? 0) + 1;
   const expectedCurrentRevisionId =
@@ -716,7 +749,8 @@ export async function applyTermActivityAdoption(
     expectedCurrentActivityCount: number;
   },
 ) {
-  return db.$transaction(
+  try {
+  return await db.$transaction(
     async (tx) => {
     const preview = await previewTermActivityAdoption(
       { $transaction: async <T>(fn: (nestedTx: RedesignTx) => Promise<T>) => fn(tx) },
@@ -806,6 +840,10 @@ export async function applyTermActivityAdoption(
     // against a local database and not against a remote one.
     { timeout: 300_000, maxWait: 30_000 },
   );
+  } catch (error) {
+    if (isUniqueConstraintError(error)) throw new ConcurrencyConflictError("Term Activity adoption changed while this edit was in progress");
+    throw error;
+  }
 }
 
 export async function previewTermActivityRevision(
@@ -857,7 +895,7 @@ export async function applyTermActivityRevision(
         include: { term: true, revisions: { orderBy: { revision: "desc" }, take: 1 } },
       });
       if (!termActivity) {
-        throw new DomainInvariantError("Term Activity not found");
+        throw new NotFoundError("Term Activity not found");
       }
       if (input.advancePointer === "delivered") {
         if (termActivity.term.status !== "active") {
@@ -889,11 +927,11 @@ export async function applyTermActivityRevision(
         changeReason: input.draft.changeReason ?? null,
         createdByInstructorId: input.instructorId,
         detail: preview.draft.detail,
-        topicActions: input.draft.topicActions ?? [],
-        milestones: input.draft.milestones ?? [],
+        topicActions: preview.draft.topicActions,
+        milestones: preview.draft.milestones,
       });
       if (!revision) {
-        throw new DomainInvariantError("Term Activity revision not found");
+        throw new NotFoundError("Term Activity revision not found");
       }
 
       const pointerField =
@@ -902,10 +940,13 @@ export async function applyTermActivityRevision(
         where: {
           id: termActivity.id,
           [pointerField]: input.expectedCurrentRevisionId,
+          ...(input.advancePointer === "planned" ? { deliveredRevisionId: termActivity.deliveredRevisionId } : {}),
         },
         data: {
           [pointerField]: revision.id,
-          lifecycleState: lifecycleStateFromDetail(input.draft.detail),
+          ...(input.advancePointer === "delivered" || !termActivity.deliveredRevisionId
+            ? { lifecycleState: lifecycleStateFromDetail(input.draft.detail) }
+            : {}),
         },
       });
       if (advanced.count !== 1) {
@@ -914,7 +955,7 @@ export async function applyTermActivityRevision(
 
       const updated = await tx.termActivity.findUnique({ where: { id: termActivity.id } });
       if (!updated) {
-        throw new DomainInvariantError("Term Activity not found");
+        throw new NotFoundError("Term Activity not found");
       }
 
       return {

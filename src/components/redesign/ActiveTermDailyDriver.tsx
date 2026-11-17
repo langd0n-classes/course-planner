@@ -8,6 +8,7 @@ import type {
   TermActivityRevisionDto,
   TermActivityRevisionPreviewRequest,
 } from "@/lib/redesign-contract";
+import { isUndatedMeeting } from "@/lib/term-revision-rules";
 import { buildTermDailyDriver } from "@/lib/redesign-workspace";
 
 type Props = {
@@ -21,6 +22,7 @@ type Props = {
     }
   >;
   today: string;
+  timeZone?: string | null;
   learningModuleLabels: Map<Id, string>;
   topicLabels: Map<Id, string>;
   editable: boolean;
@@ -99,8 +101,9 @@ export default function ActiveTermDailyDriver(props: Props) {
         termActivities: props.termActivities,
         revisionsByTermActivityId: props.revisionsByTermActivityId,
         today: props.today,
+        timeZone: props.timeZone,
       }),
-    [props.termActivities, props.revisionsByTermActivityId, props.today],
+    [props.termActivities, props.revisionsByTermActivityId, props.today, props.timeZone],
   );
   const meeting = driver.nextMeeting;
   const nextMilestone = driver.nextMilestone;
@@ -448,7 +451,7 @@ export default function ActiveTermDailyDriver(props: Props) {
               No future meeting is scheduled.
               {props.onPlaceMeetings && props.termActivities.some(activity => {
                 const revision = props.revisionsByTermActivityId[activity.id]?.planned;
-                return !activity.archivedAt && revision?.detail.behaviorFamily === "meeting" && revision.detail.status !== "canceled" && !revision.detail.startsAt && !revision.detail.calendarSlotId;
+                return !activity.archivedAt && revision?.detail.behaviorFamily === "meeting" && revision.detail.status !== "canceled" && isUndatedMeeting({ delivered: props.revisionsByTermActivityId[activity.id]?.delivered, planned: revision.detail });
               }) ? <button type="button" onClick={props.onPlaceMeetings} className="mt-2 block text-sm font-medium text-sky-800 underline">Place meetings on the calendar</button> : null}
             </p>
           )}

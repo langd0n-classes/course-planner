@@ -746,7 +746,7 @@ export async function applyTermCalendar(
       throw new ConcurrencyConflictError("Calendar slot count changed during preview");
     }
 
-    await tx.termMeetingPattern.deleteMany({ where: { termId: input.termId } });
+    await tx.termMeetingPattern.deleteMany({ where: { termId: input.termId, activityTypeVersionId: { in: input.meetingPatterns.map(pattern => pattern.activityTypeVersionId) } } });
     if (input.meetingPatterns.length > 0) {
       await tx.termMeetingPattern.createMany({
         data: normalizeMeetingPatterns(input.meetingPatterns).map((pattern) => ({
@@ -763,22 +763,30 @@ export async function applyTermCalendar(
       });
     }
 
-    await tx.calendarSlot.deleteMany({ where: { termId: input.termId } });
-    if (preview.calendarSlotCandidates.length > 0) {
-      await tx.calendarSlot.createMany({
-        data: preview.calendarSlotCandidates.map((candidate) => ({
-          termId: input.termId,
-          academicCalendarEventId: candidate.academicCalendarEventId,
-          date: fromIsoDate(candidate.date),
-          slotType: candidate.slotType,
-          label: candidate.label,
-          source: candidate.source,
-          instructionalCapacity: candidate.instructionalCapacity,
-          capacitySource: candidate.capacitySource,
-          capacityReason: candidate.capacityReason,
-        })),
-      });
+    const existingSlots = await tx.calendarSlot.findMany({ where: { termId: input.termId } });
+    const existingByDate = new Map<string, { id: string }>(existingSlots.map((slot: { id: string; date: Date }) => [toIsoDate(slot.date), slot]));
+    await tx.calendarSlot.deleteMany({ where: {
+      termId: input.termId,
+      date: { notIn: preview.calendarSlotCandidates.map(candidate => fromIsoDate(candidate.date)) },
+    } });
+    const newSlots = [];
+    for (const candidate of preview.calendarSlotCandidates) {
+      const data = {
+        termId: input.termId,
+        academicCalendarEventId: candidate.academicCalendarEventId,
+        date: fromIsoDate(candidate.date),
+        slotType: candidate.slotType,
+        label: candidate.label,
+        source: candidate.source,
+        instructionalCapacity: candidate.instructionalCapacity,
+        capacitySource: candidate.capacitySource,
+        capacityReason: candidate.capacityReason,
+      };
+      const retained = existingByDate.get(candidate.date);
+      if (retained) await tx.calendarSlot.update({ where: { id: retained.id }, data });
+      else newSlots.push(data);
     }
+    if (newSlots.length) await tx.calendarSlot.createMany({ data: newSlots });
 
     return {
       kind: "applied" as const,

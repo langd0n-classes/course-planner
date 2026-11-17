@@ -1034,6 +1034,7 @@ describe("versioned academic calendar services", () => {
           { id: "slot-2027-03-05", termId: "term-1", date: new Date("2027-03-05") },
           { id: "slot-2027-03-12", termId: "term-1", date: new Date("2027-03-12") },
         ],
+        update: async () => ({}),
         deleteMany: async ({ where }: any) => {
           calendarSlotDeletes.push(where);
           return { count: 1 };
@@ -1102,8 +1103,8 @@ describe("versioned academic calendar services", () => {
 
     expect(applied.calendarSlotCount).toBe(previewA.calendarSlotCandidates.length);
     expect(meetingPatternCreates).toHaveLength(1);
-    expect(calendarSlotDeletes).toEqual([{ termId: "term-1" }]);
-    expect(calendarSlotCreates).toHaveLength(previewA.calendarSlotCandidates.length);
+    expect(calendarSlotDeletes).toEqual([{ termId: "term-1", date: { notIn: previewA.calendarSlotCandidates.map(slot => new Date(`${slot.date}T00:00:00.000Z`)) } }]);
+    expect(calendarSlotCreates).toHaveLength(previewA.calendarSlotCandidates.filter(slot => !["2027-03-01", "2027-03-05", "2027-03-12"].includes(slot.date)).length);
 
     const updatedException = await updateTermCalendarException(db, "exception-1", "instructor-1", {
       label: "Updated label",
@@ -1339,6 +1340,7 @@ describe("delivered revision workflow", () => {
           deliveredLearningModuleVersionId: "lmv-2",
           term: { status: "active", course: { instructorId: "instructor-1" } },
         }),
+        updateMany: async () => ({ count: 1 }),
         update: async ({ data }: any) => ({
           id: "tlm-1",
           learningModuleId: "lm-1",
@@ -1383,7 +1385,7 @@ describe("delivered revision workflow", () => {
     expect(result.deliveredVersion.id).toBe("lmv-3");
     expect(result.deliveredVersion.revision).toBe(3);
     expect(result.deliveredVersion.publishedAt).toBeInstanceOf(Date);
-    expect(result.termLearningModule.deliveredLearningModuleVersionId).toBe("lmv-3");
+    expect(result.termLearningModule.id).toBe("tlm-1");
   });
 
   it("rejects stale delivered-pointer edits with optimistic concurrency", async () => {

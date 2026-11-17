@@ -1,3 +1,4 @@
+import { effectiveRevision } from "@/lib/term-revision-rules";
 import { createHash } from "node:crypto";
 import { ConcurrencyConflictError, DomainInvariantError } from "./errors";
 import {
@@ -31,6 +32,7 @@ async function buildPreview(tx: RedesignTx, input: Input) {
       include: {
         termLearningModule: true,
         plannedRevision: { include: revisionInclude },
+        deliveredRevision: { include: revisionInclude },
         plannedActivityVersion: { include: { meetingDetail: true } },
       },
       orderBy: { id: "asc" },
@@ -56,6 +58,8 @@ async function buildPreview(tx: RedesignTx, input: Input) {
     ordinal: number | null;
     createdAt: Date;
     plannedRevisionId: string | null;
+    deliveredRevisionId?: string | null;
+    deliveredRevision?: Row["plannedRevision"];
     termLearningModule: { sequence: number } | null;
     plannedRevision: {
       meetingDetail: {
@@ -68,26 +72,29 @@ async function buildPreview(tx: RedesignTx, input: Input) {
       meetingDetail: { defaultDurationMinutes: number | null } | null;
     };
   };
-  // A meeting with no planned revision has nothing to copy into a new revision.
+  // Delivered details determine occupancy; only undelivered plans can be placed.
   const meetings: MeetingPlacementInput["meetings"] = (rows as Row[])
-    .filter((row) => row.plannedRevision?.meetingDetail)
-    .map(
-    (row) => ({
-      termActivityId: row.id,
-      activityTypeVersionId: row.activityTypeVersionId,
-      termLearningModuleSequence: row.termLearningModule?.sequence ?? null,
-      ordinal: row.ordinal,
-      createdAt: row.createdAt,
-      plannedRevisionId: row.plannedRevisionId,
-      calendarSlotId:
-        row.plannedRevision?.meetingDetail?.calendarSlotId ?? null,
-      startsAt: row.plannedRevision?.meetingDetail?.startsAt ?? null,
-      status: row.plannedRevision?.meetingDetail?.status ?? null,
-      defaultDurationMinutes:
-        row.plannedActivityVersion.meetingDetail?.defaultDurationMinutes ??
-        null,
-    }),
-  );
+    .flatMap((row) => {
+      const detail = effectiveRevision({
+        planned: row.plannedRevision,
+        delivered: row.deliveredRevision,
+      })?.meetingDetail;
+      if (!detail) return [];
+      return [{
+        termActivityId: row.id,
+        activityTypeVersionId: row.activityTypeVersionId,
+        termLearningModuleSequence: row.termLearningModule?.sequence ?? null,
+        ordinal: row.ordinal,
+        createdAt: row.createdAt,
+        plannedRevisionId: row.plannedRevisionId,
+        deliveredRevisionId: row.deliveredRevisionId,
+        calendarSlotId: detail.calendarSlotId,
+        startsAt: detail.startsAt,
+        status: detail.status,
+        defaultDurationMinutes:
+          row.plannedActivityVersion.meetingDetail?.defaultDurationMinutes ?? null,
+      }];
+    });
   const plan = planMeetingPlacement({
     meetings,
     slots: (slots as { id: string; date: Date; slotType: string }[]).map(
@@ -184,6 +191,7 @@ export async function applyMeetingPlacement(
           });
           if (
             !row ||
+            row.deliveredRevisionId ||
             row.plannedRevisionId !== placement.expectedPlannedRevisionId
           )
             throw new ConcurrencyConflictError();
@@ -213,6 +221,7 @@ export async function applyMeetingPlacement(
             where: {
               id: row.id,
               plannedRevisionId: placement.expectedPlannedRevisionId,
+              deliveredRevisionId: null,
             },
             data: { plannedRevisionId: revision.id },
           });

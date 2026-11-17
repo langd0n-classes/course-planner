@@ -1,3 +1,5 @@
+import { previewTermCalendar, applyTermCalendar } from "../src/services/redesign/academic-calendar-service";
+import { assertSeedForceAllowed } from "../prisma/seed-guard";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
@@ -6,6 +8,7 @@ import { previewMilestoneDating, applyMilestoneDating } from "../src/services/re
 import { demoSemesters, loadDemoCourse } from "../src/services/redesign/demo-course-service";
 
 async function main() {
+  assertSeedForceAllowed(process.env.DATABASE_URL, process.env.SEED_FORCE_DATABASE);
   const db = new PrismaClient();
   try {
     const runId = randomUUID();
@@ -82,6 +85,35 @@ async function main() {
     const placementInput = { ...datingInput, defaultMeetingTime: { startTimeLocal: "10:00", endTimeLocal: "10:50", timeZone: "UTC" } };
     const placement = await previewMeetingPlacement(db, placementInput);
     await applyMeetingPlacement(db, { ...placementInput, previewToken: placement.previewToken });
+    const placedActivityId = placement.placements[0].termActivityId;
+    const readPlaced = () => db.termActivity.findUniqueOrThrow({
+      where: { id: placedActivityId },
+      include: { plannedRevision: { include: { meetingDetail: true } } },
+    });
+    const placedBeforeCalendar = await readPlaced();
+    const patternsBefore = await db.termMeetingPattern.findMany({ where: { termId: currentTerm.id } });
+    const courseworkType = versions.find(version => version.courseworkDetail)!.activityTypeVersionId;
+    const storedOutsideInput = await db.termMeetingPattern.create({ data: {
+      termId: currentTerm.id, activityTypeVersionId: courseworkType,
+      daysOfWeek: ["monday"], startTimeLocal: "12:00", timeZone: "UTC",
+      startsOn: currentTerm.startDate, endsOn: currentTerm.endDate,
+    } });
+    const calendarInput = { ...datingInput, meetingPatterns: patternsBefore.map(pattern => ({
+      activityTypeVersionId: pattern.activityTypeVersionId, label: pattern.label,
+      daysOfWeek: pattern.daysOfWeek, startTimeLocal: pattern.startTimeLocal,
+      endTimeLocal: pattern.endTimeLocal, timeZone: pattern.timeZone,
+      startsOn: pattern.startsOn.toISOString().slice(0, 10),
+      endsOn: pattern.endsOn.toISOString().slice(0, 10),
+    })) };
+    const calendar = await previewTermCalendar(db, calendarInput);
+    await applyTermCalendar(db, { ...calendarInput, previewToken: calendar.previewToken,
+      expectedCurrentCalendarSlotCount: calendar.expectedCurrentCalendarSlotCount });
+    const placedAfterCalendar = await readPlaced();
+    assert.equal(placedAfterCalendar.plannedRevision?.meetingDetail?.calendarSlotId,
+      placedBeforeCalendar.plannedRevision?.meetingDetail?.calendarSlotId);
+    assert.ok(placedAfterCalendar.plannedRevision?.meetingDetail?.calendarSlotId);
+    assert.ok(await db.termMeetingPattern.findUnique({ where: { id: storedOutsideInput.id } }));
+    console.log("Postgres calendar apply: retained meeting slot pointer and unrelated stored pattern passed");
     const dating = await previewMilestoneDating(db, datingInput);
     assert.equal(dating.dates.length, 4);
     assert.equal(dating.creates.length, 0);

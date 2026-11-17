@@ -165,3 +165,16 @@ it("preserves unrelated removal database errors", async () => {
   tx.termLearningModule.delete.mockRejectedValue(error);
   await expect(removeTermLearningModule(db, "i", "offering")).rejects.toBe(error);
 });
+
+it("calendar apply preserves retained slot identities and unrelated stored patterns", async () => {
+  const { db, tx, term } = calendarFixture();
+  const retained = { id: "retained", termId: "source", date: term.startDate };
+  tx.calendarSlot.findMany.mockResolvedValue([retained]);
+  tx.calendarSlot.update = vi.fn();
+  const preview = await previewTermCalendar(db, { instructorId: "i", termId: "source", meetingPatterns: [] });
+  await applyTermCalendar(db, { instructorId: "i", termId: "source", meetingPatterns: [], previewToken: preview.previewToken, expectedCurrentCalendarSlotCount: 1 });
+  expect(tx.termMeetingPattern.deleteMany).toHaveBeenCalledWith({ where: { termId: "source", activityTypeVersionId: { in: [] } } });
+  expect(tx.calendarSlot.deleteMany.mock.calls[0][0].where).toEqual({ termId: "source", date: { notIn: preview.calendarSlotCandidates.map(c => new Date(`${c.date}T00:00:00.000Z`)) } });
+  expect(tx.calendarSlot.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "retained" } }));
+  expect(tx.calendarSlot.createMany.mock.calls[0][0].data).toHaveLength(399);
+});

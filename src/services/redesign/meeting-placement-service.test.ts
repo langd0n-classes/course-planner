@@ -145,7 +145,7 @@ describe("meeting placement service", () => {
       }),
     });
     expect(f.tx.termActivity.updateMany).toHaveBeenCalledWith({
-      where: { id: "a", plannedRevisionId: "r" },
+      where: { id: "a", plannedRevisionId: "r", deliveredRevisionId: null },
       data: { plannedRevisionId: "new" },
     });
     expect(f.tx.termActivityMilestone.create).toHaveBeenCalled();
@@ -315,11 +315,48 @@ it("writes only meeting revisions and leaves coursework and assessment effort un
   expect(f.tx.termMeetingActivityRevision.create).toHaveBeenCalledTimes(1);
   expect(f.tx.termActivity.updateMany).toHaveBeenCalledTimes(1);
   expect(f.tx.termActivity.updateMany).toHaveBeenCalledWith({
-    where: { id: "a", plannedRevisionId: "r" }, data: { plannedRevisionId: "new" },
+    where: { id: "a", plannedRevisionId: "r", deliveredRevisionId: null }, data: { plannedRevisionId: "new" },
   });
   for (const model of [f.tx.termCourseworkActivityRevision, f.tx.termAssessmentActivityRevision]) {
     expect(model.create).not.toHaveBeenCalled();
     expect(model.update).not.toHaveBeenCalled();
   }
   expect(nonMeetings).toEqual(before);
+});
+
+it.each(["canceled", "delivered", "moved"])("uses delivered %s details and never revises that meeting", async (status) => {
+  const f = fixture();
+  (f.row as any).deliveredRevisionId = "delivered";
+  (f.row as any).deliveredRevision = { meetingDetail: { status, startsAt: status === "moved" ? new Date("2026-03-06T14:00:00Z") : null, calendarSlotId: status === "moved" ? "s" : null } };
+  const p = await previewMeetingPlacement(f.db, request);
+  expect(p.placements).toEqual([]);
+  expect(p.emptySlots).toHaveLength(status === "moved" ? 0 : 1);
+  await expect(applyMeetingPlacement(f.db, { ...request, previewToken: p.previewToken })).rejects.toThrow("No meetings can be placed");
+  expect(f.tx.termActivityRevision.create).not.toHaveBeenCalled();
+});
+it("keeps an unconfirmed past meeting in its planned slot", async () => {
+  const f = fixture();
+  f.row.plannedRevision.meetingDetail.calendarSlotId = "s" as any;
+  const p = await previewMeetingPlacement(f.db, request);
+  expect(p.placements).toEqual([]);
+  expect(p.emptySlots).toEqual([]);
+});
+
+it("delivered moves hold the new slot and make the old planned slot available", async () => {
+  const f = fixture();
+  const moved = { ...f.row, id: "moved", plannedRevision: { ...f.row.plannedRevision, meetingDetail: { ...f.row.plannedRevision.meetingDetail, calendarSlotId: "s" } }, deliveredRevisionId: "d", deliveredRevision: { meetingDetail: { status: "delivered", calendarSlotId: "new-slot", startsAt: new Date("2026-03-09T13:00:00Z") } } };
+  f.tx.termActivity.findMany.mockResolvedValue([moved, f.row]);
+  f.tx.calendarSlot.findMany.mockResolvedValue([{ id: "s", date: new Date("2026-03-06"), slotType: "class_day" }, { id: "new-slot", date: new Date("2026-03-09"), slotType: "class_day" }]);
+  const p = await previewMeetingPlacement(f.db, request);
+  expect(p.placements.map(item => [item.termActivityId, item.calendarSlotId])).toEqual([["a", "s"]]);
+  expect(p.emptySlots).toEqual([]);
+});
+it("delivered cancellations release their planned slot for another meeting", async () => {
+  const f = fixture();
+  const canceled = { ...f.row, id: "canceled", plannedRevision: { ...f.row.plannedRevision, meetingDetail: { ...f.row.plannedRevision.meetingDetail, calendarSlotId: "s" } }, deliveredRevisionId: "d", deliveredRevision: { meetingDetail: { status: "canceled", calendarSlotId: "s", startsAt: null } } };
+  f.tx.termActivity.findMany.mockResolvedValue([canceled, f.row]);
+  const p = await previewMeetingPlacement(f.db, request);
+  expect(p.placements.map(item => item.termActivityId)).toEqual(["a"]);
+  await applyMeetingPlacement(f.db, { ...request, previewToken: p.previewToken });
+  expect(f.tx.termActivityRevision.create).toHaveBeenCalledOnce();
 });

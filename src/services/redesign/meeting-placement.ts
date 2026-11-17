@@ -1,3 +1,4 @@
+import { isUndatedMeeting, localDate } from "@/lib/term-revision-rules";
 import { DomainInvariantError } from "./errors";
 
 export type DefaultMeetingTime = {
@@ -12,6 +13,7 @@ type Meeting = {
   ordinal: number | null;
   createdAt: Date | string;
   plannedRevisionId: string | null;
+  deliveredRevisionId?: string | null;
   calendarSlotId: string | null;
   startsAt: Date | string | null;
   status: string | null;
@@ -70,10 +72,6 @@ function localParts(instant: Date, timeZone: string) {
       .formatToParts(instant)
       .map((p) => [p.type, p.value]),
   );
-}
-export function localDate(instant: Date | string, timeZone: string) {
-  const p = localParts(new Date(instant), timeZone);
-  return `${p.year}-${p.month}-${p.day}`;
 }
 function validateTime(time: DefaultMeetingTime) {
   formatter(time.timeZone);
@@ -176,7 +174,7 @@ export function planMeetingPlacement(input: MeetingPlacementInput) {
   );
   const groups = new Map<string, Meeting[]>();
   for (const meeting of meetings.filter(
-    (m) => !m.startsAt && !m.calendarSlotId,
+    (m) => isUndatedMeeting({ delivered: m.deliveredRevisionId, planned: m }),
   )) {
     if (meeting.termLearningModuleSequence === null) {
       unplacedMeetings.push({

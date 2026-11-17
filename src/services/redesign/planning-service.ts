@@ -1,7 +1,7 @@
+import { NotFoundError } from "./errors";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { DomainInvariantError } from "./errors";
 import {
-  computeMoveImpact,
   findUnassessedSkills,
   type ValidationError,
   validateAllCoverageOrdering,
@@ -164,7 +164,7 @@ async function loadSessionOrThrow(
           termLearningModule: { select: { id: true, sequence: true, learningModuleId: true } },
         },
       });
-  if (!session) throw new DomainInvariantError("Session not found");
+  if (!session) throw new NotFoundError("Session not found");
   return session as SessionWithTerm;
 }
 
@@ -179,7 +179,7 @@ async function loadTermOrThrow(
         where: { id: termId },
         select: { id: true, courseId: true, status: true },
       });
-  if (!term) throw new DomainInvariantError("Term not found");
+  if (!term) throw new NotFoundError("Term not found");
   return term;
 }
 
@@ -196,9 +196,9 @@ async function loadTermLearningModuleForTerm(
           select: { id: true, termId: true, sequence: true, learningModuleId: true },
         });
   if (offering && offering.termId !== termId) {
-    throw new DomainInvariantError("Term Learning Module not found");
+    throw new NotFoundError("Term Learning Module not found");
   }
-  if (!offering) throw new DomainInvariantError("Term Learning Module not found");
+  if (!offering) throw new NotFoundError("Term Learning Module not found");
   return offering;
 }
 
@@ -278,7 +278,7 @@ async function assertAssessmentSessionBelongsToTerm(
     where: { id: sessionId },
     select: { id: true, termId: true, status: true, archivedAt: true },
   });
-  if (!session) throw new DomainInvariantError("Session not found");
+  if (!session) throw new NotFoundError("Session not found");
   if (session.termId !== termId) {
     throw new DomainInvariantError("Assessment Session must belong to the same Term");
   }
@@ -460,7 +460,7 @@ async function loadPlanningSnapshot(tx: RedesignTx, termId: string) {
     },
   });
 
-  if (!term) throw new DomainInvariantError("Term not found");
+  if (!term) throw new NotFoundError("Term not found");
 
   const trackedTopics = new Map<
     string,
@@ -1138,7 +1138,7 @@ export async function compareTermWhatIfScenarios(
     const snapshot = await loadPlanningSnapshot(tx, termId);
     const sessionIds = new Set(snapshot.term.sessions.map((session: any) => session.id));
     if (!sessionIds.has(sessionIdA) || !sessionIds.has(sessionIdB)) {
-      throw new DomainInvariantError("Session not found for this Term");
+      throw new NotFoundError("Session not found for this Term");
     }
     compareScenarios(snapshot.termData, sessionIdA, sessionIdB);
     return {
@@ -1227,36 +1227,5 @@ export async function cancelSession(
     }
 
     return updatedSession;
-  });
-}
-
-export async function computeSessionMoveImpact(
-  db: RedesignDb,
-  instructorId: string,
-  sessionId: string,
-  input: MoveSessionInput,
-) {
-  return db.$transaction(async (tx) => {
-    const session = await loadSessionOrThrow(tx, sessionId, instructorId);
-    const snapshot = await loadPlanningSnapshot(tx, session.termId);
-    const targetOffering =
-      input.termLearningModuleId === undefined
-        ? session.termLearningModule
-        : input.termLearningModuleId
-          ? await loadTermLearningModuleForTerm(
-              tx,
-              session.termId,
-              input.termLearningModuleId,
-              instructorId,
-            )
-          : null;
-
-    return computeMoveImpact(
-      sessionId,
-      input.date === undefined ? session.date : input.date ?? null,
-      targetOffering?.sequence ?? DETACHED_SEQUENCE,
-      input.sequence ?? session.sequence,
-      snapshot.termData.coverages,
-    );
   });
 }

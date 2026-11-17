@@ -1,3 +1,4 @@
+import { NotFoundError } from "./errors";
 import { assertTermCodeAvailable, rethrowTermWriteError, validateTermDates } from "./term-validation";
 import { DomainInvariantError } from "./errors";
 import {
@@ -134,7 +135,7 @@ async function loadSourceTerm(tx: RedesignTx, instructorId: string, termId: stri
       },
     },
   });
-  if (!term) throw new DomainInvariantError("Source Term not found");
+  if (!term) throw new NotFoundError("Source Term not found");
   assertOwnedByInstructor(instructorId, term.course?.instructorId, "Source Term not found");
   return term;
 }

@@ -55,38 +55,6 @@ export async function adoptLearningModuleForTerm(
   });
 }
 
-export async function reviseDeliveredLearningModuleForTerm(
-  db: RedesignDb,
-  input: {
-    termLearningModuleId: string;
-    deliveredLearningModuleVersionId: string;
-  },
-) {
-  return db.$transaction(async (tx) => {
-    const offering = await tx.termLearningModule.findUnique({
-      where: { id: input.termLearningModuleId },
-    });
-    if (!offering) throw new DomainInvariantError("Term Learning Module not found");
-
-    const delivered = await tx.learningModuleVersion.findUnique({
-      where: { id_learningModuleId: {
-        id: input.deliveredLearningModuleVersionId,
-        learningModuleId: offering.learningModuleId,
-      } },
-    });
-    if (!delivered) {
-      throw new DomainInvariantError(
-        "Delivered Learning Module version must belong to the adopted Learning Module",
-      );
-    }
-
-    return tx.termLearningModule.update({
-      where: { id: offering.id },
-      data: { deliveredLearningModuleVersionId: delivered.id },
-    });
-  });
-}
-
 export async function listTermLearningModulesForTerm(
   db: RedesignDb,
   instructorId: string,
@@ -171,7 +139,8 @@ export async function createDeliveredRevision(
     draft: LearningModuleVersionDraft;
   },
 ) {
-  return db.$transaction(async (tx) => {
+  try {
+  return await db.$transaction(async (tx) => {
     const offering = await getOwnedTermLearningModuleForInstructor(
       tx,
       input.instructorId,
@@ -206,13 +175,19 @@ export async function createDeliveredRevision(
       publishedAt: new Date(),
     });
 
-    const termLearningModule = await tx.termLearningModule.update({
-      where: { id: offering.id },
+    const advanced = await tx.termLearningModule.updateMany({
+      where: { id: offering.id, deliveredLearningModuleVersionId: input.expectedDeliveredLearningModuleVersionId },
       data: { deliveredLearningModuleVersionId: deliveredVersion.id },
     });
 
+    if (advanced.count !== 1) throw new ConcurrencyConflictError();
+    const termLearningModule = await tx.termLearningModule.findUnique({ where: { id: offering.id } });
     return { termLearningModule, deliveredVersion };
   });
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") throw new ConcurrencyConflictError();
+    throw error;
+  }
 }
 
 type TopicSnapshotWithTopicId = TopicSnapshotInput & { topicId: string };

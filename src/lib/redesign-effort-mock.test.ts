@@ -273,3 +273,32 @@ it("invalidates a delivered preview when its inherited planned effort changes", 
     }),
   ).toThrow("stale");
 });
+
+it("preserves omitted Term revision lists and honors explicit removal", () => {
+  const term = mock.listTerms(mock.listCourses()[0].id).find(row => row.status === "active")!;
+  const listed = mock.listTermActivitiesWithRevisions(term.id);
+  const activity = listed.termActivities[0];
+  const current = listed.revisionsByTermActivityId[activity.id].planned!;
+  const request = { title: current.title, detail: current.detail, advancePointer: "planned" as const, topicActions: [{ topicVersionId: "topic", action: "introduced" as const }], milestones: [{ role: "due" as const, label: "Keep", occursAt: "2026-12-01T12:00:00Z", anchorPolicy: "standalone" as const }] };
+  const p = mock.previewTermActivityRevision(activity.id, request);
+  mock.applyTermActivityRevision(activity.id, { ...request, previewToken: p.previewToken, expectedCurrentRevisionId: p.expectedCurrentRevisionId });
+  const omitted = mock.previewTermActivityRevision(activity.id, { title: "Edit", detail: current.detail, advancePointer: "planned" });
+  expect(omitted.proposedRevision.topicActions).toMatchObject([{ topicVersionId: "topic" }]);
+  expect(omitted.proposedRevision.milestones).toMatchObject([{ label: "Keep" }]);
+  const empty = mock.previewTermActivityRevision(activity.id, { title: "Edit", detail: current.detail, advancePointer: "planned", topicActions: [], milestones: [] });
+  expect(empty.proposedRevision.topicActions).toEqual([]);
+  expect(empty.proposedRevision.milestones).toEqual([]);
+});
+
+it("invalidates an omitted-list preview when the inherited planned collections change", () => {
+  const term = mock.listTerms(mock.listCourses()[0].id).find(row => row.status === "active")!;
+  const listed = mock.listTermActivitiesWithRevisions(term.id);
+  const activity = listed.termActivities[0];
+  const revision = listed.revisionsByTermActivityId[activity.id].planned!;
+  const request = { title: revision.title, detail: revision.detail, advancePointer: "delivered" as const };
+  const delivered = mock.previewTermActivityRevision(activity.id, request);
+  const planned = { ...request, advancePointer: "planned" as const, topicActions: [{ topicVersionId: "topic", action: "introduced" as const }] };
+  const p = mock.previewTermActivityRevision(activity.id, planned);
+  mock.applyTermActivityRevision(activity.id, { ...planned, previewToken: p.previewToken, expectedCurrentRevisionId: p.expectedCurrentRevisionId });
+  expect(() => mock.applyTermActivityRevision(activity.id, { ...request, previewToken: delivered.previewToken, expectedCurrentRevisionId: delivered.expectedCurrentRevisionId })).toThrow("stale");
+});

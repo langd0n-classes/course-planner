@@ -74,6 +74,7 @@ function fixture() {
   const term = { id: "term", status: "active", course: { instructorId: "i" } };
   const tx: any = {
     term: { findUnique: vi.fn(async () => term) },
+    activityVersionMilestoneTemplate: { findUnique: vi.fn(async () => ({ activityVersionId: "v" })) },
     termActivity: {
       findMany: vi.fn(async () => [{ ...row, revisions: [] }, meeting]),
       findUnique: vi.fn(async () => row),

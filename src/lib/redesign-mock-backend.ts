@@ -1,3 +1,4 @@
+import { effectiveRevision } from "./term-revision-rules";
 import type { ActivityDto, ActivityVersionDto, CreateActivityRequest, UpsertActivityVersionRequest, CourseEffortSizeDto, CourseEffortPartKindDto, CourseEffortSizeRequest, CourseEffortPartKindRequest, TermActivityDto, TermActivityRevisionDto, TermActivityRevisionPreviewRequest, TermActivityRevisionApplyRequest } from "./redesign-contract";
 import { effectiveEffort, validateEffort } from "./effort";
 import {
@@ -1321,7 +1322,7 @@ export function previewTermActivityRevision(
   const currentId =
     input.advancePointer === "planned"
       ? activity.plannedRevisionId
-      : (activity.deliveredRevisionId ?? activity.plannedRevisionId);
+      : effectiveRevision({ delivered: activity.deliveredRevisionId, planned: activity.plannedRevisionId });
   const current = currentId ? store.termActivityRevisions.get(currentId) : null;
   const detail = keepEffortOverride(
     input.detail,
@@ -1332,6 +1333,8 @@ export function previewTermActivityRevision(
       ? null
       : effectiveEffort(baseEffort, detail);
   const pointer = input.advancePointer === "planned" ? activity.plannedRevisionId : activity.deliveredRevisionId;
+  const topicActions = input.topicActions ?? current?.topicActions ?? [];
+  const milestones = input.milestones ?? current?.milestones ?? [];
   const revision: TermActivityRevisionDto = {
     id: nextId("term_revision"),
     termActivityId: id, revision: [...store.termActivityRevisions.values()].filter((r) => r.termActivityId === id).length + 1,
@@ -1343,10 +1346,10 @@ export function previewTermActivityRevision(
     changeReason: input.changeReason ?? null,
     createdByInstructorId: INSTRUCTOR_ID,
     createdAt: now(),
-    detail: structuredClone(detail), topicActions: (input.topicActions ?? []).map((action) => ({ ...action, id: nextId("action"), termActivityRevisionId: "", notes: action.notes ?? null, provenance: action.provenance ?? null })), milestones: (input.milestones ?? []).map((milestone) => ({ ...milestone, id: nextId("milestone"), termActivityRevisionId: "", sourceTemplateId: milestone.sourceTemplateId ?? null, linkedTermActivityId: milestone.linkedTermActivityId ?? null, occursAt: milestone.occursAt ?? null, timeZone: milestone.timeZone ?? null, notes: milestone.notes ?? null, provenance: milestone.provenance ?? null })),
+    detail: structuredClone(detail), topicActions: topicActions.map((action) => ({ ...action, id: nextId("action"), termActivityRevisionId: "", notes: action.notes ?? null, provenance: action.provenance ?? null })), milestones: milestones.map((milestone) => ({ ...milestone, id: nextId("milestone"), termActivityRevisionId: "", sourceTemplateId: milestone.sourceTemplateId ?? null, linkedTermActivityId: milestone.linkedTermActivityId ?? null, occursAt: milestone.occursAt ?? null, timeZone: milestone.timeZone ?? null, notes: milestone.notes ?? null, provenance: milestone.provenance ?? null })),
   };
   for (const row of [...revision.topicActions, ...revision.milestones]) row.termActivityRevisionId = revision.id;
-  return { kind: "preview" as const, previewToken: JSON.stringify({ id, pointer, input: { ...input, detail, advancePointer: undefined } }), expectedCurrentRevisionId: pointer, proposedRevision: revision, impact: { issues: [], topicActionDuplicates: [], calendarConflicts: [] } };
+  return { kind: "preview" as const, previewToken: JSON.stringify({ id, pointer, input: { ...input, detail, topicActions, milestones, advancePointer: undefined } }), expectedCurrentRevisionId: pointer, proposedRevision: revision, impact: { issues: [], topicActionDuplicates: [], calendarConflicts: [] } };
 }
 export function applyTermActivityRevision(id: Id, input: TermActivityRevisionApplyRequest) {
   const { previewToken, expectedCurrentRevisionId, ...draft } = input;

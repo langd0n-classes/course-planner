@@ -194,6 +194,7 @@ describe("buildTermDailyDriver", () => {
       termActivities: [meeting],
       revisionsByTermActivityId: { [meeting.id]: { planned: revision, delivered: null } },
       today: "2026-02-10",
+      timeZone: "America/New_York",
     });
     const timeline = buildTermCalendarTimeline({
       calendarSlots: [{

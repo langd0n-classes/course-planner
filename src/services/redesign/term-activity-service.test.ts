@@ -68,7 +68,7 @@ function baseActivityVersion(overrides: Record<string, unknown> = {}) {
 
 describe("Term Activity adoption", () => {
   it.each(["same apply", "already adopted", "missing", "no link", "archived", "self"])("creates template milestones: %s", async (linkCase) => {
-    const rows: any[] = ["already adopted", "archived"].includes(linkCase) ? [{ id: "ta-z-meeting", activityId: "z-meeting", adoptedLabel: "Existing meeting", archivedAt: linkCase === "archived" ? new Date() : null }] : [];
+    const rows: any[] = ["already adopted", "archived"].includes(linkCase) ? [{ termId: "term-1", id: "ta-z-meeting", activityId: "z-meeting", adoptedLabel: "Existing meeting", archivedAt: linkCase === "archived" ? new Date() : null }] : [];
     const milestones: any[] = [];
     const effortDetails: any[] = [];
     const templates = [0, 1].map((sequence) => ({
@@ -85,7 +85,9 @@ describe("Term Activity adoption", () => {
           ...(where.id === "a-work" ? { meetingDetail: null, courseworkDetail: { effortMinMinutes: 60, effortMaxMinutes: 120 } } : {}) });
       } },
       courseActivityTypeVersion: { findUnique: async () => ({}) },
+      activityVersionMilestoneTemplate: { findUnique: async () => ({ activityVersionId: "a-work" }) },
       termActivity: {
+        findUnique: async ({ where }: any) => rows.find(row => row.id === where.id),
         count: async () => rows.length,
         findMany: async () => rows,
         create: async ({ data }: any) => { const row = { id: `ta-${data.activityId}`, ...data }; rows.push(row); return row; },
@@ -517,7 +519,7 @@ describe("Term Activity revisions", () => {
               sourceTemplateId: null,
               role: "due",
               label: "Due",
-              linkedTermActivityId: "ta-1",
+              linkedTermActivityId: "ta-other",
               occursAt: new Date("2026-09-02T08:00:00.000Z"),
               timeZone: "America/Los_Angeles",
               anchorPolicy: "fixed_instant",
@@ -556,7 +558,7 @@ describe("Term Activity revisions", () => {
         {
           role: "due" as const,
           label: "Due",
-          linkedTermActivityId: "ta-1",
+          linkedTermActivityId: "ta-other",
           occursAt: new Date("2026-09-02T08:00:00.000Z"),
           timeZone: "America/Los_Angeles",
           anchorPolicy: "fixed_instant" as const,
@@ -564,7 +566,7 @@ describe("Term Activity revisions", () => {
         {
           role: "review" as const,
           label: "Review",
-          linkedTermActivityId: "ta-1",
+          linkedTermActivityId: "ta-other",
           anchorPolicy: "follow_activity" as const,
         },
         {
@@ -599,7 +601,7 @@ describe("Term Activity revisions", () => {
       }),
       expect.objectContaining({
         label: "Review",
-        linkedTermActivityId: "ta-1",
+        linkedTermActivityId: "ta-other",
         occursAt: null,
         anchorPolicy: "follow_activity",
       }),

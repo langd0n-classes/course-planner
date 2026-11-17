@@ -1,5 +1,6 @@
 "use client";
 
+import { effectiveRevision, isUndatedMeeting, localDate } from "@/lib/term-revision-rules";
 import Link from "next/link";
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type FormEvent } from "react";
 import { countMilestoneDatingChanges } from "@/lib/milestone-dating-count";
@@ -156,7 +157,7 @@ export default function TermWorkspacePage({ termId }: Props) {
   const transitionButtonRef = useRef<HTMLButtonElement | null>(null);
   const undatedMeetings = termActivities.filter(activity => {
     const revision = activityRevisions[activity.id]?.planned;
-    return !activity.archivedAt && revision?.detail.behaviorFamily === "meeting" && revision.detail.status !== "canceled" && !revision.detail.startsAt && !revision.detail.calendarSlotId;
+    return !activity.archivedAt && revision?.detail.behaviorFamily === "meeting" && revision.detail.status !== "canceled" && isUndatedMeeting({ delivered: activityRevisions[activity.id]?.delivered, planned: revision.detail });
   });
   const todayIso = useMemo(() => getTodayIsoDate(), []);
   const termTimeZone = term?.meetingPatterns?.[0]?.timeZone ?? null;
@@ -168,7 +169,7 @@ export default function TermWorkspacePage({ termId }: Props) {
   }), [termActivities, activityRevisions, calendarSlots, topicVersionsById, prerequisites, termTimeZone]);
   const hasDatedMeetings = termActivities.some(activity => {
     const revisions = activityRevisions[activity.id];
-    const revision = revisions?.delivered ?? revisions?.planned;
+    const revision = effectiveRevision(revisions);
     return !activity.archivedAt && revision?.detail.behaviorFamily === "meeting" && Boolean(revision.detail.startsAt || revision.detail.calendarSlotId);
   });
   const datingCount = datingPreview ? countMilestoneDatingChanges(datingPreview) : 0;
@@ -597,7 +598,8 @@ export default function TermWorkspacePage({ termId }: Props) {
       <ActiveTermDailyDriver
         termActivities={termActivities}
         revisionsByTermActivityId={activityRevisions}
-        today={todayIso}
+        today={termTimeZone ? localDate(new Date(), termTimeZone)! : todayIso}
+        timeZone={termTimeZone}
         learningModuleLabels={learningModuleLabels}
         topicLabels={topicLabels}
         editable={term.status === "active"}

@@ -1,3 +1,4 @@
+import { effectiveRevision, localDate as day } from "./term-revision-rules";
 import type {
   CalendarSlotDto,
   Id,
@@ -47,42 +48,6 @@ export type CheckTermOrderArgs = Pick<
 };
 type Occurrence = { id: Id; date: string | null };
 
-const formatters = new Map<string, Intl.DateTimeFormat>();
-/**
- * The calendar date of a DTO value. A date-only value is returned as written.
- * An instant is converted to its local date in `timeZone`; with no zone, or an
- * invalid one, the UTC date is used. The host time zone is never used.
- */
-function day(
-  value: string | null | undefined,
-  timeZone?: string | null,
-  fallbackZone?: string | null,
-): string | null {
-  if (!value) return null;
-  if (value.length <= 10) return value;
-  const instant = new Date(value);
-  if (Number.isNaN(instant.getTime())) return value.slice(0, 10);
-  if (!timeZone) return instant.toISOString().slice(0, 10);
-  try {
-    let formatter = formatters.get(timeZone);
-    if (!formatter) {
-      formatter = new Intl.DateTimeFormat("en-CA", {
-        timeZone,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      });
-      formatters.set(timeZone, formatter);
-    }
-    const parts = formatter.formatToParts(instant);
-    const part = (type: string) => parts.find((p) => p.type === type)!.value;
-    return `${part("year")}-${part("month")}-${part("day")}`;
-  } catch {
-    return fallbackZone
-      ? day(value, fallbackZone)
-      : instant.toISOString().slice(0, 10);
-  }
-}
 const compare = (a: string | null, b: string | null): number =>
   a === b ? 0 : a === null ? -1 : b === null ? 1 : a < b ? -1 : 1;
 const canceled = (value: string | null | undefined) =>
@@ -99,7 +64,7 @@ export function checkTermOrder(args: CheckTermOrderArgs): TermOrderResult {
   const slots = new Map(args.calendarSlots.map((s) => [s.id, s.date]));
   const effective = args.termActivities.flatMap((activity) => {
     const revisions = args.revisionsByTermActivityId[activity.id];
-    const revision = revisions?.delivered ?? revisions?.planned;
+    const revision = effectiveRevision(revisions);
     if (
       activity.archivedAt != null ||
       canceled(activity.lifecycleState) ||
