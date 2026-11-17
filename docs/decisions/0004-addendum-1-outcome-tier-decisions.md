@@ -1,8 +1,8 @@
 # ADR-0004 Addendum 1: Outcome tier decisions
 
-- **Status:** proposed 2026-11-16
+- **Status:** accepted 2026-11-16
 - **Amends:** ADR-0004 (accepted 2026-08-14). The decision in ADR-0004 stands.
-- **Deciders:** Langdon White (pending)
+- **Deciders:** Langdon White
 - **Issue:** #72
 
 ADR-0004 chose a coarse Outcome tier that Topics roll up into, and left five
@@ -11,8 +11,8 @@ answered. This addendum gives a recommendation and a reason for each question
 that is still open, so that the Outcome tier can be split into build issues.
 
 Each section is marked **settled** (ADR-0004 decided it; restated here only to
-close the issue's question) or **recommended** (new in this addendum; it needs
-the operator's acceptance).
+close the issue's question) or **recommended** (new in this addendum; accepted by
+the operator on 2026-11-16).
 
 ## 1. One concept or two — settled
 
@@ -235,14 +235,14 @@ orders first, and it should be confirmed there against real use.
 ADR-0004's sequencing holds: completion and the reteach signal ship before the
 Outcome tier.
 
-| Order | Issue to open | Depends on |
+| Order | Issue | Depends on |
 |---|---|---|
-| Any time | Remove `Topic.learningModuleId` readers and writers; make `learningModuleCode` optional | — |
-| 1 | Term-scoped Topic completion, revocable, with informal and assertion evidence; reteach list | — |
-| 2 | `Outcome` and `OutcomeVersion` with the Topic set; Course workspace editing; orphans reported | — |
-| 3 | Term pin of Outcome versions; roll-up report | 1, 2 |
-| 4 | Outcomes in the generic demo exemplar | 2 |
-| Later | Drop the `Topic.learningModuleId` column | first row |
+| Any time | #91: Remove `Topic.learningModuleId` readers and writers; make `learningModuleCode` optional | — |
+| 1 | #92: Term-scoped Topic completion, revocable, with informal and assertion evidence; reteach list | — |
+| 2 | #93: `Outcome` and `OutcomeVersion` with the Topic set; Course workspace editing; orphans reported | — |
+| 3 | #94: Term pin of Outcome versions; roll-up report | 1, 2 |
+| 4 | #95: Outcomes in the generic demo exemplar | 2 |
+| Later | #96: Drop the `Topic.learningModuleId` column | first row |
 
 ## Sources
 
