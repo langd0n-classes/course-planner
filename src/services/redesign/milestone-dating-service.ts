@@ -49,6 +49,7 @@ type Row = {
   adoptedLabel: string;
   plannedRevisionId: string | null;
   plannedRevision: Revision | null;
+  archivedAt?: Date | null;
   activityTypeVersion?: { activityType: { behaviorFamily: string } };
   revisions: { revision: number }[];
 };
@@ -73,8 +74,15 @@ async function buildPreview(tx: RedesignTx, input: Input) {
   const [rows, slots]: [Row[], { id: string; date: Date }[]] =
     await Promise.all([
       tx.termActivity.findMany({
-        where: { termId: input.termId, archivedAt: null },
+        where: { termId: input.termId },
         include: {
+          revisions: {
+            where: {
+              milestones: { some: { sourceTemplateId: { not: null } } },
+            },
+            take: 1,
+            select: { revision: true },
+          },
           plannedRevision: { include },
           activityTypeVersion: { include: { activityType: true } },
         },
@@ -90,6 +98,8 @@ async function buildPreview(tx: RedesignTx, input: Input) {
     activityId: row.activityId,
     adoptedLabel: row.adoptedLabel,
     plannedRevisionId: row.plannedRevisionId,
+    archivedAt: row.archivedAt ?? null,
+    hasTemplateMilestoneHistory: (row.revisions?.length ?? 0) > 0,
     milestones: row.plannedRevision?.milestones ?? [],
     templates:
       row.plannedRevision?.baseActivityVersion.milestoneTemplates ?? [],

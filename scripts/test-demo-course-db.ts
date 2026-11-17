@@ -85,6 +85,38 @@ async function main() {
     const dating = await previewMilestoneDating(db, datingInput);
     assert.equal(dating.dates.length, 4);
     assert.equal(dating.creates.length, 0);
+    const datingState = () => db.termActivity.findMany({
+      where: { termId: currentTerm.id }, orderBy: { id: "asc" },
+      include: { revisions: { orderBy: { revision: "asc" }, include: {
+        milestones: { orderBy: { id: "asc" } }, topicActions: { orderBy: { id: "asc" } },
+        meetingDetail: true, courseworkDetail: true, assessmentDetail: true,
+      } } },
+    });
+    const beforeStale = await datingState();
+    await assert.rejects(applyMilestoneDating(db, { ...datingInput, previewToken: "stale" }), { name: "ConcurrencyConflictError" });
+    assert.deepEqual(await datingState(), beforeStale);
+    const changedActivity = beforeStale.find(row => row.plannedRevisionId && row.revisions.some(revision => revision.milestones.length))!;
+    await db.termActivity.update({ where: { id: changedActivity.id }, data: { plannedRevisionId: null } });
+    const afterConcurrentChange = await datingState();
+    await assert.rejects(applyMilestoneDating(db, { ...datingInput, previewToken: dating.previewToken }), { name: "ConcurrencyConflictError" });
+    assert.deepEqual(await datingState(), afterConcurrentChange);
+    await db.termActivity.update({ where: { id: changedActivity.id }, data: { plannedRevisionId: changedActivity.plannedRevisionId } });
+    const previousRevision = changedActivity.revisions.find(revision => revision.id === changedActivity.plannedRevisionId)!;
+    const withoutMilestones = await db.termActivityRevision.create({ data: {
+      termActivityId: changedActivity.id,
+      baseActivityVersionId: previousRevision.baseActivityVersionId,
+      revision: Math.max(...changedActivity.revisions.map(revision => revision.revision)) + 1,
+      title: previousRevision.title,
+      courseworkDetail: previousRevision.courseworkDetail ? { create: {} } : undefined,
+      assessmentDetail: previousRevision.assessmentDetail ? { create: {} } : undefined,
+    } });
+    await db.termActivity.update({ where: { id: changedActivity.id }, data: { plannedRevisionId: withoutMilestones.id } });
+    const removedPreview = await previewMilestoneDating(db, datingInput);
+    assert.equal(removedPreview.creates.filter(item => item.termActivityId === changedActivity.id).length, 0);
+    await db.termActivity.update({ where: { id: changedActivity.id }, data: { plannedRevisionId: changedActivity.plannedRevisionId } });
+    await db.termActivityRevision.delete({ where: { id: withoutMilestones.id } });
+    console.log("Postgres milestone dating: earlier template milestones prevent restoring instructor removals passed");
+    console.log("Postgres milestone dating: stale token and concurrent Activity change conflict without persisted writes passed");
     const dated = await applyMilestoneDating(db, { ...datingInput, previewToken: dating.previewToken });
     assert.equal(dated.datedCount, dating.dates.length);
     assert.equal(dated.createdCount, dating.creates.length);

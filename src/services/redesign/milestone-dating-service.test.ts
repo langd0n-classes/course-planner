@@ -75,7 +75,7 @@ function fixture() {
   const tx: any = {
     term: { findUnique: vi.fn(async () => term) },
     termActivity: {
-      findMany: vi.fn(async () => [row, meeting]),
+      findMany: vi.fn(async () => [{ ...row, revisions: [] }, meeting]),
       findUnique: vi.fn(async () => row),
       updateMany: vi.fn(async () => ({ count: 1 })),
     },
@@ -211,3 +211,40 @@ it("backfills an undated milestone whose linked meeting has no planned revision 
   expect(p.creates).toHaveLength(1);
   expect(p.undated[0].reason).toBe("linked_meeting_undated");
 });
+
+it("does not backfill when an earlier revision had a template milestone", async () => {
+  const f = fixture();
+  f.row.plannedRevision.milestones = [];
+  f.tx.termActivity.findMany.mockResolvedValue([f.row, f.meeting]);
+  const result = await previewMilestoneDating(f.db, request);
+  expect(result.creates).toEqual([]);
+});
+it.each(["stale token", "changed Activity"])(
+  "leaves persisted state unchanged for %s",
+  async (kind) => {
+    const f = fixture();
+    const before = structuredClone(f.row);
+    const p = await previewMilestoneDating(f.db, request);
+    if (kind === "changed Activity") {
+      f.tx.termActivity.findUnique.mockResolvedValue({
+        ...f.row,
+        plannedRevisionId: "concurrent",
+      });
+    }
+    await expect(
+      applyMilestoneDating(f.db, {
+        ...request,
+        previewToken: kind === "stale token" ? "stale" : p.previewToken,
+      }),
+    ).rejects.toMatchObject({ name: "ConcurrencyConflictError" });
+    expect(f.row).toEqual(before);
+    for (const model of [
+      f.tx.termActivityRevision,
+      f.tx.termCourseworkActivityRevision,
+      f.tx.termActivityRevisionTopicAction,
+      f.tx.termActivityMilestone,
+    ])
+      expect(model.create).not.toHaveBeenCalled();
+    expect(f.tx.termActivity.updateMany).not.toHaveBeenCalled();
+  },
+);

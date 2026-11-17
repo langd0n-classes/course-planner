@@ -453,20 +453,53 @@ it("keeps the workspace and other checks when prerequisite loading fails", async
 });
 it("offers milestone dating and reloads after apply", async () => {
   const { backend } = withDatedMeeting();
-  const item = { termActivityId: "work", adoptedLabel: "Practice", milestoneId: "m", sourceTemplateId: "t", label: "Due", linkedTermActivityId: "meeting", linkedMeetingLabel: "Lecture", occursAt: "2026-02-10T14:00:00Z", timeZone: "UTC" };
-  const preview = { kind: "preview" as const, previewToken: "token", dates: [item], creates: [], undated: [], alreadyDatedCount: 0 };
+  const item = { termActivityId: "work", adoptedLabel: "Practice", milestoneId: null, sourceTemplateId: "t", label: "Due", linkedTermActivityId: "meeting", linkedMeetingLabel: "Lecture", occursAt: "2026-02-10T14:00:00Z", timeZone: "UTC" };
+  const preview = { kind: "preview" as const, previewToken: "token", dates: [item], creates: [item], undated: [], alreadyDatedCount: 0 };
   const load = vi.fn(async () => preview);
-  const apply = vi.fn(async () => { load.mockResolvedValue({ ...preview, dates: [] }); return { kind: "applied" as const, datedCount: 1, createdCount: 0 }; });
+  const apply = vi.fn(async () => { load.mockResolvedValue({ ...preview, dates: [], creates: [] }); return { kind: "applied" as const, datedCount: 1, createdCount: 0 }; });
   setMockBackend({ ...backend, previewMilestoneDating: load, applyMilestoneDating: apply }); render(<TermWorkspacePage termId="term-1" />);
   expect(await screen.findByText("1 milestone(s) ready to date or create.")).toBeInTheDocument();
+  const announcement = screen.getByRole("status", { name: "Milestone dating result" });
+  expect(announcement).toHaveAttribute("aria-live", "polite");
+  expect(announcement).toBeEmptyDOMElement();
   fireEvent.click(screen.getByRole("button", { name: "Date milestones" }));
   const button = await screen.findByRole("button", { name: "Apply" });
   await waitFor(() => expect(button).toBeEnabled()); fireEvent.click(button);
   await waitFor(() => expect(backend.listTermActivitiesWithRevisions).toHaveBeenCalledTimes(2));
   expect(screen.queryByRole("button", { name: "Date milestones" })).not.toBeInTheDocument();
+  await waitFor(() => expect(announcement).toHaveTextContent("1 milestone(s) dated or created."));
+  expect(announcement).toHaveFocus();
 });
 it("does not preview milestone dating for a closed Term", async () => {
   const { backend } = withDatedMeeting(); backend.getTerm.mockResolvedValue({ ...await backend.getTerm(), status: "closed" });
   setMockBackend(backend); render(<TermWorkspacePage termId="term-1" />); await screen.findByText("Spring 2026");
   expect(backend.previewMilestoneDating).not.toHaveBeenCalled();
+});
+
+it("keeps the workspace usable when dating preview fails and retries", async () => {
+  const { backend } = withDatedMeeting();
+  backend.previewMilestoneDating.mockRejectedValueOnce(new Error("Offline"));
+  setMockBackend(backend);
+  render(<TermWorkspacePage termId="term-1" />);
+  expect(await screen.findByText(/Milestone dates could not be checked/)).toBeInTheDocument();
+  expect(screen.getByText("Calendar timeline")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Activate term" })).toBeEnabled();
+  fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+  await waitFor(() => expect(screen.queryByText(/Milestone dates could not be checked/)).not.toBeInTheDocument());
+});
+it("fetches only the first 100 distinct missing Topic versions in parallel and reports unmapped actions", async () => {
+  const { backend } = withDatedMeeting();
+  const version = (id: string) => ({ id, topicId: id, revision: 1, title: id, description: null, category: null, changeSummary: null, publishedAt: null, createdAt: "2026-01-01T00:00:00Z", createdByInstructorId: null, changeReason: null });
+  const known = version("known");
+  const topicActions = ["known", ...Array.from({ length: 102 }, (_, i) => `missing-${i}`), "missing-0"].map((topicVersionId, i) => ({ id: `a-${i}`, termActivityRevisionId: "revision", topicVersionId, action: "introduced" as const, notes: null, provenance: null }));
+  backend.listTermActivitiesWithRevisions.mockResolvedValue({ termActivities: [undatedMeeting], revisionsByTermActivityId: { meeting: { planned: { ...datedRevision, topicActions }, delivered: null } } });
+  const releases: (() => void)[] = [];
+  const getTopicVersion = vi.fn((id: string) => new Promise<ReturnType<typeof version>>(resolve => { releases.push(() => resolve(version(id))); }));
+  setMockBackend({ ...backend, listTopics: async () => [{ id: "known", courseId: "course-1", currentVersionId: "known", stableCode: "K", archivedAt: null }], getTopic: async () => ({ topic: { id: "known", courseId: "course-1", currentVersionId: "known", stableCode: "K", archivedAt: null }, currentVersion: known }), getTopicVersion });
+  render(<TermWorkspacePage termId="term-1" />);
+  await waitFor(() => expect(getTopicVersion).toHaveBeenCalledTimes(100));
+  expect(getTopicVersion.mock.calls.map(([id]) => id)).toEqual(Array.from({ length: 100 }, (_, i) => `missing-${i}`));
+  releases.forEach(release => release());
+  expect(await screen.findByText(/2 Topic actions could not be checked/)).toBeInTheDocument();
+  expect(screen.getByText("Calendar timeline")).toBeInTheDocument();
 });

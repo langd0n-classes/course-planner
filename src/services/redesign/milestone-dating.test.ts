@@ -138,3 +138,38 @@ describe("milestone dating planner", () => {
     });
   });
 });
+
+it("does not restore templates after any revision had template milestones", () => {
+  const a = datingFixture();
+  a[0].milestones = [];
+  Object.assign(a[0], { hasTemplateMilestoneHistory: true });
+  expect(plan(a).creates).toEqual([]);
+});
+it.each([
+  "invalid_time_zone",
+  "invalid_default_time",
+  "linked_meeting_canceled",
+  "linked_activity_archived",
+])("isolates %s from other milestones", (reason) => {
+  const a = datingFixture();
+  const good = datingFixture()[0];
+  good.id = "good";
+  good.templates = good.templates.map((t) => ({ ...t, id: "good-template" }));
+  good.milestones = good.milestones.map((m) => ({
+    ...m,
+    sourceTemplateId: "good-template",
+    linkedTermActivityId: "good-meeting",
+  }));
+  const goodMeeting = { ...datingFixture()[1], id: "good-meeting" };
+  if (reason === "invalid_time_zone")
+    a[0].templates[0].timeZone = "Invalid/Zone";
+  if (reason === "invalid_default_time") a[0].templates[0].defaultTime = "9:00";
+  if (reason === "linked_meeting_canceled")
+    Object.assign(a[1].meeting!, { status: "canceled" });
+  if (reason === "linked_activity_archived")
+    Object.assign(a[1], { archivedAt: new Date() });
+  const result = plan([...a, good, goodMeeting]);
+  expect(result.undated).toEqual([expect.objectContaining({ reason })]);
+  expect(result.dates).toHaveLength(1);
+  expect(result.dates[0].termActivityId).toBe("good");
+});

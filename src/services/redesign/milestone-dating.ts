@@ -9,12 +9,22 @@ export type MilestoneDatingActivity = {
   activityId: string;
   adoptedLabel: string;
   plannedRevisionId: string | null;
+  archivedAt?: Date | null;
+  hasTemplateMilestoneHistory?: boolean;
   milestones: (TermActivityMilestoneInput & { id: string })[];
   templates: (MilestoneTemplateDraft & { id: string })[];
   sourceTemplates?: (MilestoneTemplateDraft & { id: string })[];
-  meeting: { startsAt: Date | null; calendarSlotId: string | null } | null;
+  meeting: {
+    startsAt: Date | null;
+    calendarSlotId: string | null;
+    status?: string | null;
+  } | null;
 };
 export type MilestoneDatingReason =
+  | "invalid_time_zone"
+  | "invalid_default_time"
+  | "linked_meeting_canceled"
+  | "linked_activity_archived"
   | "linked_meeting_undated"
   | "linked_activity_not_a_meeting"
   | "no_template"
@@ -41,14 +51,20 @@ export function planMilestoneDating(input: {
   let alreadyDatedCount = 0;
   const slots = new Map(input.slots.map((s) => [s.id, s.date]));
   for (const activity of input.activities) {
+    if (activity.archivedAt) continue;
     const milestones: (TermActivityMilestoneInput & { id: string | null })[] = [
       ...activity.milestones,
     ];
-    for (const template of activity.templates) {
+    const hasTemplateMilestones =
+      activity.hasTemplateMilestoneHistory ||
+      activity.milestones.some((m) => m.sourceTemplateId);
+    for (const template of hasTemplateMilestones ? [] : activity.templates) {
       if (milestones.some((m) => m.sourceTemplateId === template.id)) continue;
       const linked = input.activities.find(
         (a) =>
-          a.activityId === template.linkedActivityId && a.id !== activity.id,
+          a.activityId === template.linkedActivityId &&
+          a.id !== activity.id &&
+          !a.archivedAt,
       );
       if (!linked) continue;
       const milestone = {
@@ -101,9 +117,26 @@ export function planMilestoneDating(input: {
             ? "no_time_zone"
             : !linked
               ? "linked_meeting_undated"
-              : !linked.meeting
-                ? "linked_activity_not_a_meeting"
-                : null;
+              : linked.archivedAt
+                ? "linked_activity_archived"
+                : !linked.meeting
+                  ? "linked_activity_not_a_meeting"
+                  : null;
+      if (reason) {
+        undated.push({ ...entry, reason });
+        continue;
+      }
+      if (linked!.meeting!.status === "canceled")
+        reason = "linked_meeting_canceled";
+      else if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(template!.defaultTime!))
+        reason = "invalid_default_time";
+      else {
+        try {
+          new Intl.DateTimeFormat("en", { timeZone: template!.timeZone! });
+        } catch {
+          reason = "invalid_time_zone";
+        }
+      }
       if (reason) {
         undated.push({ ...entry, reason });
         continue;

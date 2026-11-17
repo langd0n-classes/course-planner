@@ -1503,7 +1503,7 @@ export type CourseEffortSizeRequest = EffortRange & { label: string };
 export type CourseEffortPartKindRequest = { label: string };
 export type ReorderCourseEffortRequest = { ids: Id[] };
 
-export type MilestoneDatingReason = "linked_meeting_undated" | "linked_activity_not_a_meeting" | "no_template" | "no_default_time" | "no_time_zone" | "local_time_does_not_exist";
+export type MilestoneDatingReason = "invalid_time_zone" | "invalid_default_time" | "linked_meeting_canceled" | "linked_activity_archived" | "linked_meeting_undated" | "linked_activity_not_a_meeting" | "no_template" | "no_default_time" | "no_time_zone" | "local_time_does_not_exist";
 export type MilestoneDatingItemDto = {
   termActivityId: Id;
   adoptedLabel: string;

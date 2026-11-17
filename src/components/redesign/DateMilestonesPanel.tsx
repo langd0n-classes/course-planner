@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { countMilestoneDatingChanges } from "@/lib/milestone-dating-count";
 import { redesignApi } from "@/lib/redesign-api-client";
 import type {
   MilestoneDatingPreviewResponse,
@@ -8,6 +9,10 @@ import type {
 } from "@/lib/redesign-contract";
 
 const reasons: Record<MilestoneDatingReason, string> = {
+  invalid_time_zone: "The template has an invalid time zone.",
+  invalid_default_time: "The template time must use HH:MM in 24-hour time.",
+  linked_meeting_canceled: "The linked meeting is canceled.",
+  linked_activity_archived: "The linked Activity is archived.",
   linked_meeting_undated: "The linked meeting has no date.",
   linked_activity_not_a_meeting: "The linked Activity is not a meeting.",
   no_template: "The source template is missing.",
@@ -19,7 +24,7 @@ const reasons: Record<MilestoneDatingReason, string> = {
 type Props = {
   termId: string;
   timeZone: string | null;
-  onApplied: () => void | Promise<void>;
+  onApplied: (count: number) => void | Promise<void>;
 };
 export default function DateMilestonesPanel({
   termId,
@@ -73,7 +78,7 @@ export default function DateMilestonesPanel({
       await redesignApi.applyMilestoneDating(termId, {
         previewToken: preview.previewToken,
       });
-      await onApplied();
+      await onApplied(countMilestoneDatingChanges(preview));
     } catch (caught) {
       setError(
         typeof caught === "object" &&
@@ -107,7 +112,7 @@ export default function DateMilestonesPanel({
         {busy
           ? "Working…"
           : preview
-            ? `${preview.dates.length} milestones to date; ${preview.creates.length} to create.`
+            ? `${countMilestoneDatingChanges(preview)} milestone(s) ready to date or create.`
             : ""}
       </div>
       {error ? (

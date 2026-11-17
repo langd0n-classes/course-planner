@@ -123,3 +123,34 @@ it("disables apply for an empty preview", async () => {
   ).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
 });
+
+it("counts a created and dated milestone once, as the workspace notice does", async () => {
+  setMockBackend({
+    previewMilestoneDating: async () => ({
+      ...preview,
+      dates: [{ ...preview.dates[0], milestoneId: null }],
+      creates: [{ ...item, milestoneId: null }],
+    }),
+  });
+  mount();
+  expect(
+    await screen.findByText("1 milestone(s) ready to date or create."),
+  ).toBeInTheDocument();
+});
+it.each([
+  ["invalid_time_zone", "The template has an invalid time zone."],
+  ["invalid_default_time", "The template time must use HH:MM in 24-hour time."],
+  ["linked_meeting_canceled", "The linked meeting is canceled."],
+  ["linked_activity_archived", "The linked Activity is archived."],
+] as const)("explains %s", async (reason, sentence) => {
+  setMockBackend({
+    previewMilestoneDating: async () => ({
+      ...preview,
+      undated: [{ ...item, reason }],
+    }),
+  });
+  mount();
+  expect(
+    await screen.findByText(`Practice due: ${sentence}`),
+  ).toBeInTheDocument();
+});

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type FormEvent } from "react";
+import { countMilestoneDatingChanges } from "@/lib/milestone-dating-count";
 import { redesignApi } from "@/lib/redesign-api-client";
 import type {
   CalendarSlotDto,
@@ -130,6 +131,8 @@ export default function TermWorkspacePage({ termId }: Props) {
   const [prerequisites, setPrerequisites] = useState<TopicPrerequisiteDto[]>([]);
   const [prerequisitesFailed, setPrerequisitesFailed] = useState(false);
   const [datingPreview, setDatingPreview] = useState<MilestoneDatingPreviewResponse | null>(null);
+  const [datingAnnouncement, setDatingAnnouncement] = useState("");
+  const datingStatusRef = useRef<HTMLParagraphElement>(null);
   const [datingFailed, setDatingFailed] = useState(false);
   const [showDateMilestones, setShowDateMilestones] = useState(false);
   const [showPlaceMeetings, setShowPlaceMeetings] = useState(false);
@@ -168,8 +171,10 @@ export default function TermWorkspacePage({ termId }: Props) {
     const revision = revisions?.delivered ?? revisions?.planned;
     return !activity.archivedAt && revision?.detail.behaviorFamily === "meeting" && Boolean(revision.detail.startsAt || revision.detail.calendarSlotId);
   });
-  const datingCount = new Set([...(datingPreview?.dates ?? []), ...(datingPreview?.creates ?? [])]
-    .map(m => `${m.termActivityId}:${m.milestoneId ?? m.sourceTemplateId}`)).size;
+  const datingCount = datingPreview ? countMilestoneDatingChanges(datingPreview) : 0;
+  useEffect(() => {
+    if (datingAnnouncement) datingStatusRef.current?.focus();
+  }, [datingAnnouncement]);
 
 
   async function loadWorkspace() {
@@ -262,12 +267,14 @@ export default function TermWorkspacePage({ termId }: Props) {
           for (const action of revision?.topicActions ?? []) referencedTopicVersionIds.add(action.topicVersionId);
         }
       }
-      const resolvedTopicVersions = await Promise.all(
-        [...referencedTopicVersionIds].map((topicVersionId) => redesignApi.getTopicVersion(topicVersionId)),
+      const nextTopicVersionsById = new Map(currentTopicVersions.map(version => [version.id, version]));
+      const missingTopicVersionIds = [...referencedTopicVersionIds]
+        .filter(id => !nextTopicVersionsById.has(id)).slice(0, 100);
+      const resolvedTopicVersions = await Promise.allSettled(
+        missingTopicVersionIds.map(id => redesignApi.getTopicVersion(id)),
       );
-      const nextTopicVersionsById = new Map<Id, TopicVersionDto>();
-      for (const topicVersion of [...currentTopicVersions, ...resolvedTopicVersions]) {
-        nextTopicVersionsById.set(topicVersion.id, topicVersion);
+      for (const result of resolvedTopicVersions) {
+        if (result.status === "fulfilled") nextTopicVersionsById.set(result.value.id, result.value);
       }
 
       setPrerequisites(loadedPrerequisites.pairs);
@@ -466,7 +473,7 @@ export default function TermWorkspacePage({ termId }: Props) {
     }
   }
 
-  if (loading) {
+  if (loading && !term) {
     return (
       <div className="space-y-4 animate-pulse">
         <div className="h-40 rounded-3xl bg-slate-100" />
@@ -497,6 +504,7 @@ export default function TermWorkspacePage({ termId }: Props) {
 
   return (
     <div className="space-y-8">
+      <p role="status" aria-label="Milestone dating result" aria-live="polite" tabIndex={-1} ref={datingStatusRef}>{datingAnnouncement}</p>
       <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
         <Link href={`/courses/${term.courseId}`} className="text-sm font-medium text-sky-700 hover:text-sky-800">
           ← {course.number} · {course.title}
@@ -573,10 +581,10 @@ export default function TermWorkspacePage({ termId }: Props) {
       </section> : null}
       {term.status !== "closed" && datingCount > 0 ? <section aria-label="Milestone dating" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <p className="text-sm text-slate-700">{datingCount} milestone(s) ready to date or create.</p>
-        <button type="button" className="mt-2 text-sm font-medium text-sky-800 underline" onClick={() => setShowDateMilestones(true)}>Date milestones</button>
+        <button type="button" className="mt-2 text-sm font-medium text-sky-800 underline" onClick={() => { setDatingAnnouncement(""); setShowDateMilestones(true); }}>Date milestones</button>
         {showDateMilestones ? <>
           <button type="button" className="ml-4 text-sm text-slate-600 underline" onClick={() => setShowDateMilestones(false)}>Close milestone dating</button>
-          <DateMilestonesPanel termId={termId} timeZone={termTimeZone} onApplied={async () => { setShowDateMilestones(false); await loadWorkspace(); }} />
+          <DateMilestonesPanel termId={termId} timeZone={termTimeZone} onApplied={async (count) => { setShowDateMilestones(false); await loadWorkspace(); setDatingAnnouncement(`${count} milestone(s) dated or created.`); }} />
         </> : null}
       </section> : null}
       {datingFailed ? <p role="status" className="text-sm text-amber-800">Milestone dates could not be checked. <button type="button" className="underline" onClick={() => void loadWorkspace()}>Retry</button></p> : null}
