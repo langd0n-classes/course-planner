@@ -14,6 +14,14 @@ export default function TermOrderFindingsPanel({
   activityLabels,
 }: TermOrderFindingsPanelProps) {
   const headingId = useId();
+  const undatedActivities = new Map<Id, number>();
+  for (const item of result.undated.items) {
+    undatedActivities.set(
+      item.termActivityId,
+      (undatedActivities.get(item.termActivityId) ?? 0) +
+        (item.milestoneId === null ? 0 : 1),
+    );
+  }
   return (
     <section
       aria-labelledby={headingId}
@@ -23,7 +31,7 @@ export default function TermOrderFindingsPanel({
         <h2 id={headingId} className="font-medium text-slate-900">
           Date order checks
         </h2>
-        <p className="mt-1">
+        <p role="status" className="mt-1">
           {result.findings.length}{" "}
           {result.findings.length === 1 ? "finding" : "findings"}
         </p>
@@ -31,7 +39,11 @@ export default function TermOrderFindingsPanel({
       {result.findings.length === 0 ? (
         <p>No order problems found.</p>
       ) : (
-        <ul aria-labelledby={headingId} className="divide-y divide-slate-200">
+        <ul
+          role="list"
+          aria-labelledby={headingId}
+          className="divide-y divide-slate-200"
+        >
           {result.findings.map((finding, index) => (
             <li
               key={`${finding.kind}-${finding.termActivityIds.join("-")}-${index}`}
@@ -63,11 +75,32 @@ export default function TermOrderFindingsPanel({
         </ul>
       )}
       <p className={result.undated.count ? "text-amber-800" : "text-slate-600"}>
-        {result.undated.count} undated Activities or milestones.
+        {result.undated.count} undated{" "}
+        {result.undated.count === 1
+          ? "Activity or milestone"
+          : "Activities or milestones"}
+        .
         {result.undated.count > 0
           ? " Check is incomplete; undated items were not compared."
           : ""}
       </p>
+      {undatedActivities.size > 0 && (
+        <ul role="list" aria-label="Undated Activities">
+          {[...undatedActivities].map(([id, count]) => (
+            <li key={id}>
+              {activityLabels[id] ?? id}: {count} undated{" "}
+              {count === 1 ? "milestone" : "milestones"}
+            </li>
+          ))}
+        </ul>
+      )}
+      {result.unmappedActionCount > 0 && (
+        <p>
+          {result.unmappedActionCount} Topic{" "}
+          {result.unmappedActionCount === 1 ? "action could" : "actions could"}{" "}
+          not be checked because the Topic version mapping is missing.
+        </p>
+      )}
     </section>
   );
 }

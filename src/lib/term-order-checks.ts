@@ -26,6 +26,7 @@ export type UndatedTermOrderItem = {
 };
 export type TermOrderResult = {
   findings: TermOrderFinding[];
+  unmappedActionCount: number;
   undated: { count: number; items: UndatedTermOrderItem[] };
 };
 export type CheckTermOrderArgs = Pick<
@@ -52,11 +53,16 @@ const formatters = new Map<string, Intl.DateTimeFormat>();
  * An instant is converted to its local date in `timeZone`; with no zone, or an
  * invalid one, the UTC date is used. The host time zone is never used.
  */
-function day(value: string | null | undefined, timeZone?: string | null) {
+function day(
+  value: string | null | undefined,
+  timeZone?: string | null,
+  fallbackZone?: string | null,
+): string | null {
   if (!value) return null;
-  if (value.length <= 10 || !timeZone) return value.slice(0, 10);
+  if (value.length <= 10) return value;
   const instant = new Date(value);
   if (Number.isNaN(instant.getTime())) return value.slice(0, 10);
+  if (!timeZone) return instant.toISOString().slice(0, 10);
   try {
     let formatter = formatters.get(timeZone);
     if (!formatter) {
@@ -68,29 +74,39 @@ function day(value: string | null | undefined, timeZone?: string | null) {
       });
       formatters.set(timeZone, formatter);
     }
-    return formatter.format(instant);
+    const parts = formatter.formatToParts(instant);
+    const part = (type: string) => parts.find((p) => p.type === type)!.value;
+    return `${part("year")}-${part("month")}-${part("day")}`;
   } catch {
-    return value.slice(0, 10);
+    return fallbackZone
+      ? day(value, fallbackZone)
+      : instant.toISOString().slice(0, 10);
   }
 }
+const compare = (a: string | null, b: string | null): number =>
+  a === b ? 0 : a === null ? -1 : b === null ? 1 : a < b ? -1 : 1;
+const canceled = (value: string | null | undefined) =>
+  /^(canceled|cancelled)$/i.test(value ?? "");
 const byOccurrence = (a: Occurrence, b: Occurrence) =>
-  (a.date ?? "").localeCompare(b.date ?? "") || a.id.localeCompare(b.id);
+  compare(a.date, b.date) || compare(a.id, b.id);
 
 /** Advisory checks over effective Term revisions; does not mutate input or block edits. */
 export function checkTermOrder(args: CheckTermOrderArgs): TermOrderResult {
   const findings: TermOrderFinding[] = [];
   const items: UndatedTermOrderItem[] = [];
+  let unmappedActionCount = 0;
   const topicIds = new Map(args.topicVersions.map((v) => [v.id, v.topicId]));
   const slots = new Map(args.calendarSlots.map((s) => [s.id, s.date]));
   const effective = args.termActivities.flatMap((activity) => {
     const revisions = args.revisionsByTermActivityId[activity.id];
     const revision = revisions?.delivered ?? revisions?.planned;
     if (
-      activity.lifecycleState === "canceled" ||
+      activity.archivedAt != null ||
+      canceled(activity.lifecycleState) ||
       (revision?.detail.behaviorFamily === "meeting" &&
-        revision.detail.status === "canceled") ||
+        canceled(revision.detail.status)) ||
       (revision?.detail.behaviorFamily !== "meeting" &&
-        revision?.detail.lifecycleState === "canceled")
+        canceled(revision?.detail.lifecycleState))
     )
       return [];
     return [{ activity, revision }];
@@ -100,27 +116,40 @@ export function checkTermOrder(args: CheckTermOrderArgs): TermOrderResult {
   for (const { activity, revision } of effective) {
     let date: string | null = null;
     if (revision?.detail.behaviorFamily === "meeting") {
-      // The slot date is the Term's own local date, so it takes priority.
+      // Match the daily driver: a delivered revision may retain its old slot.
       date =
-        day(slots.get(revision.detail.calendarSlotId ?? "")) ??
-        day(revision.detail.startsAt, args.timeZone);
+        revision.detail.startsAt != null
+          ? day(revision.detail.startsAt, args.timeZone)
+          : day(slots.get(revision.detail.calendarSlotId ?? ""));
       meetings.set(activity.id, { id: activity.id, date });
     } else if (revision) {
       const due = revision.milestones.filter((m) => m.role === "due");
       const dated = (due.length ? due : revision.milestones)
-        .flatMap((m) => day(m.occursAt, m.timeZone ?? args.timeZone) ?? [])
+        .flatMap(
+          (m) =>
+            day(m.occursAt, m.timeZone ?? args.timeZone, args.timeZone) ?? [],
+        )
         .sort();
       date = dated.at(-1) ?? null;
     }
     if (!date) items.push({ termActivityId: activity.id, milestoneId: null });
     for (const milestone of revision?.milestones ?? []) {
-      if (!day(milestone.occursAt, milestone.timeZone ?? args.timeZone))
+      if (
+        !day(
+          milestone.occursAt,
+          milestone.timeZone ?? args.timeZone,
+          args.timeZone,
+        )
+      )
         items.push({ termActivityId: activity.id, milestoneId: milestone.id });
     }
     for (const action of revision?.topicActions ?? []) {
       const topicId = topicIds.get(action.topicVersionId);
       // A version without its identity mapping cannot safely be compared as a stable Topic.
-      if (!topicId) continue;
+      if (!topicId) {
+        unmappedActionCount++;
+        continue;
+      }
       const actions = topics.get(topicId) ?? new Map<string, Occurrence[]>();
       actions.set(action.action, [
         ...(actions.get(action.action) ?? []),
@@ -152,6 +181,11 @@ export function checkTermOrder(args: CheckTermOrderArgs): TermOrderResult {
       ?.filter((o) => o.date)
       .sort(byOccurrence)[0];
   }
+  const hasUndatedIntro = (topicId: Id) =>
+    topics
+      .get(topicId)
+      ?.get("introduced")
+      ?.some((o) => !o.date) ?? false;
   for (const [topicId, actions] of topics) {
     const intro = earliest(topicId, "introduced");
     if (!actions.has("introduced")) {
@@ -172,7 +206,12 @@ export function checkTermOrder(args: CheckTermOrderArgs): TermOrderResult {
     }
     for (const action of ["assessed", "practiced"] as const) {
       const first = earliest(topicId, action);
-      if (first?.date && intro?.date && first.date < intro.date)
+      if (
+        !hasUndatedIntro(topicId) &&
+        first?.date &&
+        intro?.date &&
+        first.date < intro.date
+      )
         add(
           `${action}_before_introduced`,
           topicId,
@@ -183,6 +222,11 @@ export function checkTermOrder(args: CheckTermOrderArgs): TermOrderResult {
     }
   }
   for (const pair of args.prerequisites) {
+    if (
+      hasUndatedIntro(pair.topicId) ||
+      hasUndatedIntro(pair.prerequisiteTopicId)
+    )
+      continue;
     const dependent = earliest(pair.topicId, "introduced");
     const prerequisite = earliest(pair.prerequisiteTopicId, "introduced");
     if (
@@ -200,7 +244,11 @@ export function checkTermOrder(args: CheckTermOrderArgs): TermOrderResult {
   }
   for (const { activity, revision } of effective) {
     for (const milestone of revision?.milestones ?? []) {
-      const date = day(milestone.occursAt, milestone.timeZone ?? args.timeZone);
+      const date = day(
+        milestone.occursAt,
+        milestone.timeZone ?? args.timeZone,
+        args.timeZone,
+      );
       const linked = meetings.get(milestone.linkedTermActivityId ?? "");
       if (
         milestone.role === "due" &&
@@ -219,8 +267,20 @@ export function checkTermOrder(args: CheckTermOrderArgs): TermOrderResult {
   }
   findings.sort(
     (a, b) =>
-      (a.dates[1] ?? a.dates[0]).localeCompare(b.dates[1] ?? b.dates[0]) ||
-      (a.topicId ?? "").localeCompare(b.topicId ?? ""),
+      compare(a.dates[1] ?? a.dates[0], b.dates[1] ?? b.dates[0]) ||
+      compare(a.topicId, b.topicId) ||
+      compare(a.kind, b.kind) ||
+      compare(a.termActivityIds[0], b.termActivityIds[0]) ||
+      compare(a.termActivityIds[1], b.termActivityIds[1]),
   );
-  return { findings, undated: { count: items.length, items } };
+  items.sort(
+    (a, b) =>
+      compare(a.termActivityId, b.termActivityId) ||
+      compare(a.milestoneId, b.milestoneId),
+  );
+  return {
+    findings,
+    unmappedActionCount,
+    undated: { count: items.length, items },
+  };
 }

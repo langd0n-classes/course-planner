@@ -214,6 +214,7 @@ describe("checkTermOrder", () => {
     entry.revision.milestones = [milestone(null)];
     expect(checkTermOrder(args(entry))).toEqual({
       findings: [],
+      unmappedActionCount: 0,
       undated: { count: 0, items: [] },
     });
   });
@@ -288,7 +289,7 @@ describe("local dates and Topic names", () => {
     ]);
     expect(result.findings[0].dates).toEqual(["2026-03-05", "2026-03-06"]);
   });
-  it("uses the slot date before the instant", () => {
+  it("uses the instant before the slot date", () => {
     const assess = meeting("assess", "2026-03-06T01:00:00.000Z", "assessed");
     if (assess.revision.detail.behaviorFamily === "meeting")
       assess.revision.detail.calendarSlotId = "slot";
@@ -297,7 +298,7 @@ describe("local dates and Topic names", () => {
       ...args(assess, intro),
       calendarSlots: [{ id: "slot", date: "2026-03-05" }],
     });
-    expect(result.findings[0].dates).toEqual(["2026-03-05", "2026-03-06"]);
+    expect(result.findings).toEqual([]);
   });
   it("names the Topic in the sentence", () => {
     const assess = meeting("assess", "2026-03-02", "assessed");
@@ -310,5 +311,165 @@ describe("local dates and Topic names", () => {
     expect(checkTermOrder(input).findings[0].sentence).toBe(
       "A Topic is assessed before it is introduced.",
     );
+  });
+});
+
+describe("review regressions", () => {
+  it.each(["assessed", "practiced"])(
+    "does not order %s against a possibly earlier undated Introduce",
+    (action) => {
+      expect(
+        checkTermOrder(
+          args(
+            meeting("unknown", null),
+            meeting("intro", "2026-02-04"),
+            meeting("early", "2026-02-01", action),
+          ),
+        ).findings,
+      ).toEqual([]);
+    },
+  );
+  it.each(["tv", "pv"])(
+    "skips prerequisite pairs with undated Introduce %s",
+    (version) => {
+      const input = args(
+        meeting("dep", "2026-02-01"),
+        meeting("pre", "2026-02-04", "introduced", "pv"),
+        meeting("unknown", null, "introduced", version),
+      );
+      input.prerequisites = [
+        { topicId: "topic", prerequisiteTopicId: "prereq" },
+      ];
+      expect(checkTermOrder(input).findings).toEqual([]);
+    },
+  );
+  it("uses a delivered startsAt even when the old slot remains", () => {
+    const intro = meeting("intro", "2026-02-01");
+    const input = args(intro, meeting("practice", "2026-02-02", "practiced"));
+    input.calendarSlots = [{ id: "old", date: "2026-02-01" }];
+    input.revisionsByTermActivityId.intro.delivered = {
+      ...intro.revision,
+      detail: {
+        ...intro.revision.detail,
+        behaviorFamily: "meeting",
+        calendarSlotId: "old",
+        startsAt: "2026-02-03",
+        endsAt: null,
+        status: null,
+        modality: null,
+        overrideReason: null,
+        overrideEvidence: null,
+      },
+    };
+    expect(checkTermOrder(input).findings[0].dates).toEqual([
+      "2026-02-02",
+      "2026-02-03",
+    ]);
+  });
+  it.each([undefined, "Invalid/Zone"])(
+    "uses UTC for offset instants with zone %s",
+    (timeZone) => {
+      const input = args(
+        meeting("intro", "2026-03-06"),
+        meeting("early", "2026-03-06T00:30:00+03:00", "assessed"),
+      );
+      expect(checkTermOrder({ ...input, timeZone }).findings[0].dates).toEqual([
+        "2026-03-05",
+        "2026-03-06",
+      ]);
+    },
+  );
+  it.each([
+    "2026-03-08T06:30:00Z",
+    "2026-03-08T07:30:00Z",
+    "2026-11-01T05:30:00Z",
+    "2026-11-01T06:30:00Z",
+  ])("formats local dates across DST: %s", (instant) => {
+    const result = checkTermOrder({
+      ...args(
+        meeting("early", instant, "practiced"),
+        meeting("intro", "2026-12-01"),
+      ),
+      timeZone: "America/New_York",
+    });
+    expect(result.findings[0].dates[0]).toBe(instant.slice(0, 10));
+  });
+  it("falls back from an invalid milestone zone to the Term zone", () => {
+    const work = meeting("work", null, "assessed");
+    work.revision.detail = {
+      behaviorFamily: "coursework",
+      lifecycleState: null,
+      deliveryNotes: null,
+    };
+    work.revision.milestones = [
+      { ...milestone("2026-03-06T01:00:00Z"), timeZone: "Invalid/Zone" },
+    ];
+    expect(
+      checkTermOrder({
+        ...args(work, meeting("intro", "2026-03-06")),
+        timeZone: "America/New_York",
+      }).findings[0].dates[0],
+    ).toBe("2026-03-05");
+  });
+  it("keeps invalid instants and short date values as written", () => {
+    for (const value of ["2026-02-01invalid", "2026-02-01"]) {
+      expect(
+        checkTermOrder(
+          args(meeting("p", value, "practiced"), meeting("i", "2026-02-02")),
+        ).findings[0].dates[0],
+      ).toBe("2026-02-01");
+    }
+  });
+  it("sorts equal-date findings and produces identical results for reversed arrays", () => {
+    const input = args(
+      meeting("intro", "2026-02-04"),
+      meeting("p", "2026-02-01", "practiced"),
+      meeting("a", "2026-02-01", "assessed"),
+      meeting("unknown", null, "practiced", "pv"),
+    );
+    const result = checkTermOrder(input);
+    expect(result.findings.map((f) => f.kind)).toEqual([
+      "assessed_before_introduced",
+      "practiced_before_introduced",
+    ]);
+    expect(
+      checkTermOrder({
+        ...input,
+        termActivities: [...input.termActivities].reverse(),
+        topicVersions: [...input.topicVersions].reverse(),
+        prerequisites: [...input.prerequisites].reverse(),
+        calendarSlots: [...input.calendarSlots].reverse(),
+      }),
+    ).toEqual(result);
+  });
+  it.each(["cancelled", "Canceled", "CANCELLED"])(
+    "ignores %s introductions leaving never_introduced",
+    (status) => {
+      const intro = meeting("intro", "2026-02-01");
+      if (intro.revision.detail.behaviorFamily === "meeting")
+        intro.revision.detail.status = status;
+      expect(
+        checkTermOrder(args(intro, meeting("p", "2026-02-02", "practiced")))
+          .findings[0].kind,
+      ).toBe("never_introduced");
+    },
+  );
+  it("ignores archived Activities including undated milestones", () => {
+    const archived = meeting("archived", null);
+    archived.activity.archivedAt = "2026-02-01";
+    archived.revision.milestones = [milestone(null)];
+    expect(checkTermOrder(args(archived)).undated.count).toBe(0);
+  });
+  it("counts every unmapped action", () => {
+    const entry = meeting("unknown", "2026-02-01", "assessed", "missing");
+    entry.revision.topicActions.push({
+      ...entry.revision.topicActions[0],
+      id: "second",
+    });
+    expect(checkTermOrder(args(entry))).toEqual({
+      findings: [],
+      undated: { count: 0, items: [] },
+      unmappedActionCount: 2,
+    });
   });
 });

@@ -7,6 +7,7 @@ import TermOrderFindingsPanel from "./TermOrderFindingsPanel";
 afterEach(cleanup);
 const empty: TermOrderResult = {
   findings: [],
+  unmappedActionCount: 0,
   undated: { count: 0, items: [] },
 };
 describe("TermOrderFindingsPanel", () => {
@@ -75,4 +76,60 @@ describe("TermOrderFindingsPanel", () => {
     expect(screen.getByText(/2 undated Activities or milestones/)).toBeTruthy();
     expect(screen.getByText(/Check is incomplete/)).toBeTruthy();
   });
+});
+
+it("shows singular undated copy, missing labels, milestone totals and unmapped actions", () => {
+  render(
+    <TermOrderFindingsPanel
+      activityLabels={{ a: "Workshop" }}
+      result={{
+        ...empty,
+        unmappedActionCount: 2,
+        undated: {
+          count: 1,
+          items: [{ termActivityId: "missing", milestoneId: "m" }],
+        },
+        findings: [
+          {
+            kind: "never_introduced",
+            topicId: "t",
+            termActivityIds: ["missing", null],
+            dates: ["2026-02-01", null],
+            sentence: "Never introduced.",
+          },
+        ],
+      }}
+    />,
+  );
+  expect(screen.getByRole("status").textContent).toBe("1 finding");
+  expect(screen.getByText(/1 undated Activity or milestone\./)).toBeTruthy();
+  expect(screen.getByText(/2 Topic actions could not be checked/)).toBeTruthy();
+  const lists = screen.getAllByRole("list");
+  expect(lists).toHaveLength(2);
+  lists.forEach((list) => expect(list.getAttribute("role")).toBe("list"));
+  expect(lists[0].textContent).toContain("missing");
+  expect(lists[0].querySelectorAll("time")).toHaveLength(1);
+  expect(lists[1].textContent).toContain("missing: 1 undated milestone");
+});
+it("lists each undated Activity once with its label and milestone count", () => {
+  render(
+    <TermOrderFindingsPanel
+      activityLabels={{ a: "Workshop" }}
+      result={{
+        ...empty,
+        undated: {
+          count: 4,
+          items: [
+            { termActivityId: "a", milestoneId: null },
+            { termActivityId: "a", milestoneId: "m1" },
+            { termActivityId: "a", milestoneId: "m2" },
+            { termActivityId: "b", milestoneId: null },
+          ],
+        },
+      }}
+    />,
+  );
+  expect(screen.getAllByRole("listitem").map((row) => row.textContent)).toEqual(
+    ["Workshop: 2 undated milestones", "b: 0 undated milestones"],
+  );
 });

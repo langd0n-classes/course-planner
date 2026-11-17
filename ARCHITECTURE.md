@@ -314,8 +314,10 @@ prerequisite, and content revision calls retain their existing contracts.
 - `src/lib/term-order-checks.ts` exports the pure advisory `checkTermOrder`
   function and input/result types. It uses the daily driver's Term Activity and
   planned/delivered revision DTOs, stable Topic-version identity mappings,
-  Calendar Slots, and prerequisite pairs. It reports five order findings and
-  counts undated Activities/milestones without mutating data. The existing
+  Calendar Slots, and prerequisite pairs. Optional `timeZone` supplies the Term's
+  local date zone; optional `topicLabels` supplies names for finding sentences.
+  It reports five order findings and counts undated Activities/milestones and
+  unmapped Topic actions without mutating data. The existing
   `redesignApi.listTopicPrerequisites(courseId)` call supplies prerequisite data;
   no new service route is needed.
 - `src/components/redesign/TermOrderFindingsPanel.tsx` renders a labelled section
