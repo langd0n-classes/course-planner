@@ -2,7 +2,7 @@
 
 Read-only design pass (`gpt-5.6-sol`, 2026-07-11T20:16:01-04:00), not implementation.
 Supersedes docs/plans/course-lm-topic-redesign.md (v1) per operator
-feedback (~/tmp/course-planner-redesign-feedback.md). Incorporates real
+feedback (`<private path>`). Incorporates real
 web research on the Blackboard/Anthology course-package format. Review
 section 8 ("Decisions requiring operator sign-off") before converting
 this into a build prompt.

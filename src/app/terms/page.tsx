@@ -6,7 +6,7 @@ import { api, type Term, type Instructor } from "@/lib/api-client";
 
 export default function TermsPage() {
   const [terms, setTerms] = useState<Term[]>([]);
-  const [instructors, setInstructors] = useState<Instructor[]>([]);
+  const [instructor, setInstructor] = useState<Instructor | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showClone, setShowClone] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -21,9 +21,9 @@ export default function TermsPage() {
   const loadData = useCallback(() => {
     return Promise.all([api.getTerms(), api.getInstructors()]).then(([t, i]) => {
       setTerms(t);
-      setInstructors(i);
+      setInstructor(i[0] ?? null);
       if (i.length > 0) {
-        setForm((f) => f.instructorId ? f : { ...f, instructorId: i[0].id });
+        setForm((f) => ({ ...f, instructorId: i[0].id }));
       }
     });
   }, []);
@@ -72,20 +72,8 @@ export default function TermsPage() {
           className="bg-white border rounded p-4 mb-4 grid grid-cols-2 gap-3"
         >
           <div>
-            <label className="block text-sm font-medium mb-1">Instructor</label>
-            <select
-              value={form.instructorId}
-              onChange={(e) =>
-                setForm({ ...form, instructorId: e.target.value })
-              }
-              className="w-full border rounded px-2 py-1.5 text-sm"
-            >
-              {instructors.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.name}
-                </option>
-              ))}
-            </select>
+            <p className="block text-sm font-medium mb-1">Instructor</p>
+            <p>{instructor?.name}</p>
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">
@@ -176,7 +164,6 @@ export default function TermsPage() {
                 const moduleCount = t._count?.modules ?? 0;
                 const assessmentCount = t._count?.assessments ?? 0;
                 const instructorName = t.instructor?.name ?? "Unknown instructor";
-                const instructorId = t.instructor?.id ?? "";
 
                 return (
               <div className="flex justify-between items-start">
@@ -207,7 +194,7 @@ export default function TermsPage() {
                         name: "",
                         startDate: "",
                         endDate: "",
-                        instructorId,
+                        instructorId: instructor?.id ?? "",
                       });
                     }}
                     className="text-blue-600 hover:underline"

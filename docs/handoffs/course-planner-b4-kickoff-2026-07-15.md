@@ -7,7 +7,7 @@ Prepared by: AICP orchestrator session, for a dedicated course-planner session.
 
 B.3 is complete, accepted, and promoted. B.4 (#34) is now unblocked. This handoff
 lets a fresh course-planner session start B.4 warm instead of re-deriving the B.3
-state. Run that session **in `~/loc-projects/course-planner` on Sonnet** to keep
+state. Run that session **in `<private path>` (replace the placeholder) on Sonnet** to keep
 context lean and conserve Opus.
 
 ## Current state (verified 2026-07-15)

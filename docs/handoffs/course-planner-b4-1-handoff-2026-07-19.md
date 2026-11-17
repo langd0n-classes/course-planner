@@ -4,7 +4,7 @@ Date: 2026-07-19
 
 ## State
 
-- Worktree: `/home/lwhite/cloud-sync/projects/wt/34-b4-1-course-shell`
+- Worktree: `<private path>`
 - Branch: `redesign-b4-1-course-shell`
 - Base: `d222dc5` (`Add B.4 kickoff handoff for a dedicated course-planner session`)
 - Status: uncommitted implementation draft; no commit, review, or test gate has been completed.

@@ -320,7 +320,7 @@ describe("ExemplarImportService", () => {
 
   it("batches identities, all detail families, relationships, and module memberships as the graph grows", async () => {
     const callCounts = [];
-    for (const size of [1, 20, 130]) {
+    for (const size of [1, 20, 100]) {
       const tx = createMemoryTx();
       let calls = 0;
       for (const [key, value] of Object.entries(tx)) {

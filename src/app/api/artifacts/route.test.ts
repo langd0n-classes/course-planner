@@ -33,14 +33,14 @@ describe("artifacts collection route", () => {
       fn({
         artifact: {
           create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => ({
-            id: "artifact-1",
+            id: "11111111-1111-4111-8111-111111111111",
             archivedAt: null,
             ...data,
           })),
         },
         session: {
           findUnique: vi.fn(async () => ({
-            id: "session-1",
+            id: "22222222-2222-4222-8222-222222222222",
             term: { status: "active", course: { instructorId: "instructor-1" } },
             termLearningModule: null,
           })),
@@ -54,7 +54,7 @@ describe("artifacts collection route", () => {
         method: "POST",
         body: JSON.stringify({
           parentType: "session",
-          sessionId: "session-1",
+          sessionId: "22222222-2222-4222-8222-222222222222",
           artifactType: "slides",
           sourceType: "generated_file",
           title: "Week 1 slides",
@@ -71,11 +71,11 @@ describe("artifacts collection route", () => {
     expect(response.status).toBe(201);
     await expect(response.json()).resolves.toEqual({
       artifact: {
-        id: "artifact-1",
+        id: "11111111-1111-4111-8111-111111111111",
         parentType: "session",
         learningModuleVersionId: null,
         topicVersionId: null,
-        sessionId: "session-1",
+        sessionId: "22222222-2222-4222-8222-222222222222",
         assessmentId: null,
         artifactType: "slides",
         sourceType: "generated_file",
@@ -97,12 +97,12 @@ describe("artifacts collection route", () => {
         artifact: {
           findMany: vi.fn(async () => [
             {
-              id: "artifact-1",
+              id: "11111111-1111-4111-8111-111111111111",
               parentType: "assessment",
               learningModuleVersionId: null,
               topicVersionId: null,
               sessionId: null,
-              assessmentId: "assessment-1",
+              assessmentId: "33333333-3333-4333-8333-333333333333",
               artifactType: "handout",
               sourceType: "external_uri",
               title: "Spec",
@@ -115,7 +115,7 @@ describe("artifacts collection route", () => {
         },
         assessment: {
           findUnique: vi.fn(async () => ({
-            id: "assessment-1",
+            id: "33333333-3333-4333-8333-333333333333",
             term: { status: "active", course: { instructorId: "instructor-1" } },
             topics: [],
           })),
@@ -124,18 +124,18 @@ describe("artifacts collection route", () => {
     );
 
     const { GET } = await import("./route");
-    const response = await GET(new Request("http://localhost/api/artifacts?assessmentId=assessment-1"));
+    const response = await GET(new Request("http://localhost/api/artifacts?assessmentId=33333333-3333-4333-8333-333333333333"));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       artifacts: [
         {
-          id: "artifact-1",
+          id: "11111111-1111-4111-8111-111111111111",
           parentType: "assessment",
           learningModuleVersionId: null,
           topicVersionId: null,
           sessionId: null,
-          assessmentId: "assessment-1",
+          assessmentId: "33333333-3333-4333-8333-333333333333",
           artifactType: "handout",
           sourceType: "external_uri",
           title: "Spec",

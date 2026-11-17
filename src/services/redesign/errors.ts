@@ -21,3 +21,10 @@ export class ConcurrencyConflictError extends Error {
 
 export class NotFoundError extends DomainInvariantError {}
 export class DuplicateLabelError extends DomainInvariantError {}
+
+export class InstitutionNameConflictError extends DomainInvariantError {
+  constructor() {
+    super("An institution with this name is archived.");
+    this.name = "InstitutionNameConflictError";
+  }
+}

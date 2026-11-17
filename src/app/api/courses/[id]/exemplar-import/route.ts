@@ -1,3 +1,4 @@
+import { readJsonBody } from "@/lib/request-json";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
@@ -29,13 +30,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     throw error;
   }
 
-  const body = await request.json();
+  const json = await readJsonBody(request, 2 * 1024 * 1024);
+  if (json.response) return json.response;
+  const body = json.data;
   const parsed = exemplarImportRequestSchema.safeParse(body);
   if (!parsed.success) {
     return badRequest("Invalid request", parsed.error.flatten().fieldErrors);
   }
 
-  const snapshot = parsed.data.snapshot ?? genericDemoExemplarSnapshot;
+  const snapshot = parsed.data.snapshot === undefined ? genericDemoExemplarSnapshot : parsed.data.snapshot;
 
   try {
     if (parsed.data.mode === "stage") {

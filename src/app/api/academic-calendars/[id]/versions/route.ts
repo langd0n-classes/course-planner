@@ -1,3 +1,4 @@
+import { readJsonBody } from "@/lib/request-json";
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import { badRequest, created, notFound, ok, unauthorized } from "@/lib/api-helpers";
@@ -45,7 +46,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const instructor = await getAuthenticatedInstructor(prisma);
   if (!instructor) return unauthorized();
   const { id } = await params;
-  const body = await request.json();
+  const json = await readJsonBody(request);
+  if (json.response) return json.response;
+  const body = json.data;
   const parsed = createAcademicCalendarVersionSchema.safeParse(body);
   if (!parsed.success) {
     return badRequest("Invalid request", parsed.error.flatten().fieldErrors);

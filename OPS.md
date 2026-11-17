@@ -228,20 +228,8 @@ These patterns caused bugs and rework. Follow them:
   the notes into `ARCHITECTURE.md`
 - Keep `docs/phase-roadmap.md` updated as phases complete
 
-## Commit attribution (agent commits)
+## Commits
 
-Every attributable agent commit:
-
-1. **Author = `langdon-bot`** via `git -c include.path=~/loc-resources/auth/langdon-bot.gitconfig commit …` (never set globally).
-2. **Trailers:**
-   ```
-   AI-Attribution: <AI-A|AI-E|AI-C|AI-G>  (https://langd0n.com/ai-attribution)
-   Co-authored-by: langdon <1832177+langdon@users.noreply.github.com>
-   Co-Authored-By: <PARENT-AGENT> / <model> <noreply@anthropic.com>
-   ```
-   - `<PARENT-AGENT>`: producing context — an agent running from this project signs `course-planner`; the orchestrator signs `AICP`.
-   - `<model>`: actual engine (e.g. `gpt-5.5`, `Claude Opus 4.8`).
-   - `AI-Attribution`: `AI-G` autonomous / `AI-C` interactive.
-   - No `Claude-Session:` trailer.
-3. Mechanical edits (typo, format): no trailers.
-4. Stage explicit paths; never `git add -A` / `git add .`.
+Commit with `agent-commit` and push with `agent-push` (the `github-work`
+skill). Pass `--parent course-planner` for work started in this project,
+and `--parent AICP` for work the orchestrator starts.
