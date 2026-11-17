@@ -1,4 +1,4 @@
-import { DomainInvariantError } from "./errors";
+import { DomainInvariantError, InstitutionNameConflictError } from "./errors";
 import type { RedesignDb, RedesignTx } from "./types";
 import type { AcademicCalendar, Course, CourseInstitution, Institution } from "@prisma/client";
 
@@ -131,28 +131,37 @@ export async function createInstitution(db: RedesignDb, input: CreateInstitution
   assertNonblank(input.name, "Institution name");
 
   return db.$transaction(async (tx) => {
-    const institution = await tx.institution.create({
+    const name = input.name.trim();
+    // Serialize creation by normalized name, including differently cased requests.
+    await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(lower(${name}), 0))`;
+    const existing = await tx.institution.findFirst({
+      where: { name: { equals: name, mode: "insensitive" } },
+    });
+    if (existing?.archivedAt) throw new InstitutionNameConflictError();
+
+    const institution = existing ?? await tx.institution.create({
       data: {
-        name: input.name,
+        name,
         shortName: input.shortName ?? null,
         canonicalUri: input.canonicalUri ?? null,
       },
     });
-
     const existingMembershipCount = await tx.instructorInstitution.count({
       where: { instructorId: input.instructorId, status: "active" },
     });
 
-    await tx.instructorInstitution.create({
-      data: {
+    await tx.instructorInstitution.upsert({
+      where: { instructorId_institutionId: { instructorId: input.instructorId, institutionId: institution.id } },
+      create: {
         instructorId: input.instructorId,
         institutionId: institution.id,
         status: "active",
         isDefault: existingMembershipCount === 0,
       },
+      update: {},
     });
 
-    return institution;
+    return { ...institution, created: !existing };
   });
 }
 

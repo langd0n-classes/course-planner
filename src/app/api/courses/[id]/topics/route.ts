@@ -1,3 +1,6 @@
+import { z as idSchema } from "zod";
+import { unexpectedRouteError } from "@/lib/route-errors";
+import { readJsonBody } from "@/lib/request-json";
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import { badRequest, created, notFound, ok, unauthorized, forbidden } from "@/lib/api-helpers";
@@ -16,6 +19,7 @@ export type { CreateTopicRequest, CreateTopicResponse, ListTopicsResponse };
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  if (!idSchema.uuid().safeParse(id).success) return badRequest("Invalid id");
   const instructor = await getAuthenticatedInstructor(prisma);
   if (!instructor) return unauthorized();
 
@@ -24,16 +28,19 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return ok({ topics: topics.map(toTopicDto) } satisfies ListTopicsResponse);
   } catch (error) {
     if (error instanceof DomainInvariantError) return notFound(error.message);
-    throw error;
+    return unexpectedRouteError(error);
   }
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  if (!idSchema.uuid().safeParse(id).success) return badRequest("Invalid id");
   const instructor = await getAuthenticatedInstructor(prisma);
   if (!instructor) return unauthorized();
 
-  const body = await request.json();
+  const json = await readJsonBody(request);
+  if (json.response) return json.response;
+  const body = json.data;
   const parsed = createTopicSchema.safeParse(body);
   if (!parsed.success) {
     return badRequest("Invalid request", parsed.error.flatten().fieldErrors);
@@ -63,7 +70,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (error instanceof DomainInvariantError) {
       return error.message === "Course not found" ? notFound(error.message) : badRequest(error.message);
     }
-    if (error instanceof Error) return badRequest(error.message);
-    throw error;
+    return unexpectedRouteError(error);
   }
 }

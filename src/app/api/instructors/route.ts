@@ -1,25 +1,13 @@
-import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
-import { createInstructorSchema } from "@/lib/schemas";
-import { ok, created, badRequest, handleZodError } from "@/lib/api-helpers";
+import { ok, unauthorized } from "@/lib/api-helpers";
+import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
+import { retired } from "@/app/api/redesign-stub";
 
 export async function GET() {
-  const instructors = await prisma.instructor.findMany({
-    orderBy: { name: "asc" },
-  });
-  return ok(instructors);
+  const instructor = await getAuthenticatedInstructor(prisma);
+  return instructor ? ok([instructor]) : unauthorized();
 }
 
-export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const parsed = createInstructorSchema.safeParse(body);
-  if (!parsed.success) return handleZodError(parsed.error);
-
-  const existing = await prisma.instructor.findUnique({
-    where: { email: parsed.data.email },
-  });
-  if (existing) return badRequest("Email already exists");
-
-  const instructor = await prisma.instructor.create({ data: parsed.data });
-  return created(instructor);
+export async function POST() {
+  return retired("Instructor identity is managed by sign-in.");
 }

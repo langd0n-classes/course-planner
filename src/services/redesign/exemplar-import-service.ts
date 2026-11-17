@@ -1,3 +1,4 @@
+import { exemplarSnapshotSchema } from "./exemplar-snapshot-schema";
 import { createHash, randomUUID } from "node:crypto";
 import { DomainInvariantError } from "./errors";
 import type { RedesignDb, RedesignTx } from "./types";
@@ -323,17 +324,13 @@ export class ExemplarImportService {
 }
 
 function validateSnapshot(value: unknown): ExemplarSnapshot {
-  if (!isRecord(value)) throw new DomainInvariantError("Exemplar snapshot must be an object");
-  const snapshot = value as ExemplarSnapshot;
-  if (!snapshot.snapshotId || !snapshot.course?.title || !snapshot.course?.number) {
-    throw new DomainInvariantError("Exemplar snapshot is missing required course identity");
+  const parsed = exemplarSnapshotSchema.safeParse(value);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const path = jsonPath(issue.path.map((part) => typeof part === "number" ? part : String(part)));
+    throw new DomainInvariantError(`Invalid exemplar snapshot at ${path}: ${issue.message}`);
   }
-  for (const collection of ["activityTypes", "learningModules", "topics", "activities"] as const) {
-    if (!Array.isArray(snapshot[collection])) {
-      throw new DomainInvariantError(`Exemplar snapshot ${collection} must be an array`);
-    }
-  }
-  return snapshot;
+  return parsed.data;
 }
 
 function sanitizeGradingFields(

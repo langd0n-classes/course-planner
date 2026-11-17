@@ -62,6 +62,15 @@ describe.each(["sizes", "part-kinds"] as const)(
         }),
       );
     });
+    it("returns the shared malformed JSON response for all mutations", async () => {
+      const collection = await routes();
+      const item = await itemRoutes();
+      for (const [method, handler] of [["POST", collection.POST], ["PUT", collection.PUT], ["PATCH", item.PATCH]] as const) {
+        const response = await handler(new NextRequest("http://localhost/api/test", { method, body: "{" }), ctx);
+        expect(response.status).toBe(400);
+        expect(await response.json()).toEqual({ error: "The request body is not valid JSON." });
+      }
+    });
     it("requires authentication", async () => {
       auth.mockResolvedValue(null);
       expect((await (await routes()).GET(request("GET"), ctx)).status).toBe(

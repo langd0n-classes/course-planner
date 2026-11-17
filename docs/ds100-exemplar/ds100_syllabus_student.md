@@ -154,7 +154,7 @@ Violations—especially GenAI use in the Red Zone—will be treated as academic 
 
 # Support & Accessibility
 
-- **Disability accommodations:** Contact the Office for Disability Services (617-353-3658, access@bu.edu). Share your letter privately with the instructor.
+- **Disability accommodations:** Contact the Office for Disability Services (`<telephone number>`, access@example.edu). Share your letter privately with the instructor.
 - **Academic & well-being support:** ERC tutoring, writing support, and BU Student Wellbeing resources (see Blackboard).
 
 # Regrades

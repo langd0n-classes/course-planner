@@ -9,9 +9,9 @@ Status: reviewed evidence synthesis for the B.2R contract gate
 This pass used only the three operator-approved DS100 trees and excluded every
 `grading/` subtree before listing or reading files:
 
-- `/home/lwhite/loc-areas/courses/ds100/current-term/202602/`
-- `/home/lwhite/loc-areas/courses/ds100/terms/202504-ds100/`
-- `/home/lwhite/loc-areas/courses/ds100/terms/202601-ds100/`
+- `<private path>`
+- `<private path>`
+- `<private path>`
 
 The evidence is an importer exemplar, not generic product vocabulary. Counts are
 profiles for realistic fixtures, not schema constraints. The current Summer 2026

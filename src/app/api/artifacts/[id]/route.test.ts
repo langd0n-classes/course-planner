@@ -37,11 +37,11 @@ describe("artifact detail route", () => {
       fn({
         artifact: {
           findUnique: vi.fn(async () => ({
-            id: "artifact-1",
+            id: "11111111-1111-4111-8111-111111111111",
             parentType: "session",
             learningModuleVersionId: null,
             topicVersionId: null,
-            sessionId: "session-1",
+            sessionId: "22222222-2222-4222-8222-222222222222",
             assessmentId: null,
             artifactType: "slides",
             sourceType: "generated_file",
@@ -61,11 +61,11 @@ describe("artifact detail route", () => {
             topicVersion: null,
           })),
           update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => ({
-            id: "artifact-1",
+            id: "11111111-1111-4111-8111-111111111111",
             parentType: "session",
             learningModuleVersionId: null,
             topicVersionId: null,
-            sessionId: "session-1",
+            sessionId: "22222222-2222-4222-8222-222222222222",
             assessmentId: null,
             artifactType: "slides",
             sourceType: "generated_file",
@@ -81,7 +81,7 @@ describe("artifact detail route", () => {
         },
         session: {
           findUnique: vi.fn(async () => ({
-            id: "session-1",
+            id: "22222222-2222-4222-8222-222222222222",
             term: { status: "active", course: { instructorId: "instructor-1" } },
             termLearningModule: null,
           })),
@@ -91,23 +91,23 @@ describe("artifact detail route", () => {
 
     const { PATCH } = await import("./route");
     const response = await PATCH(
-      new Request("http://localhost/api/artifacts/artifact-1", {
+      new Request("http://localhost/api/artifacts/11111111-1111-4111-8111-111111111111", {
         method: "PATCH",
         body: JSON.stringify({
           archivedAt: "2026-07-12T18:00:00.000Z",
         }),
       }),
-      { params: Promise.resolve({ id: "artifact-1" }) },
+      { params: Promise.resolve({ id: "11111111-1111-4111-8111-111111111111" }) },
     );
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       artifact: {
-        id: "artifact-1",
+        id: "11111111-1111-4111-8111-111111111111",
         parentType: "session",
         learningModuleVersionId: null,
         topicVersionId: null,
-        sessionId: "session-1",
+        sessionId: "22222222-2222-4222-8222-222222222222",
         assessmentId: null,
         artifactType: "slides",
         sourceType: "generated_file",
@@ -128,11 +128,11 @@ describe("artifact detail route", () => {
       fn({
         artifact: {
           findUnique: vi.fn(async () => ({
-            id: "artifact-1",
+            id: "11111111-1111-4111-8111-111111111111",
             parentType: "session",
             learningModuleVersionId: null,
             topicVersionId: null,
-            sessionId: "session-1",
+            sessionId: "22222222-2222-4222-8222-222222222222",
             assessmentId: null,
             artifactType: "slides",
             sourceType: "generated_file",
@@ -152,11 +152,11 @@ describe("artifact detail route", () => {
             topicVersion: null,
           })),
           update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => ({
-            id: "artifact-1",
+            id: "11111111-1111-4111-8111-111111111111",
             parentType: "session",
             learningModuleVersionId: null,
             topicVersionId: null,
-            sessionId: "session-1",
+            sessionId: "22222222-2222-4222-8222-222222222222",
             assessmentId: null,
             artifactType: "slides",
             sourceType: "generated_file",
@@ -172,7 +172,7 @@ describe("artifact detail route", () => {
         },
         session: {
           findUnique: vi.fn(async () => ({
-            id: "session-1",
+            id: "22222222-2222-4222-8222-222222222222",
             term: { status: "active", course: { instructorId: "instructor-1" } },
             termLearningModule: null,
           })),
@@ -182,19 +182,19 @@ describe("artifact detail route", () => {
 
     const { DELETE } = await import("./route");
     const response = await DELETE(
-      new Request("http://localhost/api/artifacts/artifact-1", { method: "DELETE" }),
-      { params: Promise.resolve({ id: "artifact-1" }) },
+      new Request("http://localhost/api/artifacts/11111111-1111-4111-8111-111111111111", { method: "DELETE" }),
+      { params: Promise.resolve({ id: "11111111-1111-4111-8111-111111111111" }) },
     );
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       kind: "archived",
       artifact: {
-        id: "artifact-1",
+        id: "11111111-1111-4111-8111-111111111111",
         parentType: "session",
         learningModuleVersionId: null,
         topicVersionId: null,
-        sessionId: "session-1",
+        sessionId: "22222222-2222-4222-8222-222222222222",
         assessmentId: null,
         artifactType: "slides",
         sourceType: "generated_file",
@@ -215,7 +215,7 @@ describe("artifact detail route", () => {
       fn({
         artifact: {
           findUnique: vi.fn(async () => ({
-            id: "artifact-1",
+            id: "11111111-1111-4111-8111-111111111111",
             title: "Week 1 slides",
             session: null,
             assessment: null,
@@ -231,14 +231,14 @@ describe("artifact detail route", () => {
 
     const { DELETE } = await import("./route");
     const response = await DELETE(
-      new Request("http://localhost/api/artifacts/artifact-1?mode=hard-preview", { method: "DELETE" }),
-      { params: Promise.resolve({ id: "artifact-1" }) },
+      new Request("http://localhost/api/artifacts/11111111-1111-4111-8111-111111111111?mode=hard-preview", { method: "DELETE" }),
+      { params: Promise.resolve({ id: "11111111-1111-4111-8111-111111111111" }) },
     );
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       kind: "hard_removal_preview",
-      artifactId: "artifact-1",
+      artifactId: "11111111-1111-4111-8111-111111111111",
       canRemove: false,
       blockers: [
         {
@@ -262,7 +262,7 @@ describe("artifact detail route", () => {
     const { GET } = await import("./route");
     const response = await GET(
       new Request("http://localhost/api/artifacts/missing"),
-      { params: Promise.resolve({ id: "missing" }) },
+      { params: Promise.resolve({ id: "22222222-2222-4222-8222-222222222222" }) },
     );
 
     expect(response.status).toBe(404);

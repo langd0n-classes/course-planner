@@ -82,7 +82,7 @@ describe("redesign ownership route guards", () => {
       fn({
         session: {
           findUnique: vi.fn(async () => ({
-            id: "session-1",
+            id: "22222222-2222-4222-8222-222222222222",
             term: { course: { instructorId: "instructor-2" } },
             termLearningModule: null,
           })),
@@ -92,8 +92,8 @@ describe("redesign ownership route guards", () => {
 
     const { GET } = await import("./sessions/[id]/route");
     const response = await GET(
-      new NextRequest("http://localhost/api/sessions/session-1"),
-      { params: Promise.resolve({ id: "session-1" }) },
+      new NextRequest("http://localhost/api/sessions/22222222-2222-4222-8222-222222222222"),
+      { params: Promise.resolve({ id: "22222222-2222-4222-8222-222222222222" }) },
     );
 
     expect(response.status).toBe(404);
@@ -130,7 +130,7 @@ describe("redesign ownership route guards", () => {
       fn({
         session: {
           findUnique: vi.fn(async () => ({
-            id: "session-1",
+            id: "22222222-2222-4222-8222-222222222222",
             term: { course: { instructorId: "instructor-2" } },
             termLearningModule: null,
           })),
@@ -140,7 +140,7 @@ describe("redesign ownership route guards", () => {
 
     const { GET } = await import("./artifacts/route");
     const response = await GET(
-      new Request("http://localhost/api/artifacts?sessionId=session-1"),
+      new Request("http://localhost/api/artifacts?sessionId=22222222-2222-4222-8222-222222222222"),
     );
 
     expect(response.status).toBe(404);
@@ -153,11 +153,11 @@ describe("redesign ownership route guards", () => {
       fn({
         artifact: {
           findUnique: vi.fn(async () => ({
-            id: "artifact-1",
+            id: "11111111-1111-4111-8111-111111111111",
             parentType: "session",
             learningModuleVersionId: null,
             topicVersionId: null,
-            sessionId: "session-1",
+            sessionId: "22222222-2222-4222-8222-222222222222",
             assessmentId: null,
             artifactType: "slides",
             sourceType: "generated_file",
@@ -179,8 +179,8 @@ describe("redesign ownership route guards", () => {
 
     const { GET } = await import("./artifacts/[id]/route");
     const response = await GET(
-      new Request("http://localhost/api/artifacts/artifact-1"),
-      { params: Promise.resolve({ id: "artifact-1" }) },
+      new Request("http://localhost/api/artifacts/11111111-1111-4111-8111-111111111111"),
+      { params: Promise.resolve({ id: "11111111-1111-4111-8111-111111111111" }) },
     );
 
     expect(response.status).toBe(404);

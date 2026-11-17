@@ -1,3 +1,4 @@
+import { readJsonBody } from "@/lib/request-json";
 import type { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import {
@@ -63,9 +64,9 @@ export function courseEffortHandlers(kind: CourseEffortKind) {
       const { id } = await context.params;
       const instructor = await getAuthenticatedInstructor(prisma);
       if (!instructor) return unauthorized();
-      const parsed = schema.safeParse(
-        await request.json().catch(() => undefined),
-      );
+      const json = await readJsonBody(request);
+      if (json.response) return json.response;
+      const parsed = schema.safeParse(json.data);
       if (!parsed.success)
         return badRequest(
           "Invalid request",
@@ -91,9 +92,9 @@ export function courseEffortHandlers(kind: CourseEffortKind) {
       const { id, entryId } = await context.params;
       const instructor = await getAuthenticatedInstructor(prisma);
       if (!instructor) return unauthorized();
-      const parsed = schema.safeParse(
-        await request.json().catch(() => undefined),
-      );
+      const json = await readJsonBody(request);
+      if (json.response) return json.response;
+      const parsed = schema.safeParse(json.data);
       if (!parsed.success)
         return badRequest(
           "Invalid request",
@@ -131,9 +132,9 @@ export function courseEffortHandlers(kind: CourseEffortKind) {
       const { id } = await context.params;
       const instructor = await getAuthenticatedInstructor(prisma);
       if (!instructor) return unauthorized();
-      const parsed = reorderCourseEffortSchema.safeParse(
-        await request.json().catch(() => undefined),
-      );
+      const json = await readJsonBody(request);
+      if (json.response) return json.response;
+      const parsed = reorderCourseEffortSchema.safeParse(json.data);
       if (!parsed.success)
         return badRequest(
           "Invalid request",

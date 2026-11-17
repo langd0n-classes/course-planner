@@ -70,7 +70,7 @@ describe("legacy page loading", () => {
     expect(screen.queryByText("Report for term-1")).not.toBeInTheDocument();
   });
 
-  it("defaults the instructor once and preserves edits through a list refresh", async () => {
+  it("uses the signed-in instructor through a list refresh without an instructor selector", async () => {
     const term: Term = {
       id: "term-1", code: "F26", name: "Fall", courseCode: "TEST",
       startDate: "2026-09-01", endDate: "2026-12-01",
@@ -78,7 +78,6 @@ describe("legacy page loading", () => {
     };
     const instructors = [
       { id: "instructor-1", name: "First", email: "first@example.test" },
-      { id: "instructor-2", name: "Second", email: "second@example.test" },
     ];
     const getTerms = vi.spyOn(api, "getTerms").mockResolvedValueOnce([term]).mockResolvedValue([]);
     const getInstructors = vi.spyOn(api, "getInstructors").mockResolvedValue(instructors);
@@ -87,15 +86,17 @@ describe("legacy page loading", () => {
     render(<TermsPage />);
     await screen.findByText("Fall");
     fireEvent.click(screen.getByRole("button", { name: "Create Term" }));
-    const instructor = screen.getByRole("combobox");
-    expect(instructor).toHaveValue("instructor-1");
-    fireEvent.change(instructor, { target: { value: "instructor-2" } });
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.getByText("First")).toBeInTheDocument();
     expect(getInstructors).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     await waitFor(() => { expect(screen.queryByText("Fall")).not.toBeInTheDocument(); });
-    expect(instructor).toHaveValue("instructor-2");
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     expect(getTerms).toHaveBeenCalledTimes(2);
     expect(getInstructors).toHaveBeenCalledTimes(2);
+    const create = vi.spyOn(api, "createTerm").mockResolvedValue(term);
+    fireEvent.submit(screen.getByRole("button", { name: "Create" }).closest("form")!);
+    await waitFor(() => expect(create).toHaveBeenCalledWith(expect.objectContaining({ instructorId: "instructor-1" })));
   });
 });

@@ -25,12 +25,7 @@ vi.mock("@/services/redesign", async () => {
     getOwnedCourse: mocks.getOwnedCourse,
     ExemplarImportService: class {
       stage(snapshot: unknown) {
-        return {
-          snapshot: { snapshotId: "generic-intro-data-science-v1" },
-          snapshotFingerprint: "abc123",
-          exclusions: [],
-          raw: snapshot,
-        };
+        return new actual.ExemplarImportService().stage(snapshot);
       }
 
       preview() {
@@ -92,4 +87,27 @@ describe("exemplar import route", () => {
       snapshot: expect.anything(),
     });
   });
+});
+
+it.each([true, false])("rejects import bodies over 2 MiB (declared length: %s)", async (declared) => {
+  authMock.mockResolvedValue({ id: "instructor-1", email: "owner@example.test", name: "Instructor" });
+  mocks.getOwnedCourse.mockResolvedValue({ id: "course-1" });
+  const { POST } = await import("./route");
+  const response = await POST(new NextRequest("http://localhost/api/courses/course-1/exemplar-import", {
+    method: "POST", body: "x".repeat(2 * 1024 * 1024 + 1),
+    headers: declared ? { "content-length": String(2 * 1024 * 1024 + 1) } : {},
+  }), { params: Promise.resolve({ id: "course-1" }) });
+  expect(response.status).toBe(413);
+});
+
+it("returns 400 and the first invalid snapshot path", async () => {
+  authMock.mockResolvedValue({ id: "instructor-1", email: "owner@example.test", name: "Instructor" });
+  mocks.getOwnedCourse.mockResolvedValue({ id: "course-1" });
+  const { POST } = await import("./route");
+  const { genericDemoExemplarSnapshot } = await import("@/services/redesign/exemplar-import-service");
+  for (const snapshot of [null, { ...genericDemoExemplarSnapshot, course: { title: 42, number: "X" } }]) {
+    const response = await POST(request({ mode: "preview", snapshot }), { params: Promise.resolve({ id: "course-1" }) });
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain(snapshot === null ? "at $:" : "$.course.title");
+  }
 });
