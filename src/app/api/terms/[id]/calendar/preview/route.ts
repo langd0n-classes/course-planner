@@ -30,6 +30,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
     return ok({
       kind: "preview",
+      affectedMeetingCount: preview.affectedMeetingCount,
       previewToken: preview.previewToken,
       expectedCurrentCalendarSlotCount: preview.expectedCurrentCalendarSlotCount,
       calendarSlotCandidates: preview.calendarSlotCandidates.map(toCalendarSlotCandidateDto),

@@ -12,10 +12,9 @@ it("only places undelivered undated planned meetings", () => {
   expect(isUndatedMeeting({ planned: { startsAt: "2026-01-01T12:00Z" } })).toBe(false);
   expect(isUndatedMeeting({ planned: null })).toBe(false);
 });
-it("uses local calendar dates and preserves order-check fallback rules", () => {
+it("uses local calendar dates and rejects invalid zones", () => {
   expect(localDate("2026-11-18T01:00Z", "America/New_York")).toBe("2026-11-17");
-  expect(localDate("2026-11-18T01:00Z", "bad", "America/New_York")).toBe("2026-11-17");
-  expect(localDate("2026-11-18T01:00Z", "bad")).toBe("2026-11-18");
+  expect(() => localDate("2026-11-18T01:00Z", "bad")).toThrow(RangeError);
   expect(localDate("2026-11-17", "America/New_York")).toBe("2026-11-17");
   expect(localDate("not an instant here")).toBe("not an ins");
 });

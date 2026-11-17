@@ -75,6 +75,14 @@ export function buildTermDailyDriver(args: {
   today: string;
   timeZone?: string | null;
 }): TermDailyDriver {
+  const timeZone = args.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const milestoneDate = (value: string, zone: string | null) => {
+    try { return localDate(value, zone ?? timeZone); }
+    catch (error) {
+      if (!(error instanceof RangeError)) throw error;
+      return localDate(value, timeZone);
+    }
+  };
   const effective = args.termActivities.flatMap((activity) => {
     const revisions = args.revisionsByTermActivityId[activity.id];
     const revision = effectiveRevision(revisions);
@@ -99,7 +107,7 @@ export function buildTermDailyDriver(args: {
       if (revision.detail.behaviorFamily !== "meeting") return false;
       return (
         Boolean(revision.detail.startsAt) &&
-        localDate(revision.detail.startsAt!, args.timeZone)! >= localDate(args.today, args.timeZone)! &&
+        localDate(revision.detail.startsAt!, timeZone)! >= localDate(args.today, timeZone)! &&
         revision.detail.status !== "canceled"
       );
     })
@@ -113,7 +121,7 @@ export function buildTermDailyDriver(args: {
         .map((milestone, milestoneIndex) => ({ milestone, milestoneIndex }))
         .filter(
           ({ milestone }) =>
-            milestone.occursAt && localDate(milestone.occursAt, milestone.timeZone ?? args.timeZone, args.timeZone)! >= localDate(args.today, args.timeZone)!,
+            milestone.occursAt && milestoneDate(milestone.occursAt, milestone.timeZone)! >= localDate(args.today, timeZone)!,
         )
         .map(({ milestone, milestoneIndex }) => ({
           activity,

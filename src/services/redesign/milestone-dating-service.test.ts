@@ -249,3 +249,11 @@ it.each(["stale token", "changed Activity"])(
     expect(f.tx.termActivity.updateMany).not.toHaveBeenCalled();
   },
 );
+
+it.each(["moved", "canceled"])("dates from the effective delivered meeting: %s", async status => {
+  const f = fixture();
+  Object.assign(f.meeting, { deliveredRevisionId: "d", deliveredRevision: { meetingDetail: { startsAt: new Date("2026-03-09T14:00Z"), calendarSlotId: null, status } } });
+  const result = await previewMilestoneDating(f.db, request);
+  if (status === "moved") expect(result.dates[0].occursAt.toISOString()).toBe("2026-03-10T09:00:00.000Z");
+  else { expect(result.dates).toEqual([]); expect(result.undated[0].reason).toBe("linked_meeting_canceled"); }
+});

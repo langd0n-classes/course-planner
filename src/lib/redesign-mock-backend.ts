@@ -1,4 +1,4 @@
-import { effectiveRevision } from "./term-revision-rules";
+import { effectiveRevision, localDate } from "./term-revision-rules";
 import type { ActivityDto, ActivityVersionDto, CreateActivityRequest, UpsertActivityVersionRequest, CourseEffortSizeDto, CourseEffortPartKindDto, CourseEffortSizeRequest, CourseEffortPartKindRequest, TermActivityDto, TermActivityRevisionDto, TermActivityRevisionPreviewRequest, TermActivityRevisionApplyRequest } from "./redesign-contract";
 import { effectiveEffort, validateEffort } from "./effort";
 import {
@@ -1324,10 +1324,16 @@ export function previewTermActivityRevision(
       ? activity.plannedRevisionId
       : effectiveRevision({ delivered: activity.deliveredRevisionId, planned: activity.plannedRevisionId });
   const current = currentId ? store.termActivityRevisions.get(currentId) : null;
-  const detail = keepEffortOverride(
+  let detail = keepEffortOverride(
     input.detail,
     current?.detail.behaviorFamily === "meeting" ? null : current?.detail,
   );
+  if (detail.behaviorFamily === "meeting" && detail.startsAt &&
+      (current?.detail.behaviorFamily !== "meeting" || detail.startsAt !== current.detail.startsAt)) {
+    const zone = getTerm(activity.termId).meetingPatterns?.[0]?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const date = localDate(detail.startsAt, zone);
+    detail = { ...detail, calendarSlotId: listCalendarSlots(activity.termId).find(slot => slot.date.slice(0, 10) === date)?.id ?? null };
+  }
   const effective =
     detail.behaviorFamily === "meeting"
       ? null
@@ -1335,9 +1341,20 @@ export function previewTermActivityRevision(
   const pointer = input.advancePointer === "planned" ? activity.plannedRevisionId : activity.deliveredRevisionId;
   const topicActions = input.topicActions ?? current?.topicActions ?? [];
   const milestones = input.milestones ?? current?.milestones ?? [];
+  if (detail.behaviorFamily !== base.detail.behaviorFamily) throw new Error("Revision detail family must match the Activity family");
+  for (const milestone of milestones) {
+    const inherited = input.milestones === undefined;
+    if (milestone.linkedTermActivityId === id && !inherited) throw new Error("A milestone cannot link to its own Term Activity");
+    if (milestone.anchorPolicy === "follow_activity") {
+      const linked = milestone.linkedTermActivityId ? store.termActivities.get(milestone.linkedTermActivityId) : null;
+      if (!linked || linked.termId !== activity.termId) throw new Error("A milestone that follows an Activity needs a linked Term Activity in the same Term");
+    }
+    if ((milestone.anchorPolicy === "fixed_instant" || milestone.anchorPolicy === "standalone") && !milestone.occursAt) throw new Error("A fixed or standalone milestone needs a date");
+    if (milestone.sourceTemplateId && !base.milestoneTemplates.some(template => template.id === milestone.sourceTemplateId)) throw new Error("The milestone template must belong to the base Activity version");
+  }
   const revision: TermActivityRevisionDto = {
     id: nextId("term_revision"),
-    termActivityId: id, revision: [...store.termActivityRevisions.values()].filter((r) => r.termActivityId === id).length + 1,
+    termActivityId: id, revision: Math.max(0, ...[...store.termActivityRevisions.values()].filter((r) => r.termActivityId === id).map(r => r.revision)) + 1,
     baseActivityVersionId: base.id,
     baseEffort,
     effectiveEffort: effective,
@@ -1359,6 +1376,9 @@ export function applyTermActivityRevision(id: Id, input: TermActivityRevisionApp
   const term = getTerm(activity.termId); if (term.status === "closed" || (input.advancePointer === "delivered" && term.status !== "active")) throw new Error("Term is not writable");
   store.termActivityRevisions.set(preview.proposedRevision.id, preview.proposedRevision);
   const updated = { ...activity, [input.advancePointer === "planned" ? "plannedRevisionId" : "deliveredRevisionId"]: preview.proposedRevision.id };
+  if (input.advancePointer === "delivered" || !activity.deliveredRevisionId) {
+    updated.lifecycleState = input.detail.behaviorFamily === "meeting" ? input.detail.status ?? null : input.detail.lifecycleState ?? null;
+  }
   store.termActivities.set(id, updated); return { kind: "applied" as const, termActivity: structuredClone(updated), revision: structuredClone(preview.proposedRevision) };
 }
 

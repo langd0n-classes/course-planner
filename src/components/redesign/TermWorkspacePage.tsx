@@ -160,7 +160,7 @@ export default function TermWorkspacePage({ termId }: Props) {
     return !activity.archivedAt && revision?.detail.behaviorFamily === "meeting" && revision.detail.status !== "canceled" && isUndatedMeeting({ delivered: activityRevisions[activity.id]?.delivered, planned: revision.detail });
   });
   const todayIso = useMemo(() => getTodayIsoDate(), []);
-  const termTimeZone = term?.meetingPatterns?.[0]?.timeZone ?? null;
+  const termTimeZone = term?.meetingPatterns?.[0]?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   const orderResult = useMemo(() => checkTermOrder({
     termActivities, revisionsByTermActivityId: activityRevisions, calendarSlots,
     topicVersions: [...topicVersionsById.values()], prerequisites,
@@ -600,6 +600,7 @@ export default function TermWorkspacePage({ termId }: Props) {
         revisionsByTermActivityId={activityRevisions}
         today={termTimeZone ? localDate(new Date(), termTimeZone)! : todayIso}
         timeZone={termTimeZone}
+        calendarSlots={calendarSlots}
         learningModuleLabels={learningModuleLabels}
         topicLabels={topicLabels}
         editable={term.status === "active"}

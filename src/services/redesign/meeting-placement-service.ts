@@ -1,4 +1,4 @@
-import { effectiveRevision } from "@/lib/term-revision-rules";
+import { dateOnly, effectiveRevision } from "@/lib/term-revision-rules";
 import { createHash } from "node:crypto";
 import { ConcurrencyConflictError, DomainInvariantError } from "./errors";
 import {
@@ -17,9 +17,8 @@ type Input = {
   instructorId: string;
   termId: string;
   defaultMeetingTime: DefaultMeetingTime | null;
+  now?: () => Date;
 };
-const dateOnly = (date: Date | string) =>
-  new Date(date).toISOString().slice(0, 10);
 async function buildPreview(tx: RedesignTx, input: Input) {
   await getOwnedTermForInstructor(tx, input.instructorId, input.termId);
   const [rows, slots, patterns, exceptions] = await Promise.all([
@@ -78,7 +77,7 @@ async function buildPreview(tx: RedesignTx, input: Input) {
       const detail = effectiveRevision({
         planned: row.plannedRevision,
         delivered: row.deliveredRevision,
-      })?.meetingDetail;
+      })?.meetingDetail ?? row.plannedRevision?.meetingDetail;
       if (!detail) return [];
       return [{
         termActivityId: row.id,
@@ -96,6 +95,7 @@ async function buildPreview(tx: RedesignTx, input: Input) {
       }];
     });
   const plan = planMeetingPlacement({
+    now: input.now,
     meetings,
     slots: (slots as { id: string; date: Date; slotType: string }[]).map(
       (s) => ({ ...s, date: dateOnly(s.date) }),
@@ -216,6 +216,7 @@ export async function applyMeetingPlacement(
             },
             topicActions: current.topicActions,
             milestones: current.milestones,
+            inheritedMilestones: current.milestones,
           });
           const updated = await tx.termActivity.updateMany({
             where: {

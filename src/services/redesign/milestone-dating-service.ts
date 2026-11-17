@@ -1,3 +1,4 @@
+import { effectiveRevision } from "@/lib/term-revision-rules";
 import { createHash } from "node:crypto";
 import { ConcurrencyConflictError, DomainInvariantError } from "./errors";
 import {
@@ -49,6 +50,7 @@ type Row = {
   adoptedLabel: string;
   plannedRevisionId: string | null;
   plannedRevision: Revision | null;
+  deliveredRevision?: Revision | null;
   archivedAt?: Date | null;
   activityTypeVersion?: { activityType: { behaviorFamily: string } };
   revisions: { revision: number }[];
@@ -84,6 +86,7 @@ async function buildPreview(tx: RedesignTx, input: Input) {
             select: { revision: true },
           },
           plannedRevision: { include },
+          deliveredRevision: { include },
           activityTypeVersion: { include: { activityType: true } },
         },
         orderBy: { id: "asc" },
@@ -107,6 +110,7 @@ async function buildPreview(tx: RedesignTx, input: Input) {
       m.sourceTemplate ? [m.sourceTemplate] : [],
     ),
     meeting:
+      effectiveRevision({ planned: row.plannedRevision, delivered: row.deliveredRevision })?.meetingDetail ??
       row.plannedRevision?.meetingDetail ??
       (row.activityTypeVersion?.activityType.behaviorFamily === "meeting"
         ? { startsAt: null, calendarSlotId: null }
@@ -194,6 +198,7 @@ export async function applyMilestoneDating(
             detail,
             topicActions: current.topicActions,
             milestones,
+            inheritedMilestones: current.milestones,
           });
           const updated = await tx.termActivity.updateMany({
             where: { id, plannedRevisionId: change.expectedPlannedRevisionId },

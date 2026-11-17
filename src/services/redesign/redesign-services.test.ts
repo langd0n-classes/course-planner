@@ -1028,6 +1028,8 @@ describe("versioned academic calendar services", () => {
           activityType: { instructorId: "instructor-1" },
         }),
       },
+      termMeetingActivityRevision: { findMany: async () => [] },
+      session: { count: async () => 0 },
       calendarSlot: {
         findMany: async () => [
           { id: "existing-slot", termId: "term-1", date: new Date("2027-03-01") },
@@ -1093,18 +1095,15 @@ describe("versioned academic calendar services", () => {
     expect(previewA.calendarSlotCandidates.find((slot) => slot.date === "2027-03-12")?.label).toBe("Review Day");
     expect(previewA.conflicts.some((conflict) => conflict.code === "meeting_day_blocked")).toBe(true);
 
-    const applied = await applyTermCalendar(db, {
-      instructorId: "instructor-1",
-      termId: "term-1",
+    await expect(applyTermCalendar(db, {
+      instructorId: "instructor-1", termId: "term-1",
       previewToken: previewA.previewToken,
       expectedCurrentCalendarSlotCount: previewA.expectedCurrentCalendarSlotCount,
       meetingPatterns,
-    });
-
-    expect(applied.calendarSlotCount).toBe(previewA.calendarSlotCandidates.length);
-    expect(meetingPatternCreates).toHaveLength(1);
-    expect(calendarSlotDeletes).toEqual([{ termId: "term-1", date: { notIn: previewA.calendarSlotCandidates.map(slot => new Date(`${slot.date}T00:00:00.000Z`)) } }]);
-    expect(calendarSlotCreates).toHaveLength(previewA.calendarSlotCandidates.filter(slot => !["2027-03-01", "2027-03-05", "2027-03-12"].includes(slot.date)).length);
+    })).rejects.toThrow("0 affected meetings, 1 calendar exceptions");
+    expect(meetingPatternCreates).toHaveLength(0);
+    expect(calendarSlotDeletes).toHaveLength(0);
+    expect(calendarSlotCreates).toHaveLength(0);
 
     const updatedException = await updateTermCalendarException(db, "exception-1", "instructor-1", {
       label: "Updated label",

@@ -1,4 +1,4 @@
-import { effectiveRevision, localDate as day } from "./term-revision-rules";
+import { effectiveRevision, localDate } from "./term-revision-rules";
 import type {
   CalendarSlotDto,
   Id,
@@ -6,6 +6,15 @@ import type {
   TopicVersionDto,
 } from "./redesign-contract";
 import type { buildTermDailyDriver } from "./redesign-workspace";
+
+// Order checks are advisory: retain their explicit fallback for old milestone zones.
+function day(value: Date | string | null | undefined, zone?: string | null, fallback?: string | null): string | null {
+  try { return localDate(value, zone); }
+  catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    return localDate(value, fallback);
+  }
+}
 
 export type TermOrderFindingKind =
   | "assessed_before_introduced"

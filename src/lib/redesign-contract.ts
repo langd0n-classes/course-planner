@@ -1155,6 +1155,7 @@ export type TermCalendarPreviewRequest = {
   meetingPatterns: UpsertTermMeetingPatternRequest[];
 };
 export type TermCalendarPreviewResponse = {
+  affectedMeetingCount: number;
   kind: "preview";
   previewToken: string;
   expectedCurrentCalendarSlotCount: number;

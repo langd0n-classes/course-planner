@@ -8,11 +8,12 @@ import type {
   TermActivityRevisionDto,
   TermActivityRevisionPreviewRequest,
 } from "@/lib/redesign-contract";
-import { isUndatedMeeting } from "@/lib/term-revision-rules";
+import { isUndatedMeeting, localDate } from "@/lib/term-revision-rules";
 import { buildTermDailyDriver } from "@/lib/redesign-workspace";
 
 type Props = {
   onPlaceMeetings?: () => void;
+  calendarSlots?: { id: string; date: string }[];
   termActivities: TermActivityDto[];
   revisionsByTermActivityId: Record<
     Id,
@@ -54,6 +55,7 @@ function toUtcIso(value: string) {
 function requestFromRevision(
   revision: TermActivityRevisionDto,
   changeReason: string,
+  includeMilestones = false,
 ): TermActivityRevisionPreviewRequest {
   return {
     title: revision.title,
@@ -68,7 +70,7 @@ function requestFromRevision(
         provenance,
       }),
     ),
-    milestones: revision.milestones.map(
+    milestones: includeMilestones ? revision.milestones.map(
       ({
         sourceTemplateId,
         role,
@@ -90,7 +92,7 @@ function requestFromRevision(
         notes,
         provenance,
       }),
-    ),
+    ) : undefined,
   };
 }
 
@@ -211,6 +213,7 @@ export default function ActiveTermDailyDriver(props: Props) {
       ...meeting.revision.detail,
       startsAt,
       endsAt,
+      calendarSlotId: props.calendarSlots?.find(slot => slot.date.slice(0, 10) === localDate(startsAt, props.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone))?.id ?? null,
     };
     if (new Date(endsAt).getTime() <= new Date(startsAt).getTime()) {
       setError("The moved meeting must end after it starts.");
@@ -224,6 +227,7 @@ export default function ActiveTermDailyDriver(props: Props) {
     const request = requestFromRevision(
       nextMilestone.revision,
       "Milestone anchor changed during delivery.",
+      true,
     );
     const occursAt = toUtcIso(milestoneOccursAt.value);
     if (!occursAt) {

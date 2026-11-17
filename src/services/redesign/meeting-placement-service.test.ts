@@ -7,6 +7,7 @@ import {
 
 
 const request = {
+  now: () => new Date("2026-01-01T00:00Z"),
   instructorId: "i",
   termId: "term",
   defaultMeetingTime: {
@@ -359,4 +360,12 @@ it("delivered cancellations release their planned slot for another meeting", asy
   expect(p.placements.map(item => item.termActivityId)).toEqual(["a"]);
   await applyMeetingPlacement(f.db, { ...request, previewToken: p.previewToken });
   expect(f.tx.termActivityRevision.create).toHaveBeenCalledOnce();
+});
+
+it("reserves the planned slot if a delivered snapshot has no meeting detail", async () => {
+  const f = fixture();
+  f.row.plannedRevision.meetingDetail.calendarSlotId = "s" as any;
+  Object.assign(f.row, { deliveredRevisionId: "d", deliveredRevision: { meetingDetail: null } });
+  const result = await previewMeetingPlacement(f.db, request);
+  expect(result.alreadyDatedCount).toBe(1);
 });

@@ -302,3 +302,76 @@ it("invalidates an omitted-list preview when the inherited planned collections c
   mock.applyTermActivityRevision(activity.id, { ...planned, previewToken: p.previewToken, expectedCurrentRevisionId: p.expectedCurrentRevisionId });
   expect(() => mock.applyTermActivityRevision(activity.id, { ...request, previewToken: delivered.previewToken, expectedCurrentRevisionId: delivered.expectedCurrentRevisionId })).toThrow("stale");
 });
+
+function termRevisionFixture() {
+  const term = mock.listTerms(mock.listCourses()[0].id).find(row => row.status === "active")!;
+  const listed = mock.listTermActivitiesWithRevisions(term.id);
+  const activity = listed.termActivities[0];
+  const revision = listed.revisionsByTermActivityId[activity.id].planned!;
+  return { term, listed, activity, revision, request: { title: revision.title, detail: revision.detail, advancePointer: "planned" as const } };
+}
+it.each([
+  { anchorPolicy: "follow_activity", linkedTermActivityId: "self" },
+  { anchorPolicy: "follow_activity" },
+  { anchorPolicy: "follow_activity", linkedTermActivityId: "missing" },
+  { anchorPolicy: "fixed_instant" }, { anchorPolicy: "standalone" },
+  { anchorPolicy: "standalone", occursAt: "2026-12-01T12:00Z", sourceTemplateId: "wrong" },
+] as const)("mock rejects invalid supplied milestones: %j", fields => {
+  const f = termRevisionFixture();
+  const milestone = { role: "due" as const, label: "Due", ...fields, linkedTermActivityId: "linkedTermActivityId" in fields && fields.linkedTermActivityId === "self" ? f.activity.id : "linkedTermActivityId" in fields ? fields.linkedTermActivityId : undefined };
+  expect(() => mock.previewTermActivityRevision(f.activity.id, { ...f.request, milestones: [milestone] })).toThrow();
+});
+it("mock rejects a follow target in another Term", async () => {
+  const { vi } = await import("vitest");
+  const saved: Array<{ id: string; termId: string }> = [];
+  const original = Map.prototype.set;
+  const spy = vi.spyOn(Map.prototype, "set").mockImplementation(function (this: Map<unknown, unknown>, key, value) {
+    if (value?.termId && value.plannedActivityVersionId) saved.push(value);
+    return original.call(this, key, value);
+  });
+  try { mock.resetMockBackend(); } finally { spy.mockRestore(); }
+  const f = termRevisionFixture();
+  const linked = saved.find(row => row.id !== f.activity.id)!;
+  linked.termId = "another-term";
+  expect(() => mock.previewTermActivityRevision(f.activity.id, { ...f.request, milestones: [{ role: "due", label: "Due", anchorPolicy: "follow_activity", linkedTermActivityId: linked.id }] })).toThrow("same Term");
+});
+it("mock preserves delivered lifecycle state on later planned edits", () => {
+  const f = termRevisionFixture();
+  const delivered = { ...f.request, advancePointer: "delivered" as const, detail: { ...f.revision.detail, lifecycleState: "done" } };
+  const d = mock.previewTermActivityRevision(f.activity.id, delivered);
+  const applied = mock.applyTermActivityRevision(f.activity.id, { ...delivered, previewToken: d.previewToken, expectedCurrentRevisionId: d.expectedCurrentRevisionId });
+  expect(applied.termActivity.lifecycleState).toBe("done");
+  const planned = { ...f.request, detail: { ...f.revision.detail, lifecycleState: "planned" } };
+  const p = mock.previewTermActivityRevision(f.activity.id, planned);
+  expect(mock.applyTermActivityRevision(f.activity.id, { ...planned, previewToken: p.previewToken, expectedCurrentRevisionId: p.expectedCurrentRevisionId }).termActivity.lifecycleState).toBe("done");
+});
+it("mock uses the highest revision number even when historical numbers have gaps", async () => {
+  const { vi } = await import("vitest");
+  const saved: Array<{ termActivityId: string; revision: number }> = [];
+  const original = Map.prototype.set;
+  const spy = vi.spyOn(Map.prototype, "set").mockImplementation(function (this: Map<unknown, unknown>, key, value) {
+    if (value?.termActivityId && typeof value.revision === "number") saved.push(value);
+    return original.call(this, key, value);
+  });
+  try { mock.resetMockBackend(); } finally { spy.mockRestore(); }
+  const f = termRevisionFixture();
+  saved.find(row => row.termActivityId === f.activity.id)!.revision = 7;
+  expect(mock.previewTermActivityRevision(f.activity.id, f.request).proposedRevision.revision).toBe(8);
+});
+it("mock clears stale slot links when changing a meeting start instant", async () => {
+  const { vi } = await import("vitest");
+  const values: Array<Record<string, unknown>> = [];
+  const original = Map.prototype.set;
+  const spy = vi.spyOn(Map.prototype, "set").mockImplementation(function (this: Map<unknown, unknown>, key, value) {
+    if (value && typeof value === "object") values.push(value);
+    return original.call(this, key, value);
+  });
+  try { mock.resetMockBackend(); } finally { spy.mockRestore(); }
+  const f = termRevisionFixture();
+  const base = values.find(row => row.id === f.activity.plannedActivityVersionId)!;
+  base.detail = { behaviorFamily: "meeting" };
+  const source = values.find(row => row.id === f.revision.id)!;
+  source.detail = { behaviorFamily: "meeting", calendarSlotId: "old-slot", startsAt: "2026-11-17T14:00Z" };
+  const p = mock.previewTermActivityRevision(f.activity.id, { ...f.request, detail: { behaviorFamily: "meeting", calendarSlotId: "old-slot", startsAt: "2030-01-01T14:00Z", endsAt: null, status: "scheduled", modality: null, overrideReason: null, overrideEvidence: null } });
+  expect(p.proposedRevision.detail).toMatchObject({ calendarSlotId: null });
+});

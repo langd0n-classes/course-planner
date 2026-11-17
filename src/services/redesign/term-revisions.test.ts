@@ -95,3 +95,37 @@ it("rejects templates of another base version in preview", async () => {
   f.tx.activityVersionMilestoneTemplate.findUnique.mockResolvedValue({ id: "template", activityVersionId: "another-version" });
   await expect(previewTermActivityRevision(f.db, { ...f.input, draft: { ...f.input.draft, milestones: [{ ...f.milestone, anchorPolicy: "standalone", role: "due", sourceTemplateId: "template" }] } })).rejects.toThrow("The milestone template must belong to the base Activity version");
 });
+
+it("rejects a revision detail from another Activity family", async () => {
+  const f = fixture();
+  f.row.plannedActivityVersion = { meetingDetail: {} };
+  await expect(previewTermActivityRevision(f.db, { ...f.input, draft: { title: "Wrong", detail: { behaviorFamily: "coursework" } } })).rejects.toThrow("family");
+});
+it("can cancel a revision with an inherited legacy self-link but rejects one supplied anew", async () => {
+  const f = fixture();
+  Object.assign(f.milestone, { linkedTermActivityId: "a", anchorPolicy: "follow_activity" });
+  const p = await previewTermActivityRevision(f.db, f.input);
+  await applyTermActivityRevision(f.db, { ...f.input, previewToken: p.previewToken, expectedCurrentRevisionId: "p" });
+  expect(f.tx.termActivityMilestone.create).toHaveBeenCalled();
+  await expect(previewTermActivityRevision(f.db, { ...f.input, draft: { ...f.input.draft, milestones: [f.milestone as any] } })).rejects.toThrow("own Term Activity");
+});
+it("uses the browser zone without a Term pattern", () => {
+  const spy = vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockReturnValue({ timeZone: "America/New_York" } as any);
+  try {
+    const result = buildTermDailyDriver({ today: "2026-11-17", termActivities: [{ id: "a" }], revisionsByTermActivityId: { a: { planned: { detail: { behaviorFamily: "meeting", startsAt: "2026-11-17T01:00Z" }, topicActions: [], milestones: [] } } } } as any);
+    expect(result.nextMeeting).toBeNull();
+  } finally { spy.mockRestore(); }
+});
+it.each([true, false])("updates slot identity at the server revision boundary: %s", async matching => {
+  const f = fixture();
+  Object.assign(f.row.plannedRevision, { meetingDetail: { startsAt: new Date("2026-11-17T14:00Z"), calendarSlotId: "old" } });
+  f.tx.termMeetingPattern = { findMany: async () => [{ timeZone: "America/New_York" }] };
+  f.tx.calendarSlot = { findUnique: async () => ({ termId: "t", term: { course: { instructorId: "i" } } }), findFirst: vi.fn(async () => matching ? { id: "new-slot" } : null) };
+  const p = await previewTermActivityRevision(f.db, { ...f.input, draft: { title: "Move", detail: { behaviorFamily: "meeting", startsAt: new Date("2026-11-19T01:00Z"), calendarSlotId: "old" } } });
+  expect(p.proposedRevision.meetingDetail?.calendarSlotId).toBe(matching ? "new-slot" : null);
+  expect(f.tx.calendarSlot.findFirst).toHaveBeenCalledWith({ where: { termId: "t", date: new Date("2026-11-18T00:00Z") } });
+});
+it("keeps advisory daily-driver fallback for an invalid legacy milestone zone", () => {
+  const result = buildTermDailyDriver({ today: "2026-11-17", timeZone: "America/New_York", termActivities: [{ id: "a" }], revisionsByTermActivityId: { a: { planned: { detail: { behaviorFamily: "coursework" }, topicActions: [], milestones: [{ label: "Due", occursAt: "2026-11-17T23:00Z", timeZone: "Invalid/Zone" }] } } } } as any);
+  expect(result.nextMilestone?.label).toBe("Due");
+});

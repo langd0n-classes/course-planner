@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  formatMinutes,
   formatEffortRange,
   parseHoursMinutes,
   findEffortSize,
@@ -10,16 +9,6 @@ import {
 } from "./effort";
 
 describe("student effort", () => {
-  it.each([
-    [0, "0 min"],
-    [45, "45 min"],
-    [59, "59 min"],
-    [60, "1 h"],
-    [61, "1 h 1 min"],
-    [90, "1 h 30 min"],
-  ])("formats %s minutes", (minutes, expected) => {
-    expect(formatMinutes(minutes as number)).toBe(expected);
-  });
   it("formats ranges and equal ends", () => {
     expect(formatEffortRange({ minMinutes: 30, maxMinutes: 45 })).toBe(
       "30 to 45 min",

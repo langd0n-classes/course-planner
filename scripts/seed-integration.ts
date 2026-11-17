@@ -1,3 +1,4 @@
+import { assertSeedTestDatabaseAllowed } from "../prisma/seed-guard";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { PrismaClient } from "@prisma/client";
@@ -5,11 +6,7 @@ import { seedId } from "../prisma/seed-data";
 import { demoSemesters } from "../src/services/redesign/demo-course-service";
 
 const url = process.env.SEED_TEST_DATABASE_URL;
-if (!url || new URL(url).pathname !== "/cp15") {
-  throw new Error(
-    "SEED_TEST_DATABASE_URL must point to the dedicated cp15 database",
-  );
-}
+assertSeedTestDatabaseAllowed(url);
 process.env.DATABASE_URL = url;
 process.env.DATABASE_URL_UNPOOLED = url;
 const db = new PrismaClient();

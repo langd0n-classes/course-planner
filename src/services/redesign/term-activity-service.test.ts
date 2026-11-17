@@ -475,7 +475,9 @@ describe("Term Activity revisions", () => {
           return { count: 1 };
         },
       },
+      termMeetingPattern: { findMany: async () => [] },
       calendarSlot: {
+        findFirst: async () => ({ id: "slot-1" }),
         findUnique: async () => ({
           id: "slot-1",
           termId: "term-1",

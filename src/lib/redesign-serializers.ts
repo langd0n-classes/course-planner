@@ -642,7 +642,7 @@ export function toTermCalendarExceptionDto(exception: TermCalendarExceptionRow):
   };
 }
 
-export function toTermCalendarSlotProvenanceDto(
+function toTermCalendarSlotProvenanceDto(
   provenance: TermCalendarSlotProvenanceDto,
 ): TermCalendarSlotProvenanceDto {
   return provenance;
@@ -1028,7 +1028,7 @@ export function toActivityVersionLearningModuleScopeDto(
   };
 }
 
-export function toActivityTopicActionSiblingDto(
+function toActivityTopicActionSiblingDto(
   sibling: ActivityVersionTopicActionSiblingRow,
 ): ActivityTopicActionSiblingDto {
   return {
@@ -1039,7 +1039,7 @@ export function toActivityTopicActionSiblingDto(
   };
 }
 
-export function toActivityVersionTopicActionDto(
+function toActivityVersionTopicActionDto(
   action: ActivityVersionTopicActionRow,
 ): ActivityVersionTopicActionDto {
   return {

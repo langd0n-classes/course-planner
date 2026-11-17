@@ -37,7 +37,7 @@ async function main() {
       { label: "Large", scale: "student", minMinutes: 180, maxMinutes: 300 },
     ]);
     assert.equal(await db.courseEffortPartKind.count({ where: { courseId: course.id } }), 2);
-    const versions = await db.activityVersion.findMany({ where: { activity: { courseId: course.id } }, include: { courseworkDetail: true, assessmentDetail: true, effortParts: true } });
+    const versions = await db.activityVersion.findMany({ where: { activity: { courseId: course.id } }, include: { meetingDetail: true, courseworkDetail: true, assessmentDetail: true, effortParts: true } });
     let partsFound = false;
     for (const version of versions) {
       const detail = version.courseworkDetail ?? version.assessmentDetail;
@@ -82,7 +82,7 @@ async function main() {
     assert.equal(milestones.filter((row) => row.anchorPolicy === "standalone").length, 0);
     assert.ok(milestones.every((row) => row.occursAt === null && row.sourceTemplateId && row.timeZone === "UTC"));
     const datingInput = { instructorId: owner.id, termId: currentTerm.id };
-    const placementInput = { ...datingInput, defaultMeetingTime: { startTimeLocal: "10:00", endTimeLocal: "10:50", timeZone: "UTC" } };
+    const placementInput = { ...datingInput, now: () => currentTerm.startDate, defaultMeetingTime: { startTimeLocal: "10:00", endTimeLocal: "10:50", timeZone: "UTC" } };
     const placement = await previewMeetingPlacement(db, placementInput);
     await applyMeetingPlacement(db, { ...placementInput, previewToken: placement.previewToken });
     const placedActivityId = placement.placements[0].termActivityId;
@@ -114,6 +114,71 @@ async function main() {
     assert.ok(placedAfterCalendar.plannedRevision?.meetingDetail?.calendarSlotId);
     assert.ok(await db.termMeetingPattern.findUnique({ where: { id: storedOutsideInput.id } }));
     console.log("Postgres calendar apply: retained meeting slot pointer and unrelated stored pattern passed");
+    // Roll back this isolated regression fixture after checking real FK behavior.
+    const calendarRegressionDone = new Error("calendar regression complete");
+    try {
+      await db.$transaction(async tx => {
+        const testTerm = await tx.term.create({ data: {
+          courseId: currentTerm.courseId, institutionId: currentTerm.institutionId,
+          academicCalendarId: currentTerm.academicCalendarId,
+          academicCalendarVersionId: currentTerm.academicCalendarVersionId,
+          code: `review-${runId}`, name: "Calendar regression", status: "active",
+          startDate: new Date("2027-03-01"), endDate: new Date("2027-03-05"),
+        } });
+        const lectureVersion = versions.find(version => version.meetingDetail)!;
+        const labType = await tx.activityType.create({ data: { instructorId: owner.id, behaviorFamily: "meeting" } });
+        const labTypeVersion = await tx.activityTypeVersion.create({ data: { activityTypeId: labType.id, revision: 1, label: "Lab", createdByInstructorId: owner.id } });
+        const testDb = { $transaction: async <T>(fn: (client: typeof tx) => Promise<T>) => fn(tx) };
+        const pattern = (activityTypeVersionId: string, label: string, daysOfWeek: string[]) => ({
+          activityTypeVersionId, label, daysOfWeek, startTimeLocal: "09:00", endTimeLocal: "10:00",
+          timeZone: "America/New_York", startsOn: "2027-03-01", endsOn: "2027-03-05",
+        });
+        const lecturePattern = pattern(lectureVersion.activityTypeVersionId, "Lecture", ["monday", "wednesday"]);
+        const labPattern = pattern(labTypeVersion.id, "Lab", ["friday"]);
+        const request = { instructorId: owner.id, termId: testTerm.id, meetingPatterns: [lecturePattern, labPattern] };
+        const initial = await previewTermCalendar(testDb, request);
+        await applyTermCalendar(testDb, { ...request, previewToken: initial.previewToken, expectedCurrentCalendarSlotCount: initial.expectedCurrentCalendarSlotCount });
+        const slots = await tx.calendarSlot.findMany({ where: { termId: testTerm.id }, orderBy: { date: "asc" } });
+        assert.equal(slots.length, 3);
+        // Distinct master Activities are required by the Term adoption key.
+        const meetingVersions = versions.filter(version => version.meetingDetail);
+        assert.ok(meetingVersions.length >= 2);
+        for (const [index, typeVersion] of [lectureVersion.activityTypeVersionId, labTypeVersion.id].entries()) {
+          const version = meetingVersions[index];
+          const activity = await tx.termActivity.create({ data: {
+            termId: testTerm.id, courseId: testTerm.courseId, activityId: version.activityId,
+            plannedActivityVersionId: version.id, activityTypeVersionId: typeVersion, adoptedLabel: index ? "Lab" : "Lecture",
+          } });
+          const slot = slots[index ? 2 : 0];
+          const revision = await tx.termActivityRevision.create({ data: {
+            termActivityId: activity.id, baseActivityVersionId: version.id, revision: 1, title: activity.adoptedLabel,
+            meetingDetail: { create: { calendarSlotId: slot.id, startsAt: new Date(`${slot.date.toISOString().slice(0, 10)}T14:00:00Z`), status: "scheduled" } },
+          } });
+          await tx.termActivity.update({ where: { id: activity.id }, data: { plannedRevisionId: revision.id } });
+        }
+        const state = async () => ({
+          slots: await tx.calendarSlot.findMany({ where: { termId: testTerm.id }, orderBy: { id: "asc" } }),
+          patterns: await tx.termMeetingPattern.findMany({ where: { termId: testTerm.id }, orderBy: { id: "asc" } }),
+          meetings: await tx.termMeetingActivityRevision.findMany({ where: { termActivityRevision: { termActivity: { termId: testTerm.id } } }, orderBy: { termActivityRevisionId: "asc" } }),
+        });
+        const beforePartial = await state();
+        const partialRequest = { ...request, meetingPatterns: [labPattern] };
+        const partial = await previewTermCalendar(testDb, partialRequest);
+        await applyTermCalendar(testDb, { ...partialRequest, previewToken: partial.previewToken, expectedCurrentCalendarSlotCount: partial.expectedCurrentCalendarSlotCount });
+        const afterPartial = await state();
+        assert.deepEqual(afterPartial.slots.map(slot => slot.id), beforePartial.slots.map(slot => slot.id));
+        assert.deepEqual(afterPartial.meetings, beforePartial.meetings);
+        const removeRequest = { ...request, meetingPatterns: [{ ...lecturePattern, daysOfWeek: ["wednesday"] }] };
+        const removal = await previewTermCalendar(testDb, removeRequest);
+        assert.equal(removal.affectedMeetingCount, 1);
+        const beforeRefusal = await state();
+        await assert.rejects(applyTermCalendar(testDb, { ...removeRequest, previewToken: removal.previewToken, expectedCurrentCalendarSlotCount: removal.expectedCurrentCalendarSlotCount }), { name: "ConcurrencyConflictError" });
+        assert.deepEqual(await state(), beforeRefusal);
+        throw calendarRegressionDone;
+      }, { timeout: 30_000 });
+    } catch (error) { if (error !== calendarRegressionDone) throw error; }
+    console.log("Postgres calendar regression: Lab-only reapply preserves Lecture slots and both meeting links; referenced-date removal conflicts (HTTP 409) without writes passed");
+
     const dating = await previewMilestoneDating(db, datingInput);
     assert.equal(dating.dates.length, 4);
     assert.equal(dating.creates.length, 0);
@@ -185,7 +250,7 @@ async function main() {
     ]);
     assert.deepEqual(countsAfter, countsBefore);
     assert.deepEqual(await db.courseEffortSize.findMany({ where: { courseId: course.id }, orderBy: { sequence: "asc" } }), effortBefore.sizes);
-    assert.deepEqual(await db.activityVersion.findMany({ where: { activity: { courseId: course.id } }, include: { courseworkDetail: true, assessmentDetail: true, effortParts: true } }), effortBefore.versions);
+    assert.deepEqual(await db.activityVersion.findMany({ where: { activity: { courseId: course.id } }, include: { meetingDetail: true, courseworkDetail: true, assessmentDetail: true, effortParts: true } }), effortBefore.versions);
 
     // A load at a later date adds the Terms that are then current and next,
     // and leaves the earlier Terms in place.

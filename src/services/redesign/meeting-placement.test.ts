@@ -30,6 +30,7 @@ const slot = (date: string, slotType = "class_day") => ({
 const input = (
   overrides: Partial<MeetingPlacementInput> = {},
 ): MeetingPlacementInput => ({
+  now: () => new Date("2026-01-01T00:00Z"),
   meetings: [meeting("a"), meeting("b")],
   slots: [slot("2026-03-06"), slot("2026-03-09")],
   patterns: [],
@@ -373,4 +374,15 @@ describe("local time resolution", () => {
       one("2026-03-06", { ...time, endTimeLocal: "08:00" }),
     ).toThrow(DomainInvariantError);
   });
+});
+
+it("frees a delivered meeting's stale slot after a move", () => {
+  const result = planMeetingPlacement(input({ meetings: [
+    { ...meeting("moved"), deliveredRevisionId: "d", calendarSlotId: "2026-03-06", startsAt: "2026-03-09T13:00:00Z" }, meeting("new"),
+  ] }));
+  expect(result.placements[0].date).toBe("2026-03-06");
+});
+it("excludes past dates using the injected clock in the meeting zone", () => {
+  const result = planMeetingPlacement(input({ now: () => new Date("2026-03-10T01:00:00Z") }));
+  expect(result.placements.map(p => p.date)).toEqual(["2026-03-09"]);
 });
