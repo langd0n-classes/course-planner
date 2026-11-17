@@ -1,7 +1,7 @@
 # Course/LM/Topic redesign — execution plan
 
-**Status:** canonical redesign roadmap; B.2R accepted, B.3 starting
-**Last updated:** 2026-07-14
+**Status:** canonical redesign roadmap; B.3 accepted, B.4 accepted with follow-ups 2026-11-16, Phase D cutover complete
+**Last updated:** 2026-11-16
 
 Companion to `course-lm-topic-redesign-v2.md` (design) and its amendments.
 This document is the **execution/orchestration** plan: how the ten design chunks
@@ -19,10 +19,10 @@ this doc governs *how* it is built.
 |---|---|---|
 | A / A.1 | Complete | Foundation and transitional contract validated |
 | B / B.1 | Complete and accepted | Executable vertical seam passed product and academic review |
-| B.2R | Complete and accepted | Activity graph, calendar semantics, vocabulary, and task hierarchy accepted 2026-07-14 |
-| B.3 | **Starting** | Validate schema/REST/domain correction and one-way DS100 import fidelity |
-| B.4 | Not started | Run representative Course Design and active-Term tasks on real handlers |
-| D | Not started | Integrated validation and reviewed `redesign` → `main` cutover |
+| B.2R | Complete and accepted | Activity graph, calendar semantics, vocabulary, and task hierarchy accepted 2026-07-14; see `course-planner-b2r-checkpoint-2026-07-14.md` |
+| B.3 | Complete and accepted 2026-07-15 | Schema/REST/domain correction and one-way DS100 importer accepted; see `course-planner-b3-checkpoint-2026-07-15.md` |
+| B.4 | B.4.1–B.4.5 merged by 2026-08-07; accepted with follow-ups 2026-11-16 (#34 closed; follow-ups #83, #84, #90) | Course shell, Activity board, Term/calendar setup, daily driver, and interaction hardening integrated (#47, #50, #53, #56, #57) |
+| D | Cutover complete | `redesign` lineage is integrated into `main`, the product branch |
 | Review | Future checkpoint | Confirm Term closeout/history improves later planning |
 | AI | Future, after manual workflow | Reconfirm evidence and approval boundaries |
 | Authoring | Future, evidence-scoped | Scope from demonstrated Course/Term use |
@@ -45,7 +45,14 @@ The "database may be wiped and reseeded, no migration path" framing (design §1,
 §5 Chunk 1 acceptance) means the foundation agent builds the target schema clean
 — no compatibility layer, no data preservation.
 
-## Branch strategy
+## Phase D cutover
+
+The integration of `redesign` into `main` is the Phase D cutover. The
+`origin/redesign` tip is an ancestor of `main`. `main` is the product branch
+and runs the Course, Learning Module, Topic, and Activity model. The Module
+and Skill pages are legacy.
+
+## Branch strategy (before cutover)
 
 - Destructive rewrite → **do not build incrementally against `main`.** `main`
   stays coherent until the whole redesign lands.
@@ -146,8 +153,8 @@ The blocked-by-gate build prompts are published on issues #33 (B.3) and #34
 typecheck, lint, and an isolated Node 22 Podman production build are green. The
 checkpoint evidence and review questions are recorded in
 `course-planner-b2r-checkpoint-2026-07-14.md`. B.3 is authorized to proceed using
-issue #33 and the accepted defaults. B.4 remains blocked until B.3 passes its own
-operator checkpoint.
+issue #33 and the accepted defaults. B.3 subsequently passed its operator
+checkpoint on 2026-07-15.
 
 The accepted B.1 integration and B.2 ledger spike exposed a domain mismatch that
 invalidates part of the Phase A.1 frozen contract. Before additional application
@@ -175,19 +182,18 @@ After acceptance:
   on real handlers.
 - **Phase D** performs integration, verification, and the reviewed `main` cutover.
 
-### Phase D — Integration + verification (SERIAL, closing pass)
+### Phase D — Integration + verification (cutover complete)
 
-Design Chunk 10. Merge lanes into `redesign`, reconcile, run full suite (unit,
-route, type, lint, build, seeded E2E, package validation). Docs rewrite + version
-index. Then the single reviewed `redesign` → `main` cutover.
+Design Chunk 10 defines integration and verification. The `redesign` lineage
+is now integrated into `main`; see Phase D cutover above.
 
 ## Parallel width, honestly
 
 The completed path was one unavoidable serial bottleneck (Phase A) followed by a
-genuine three-way Phase B fan-out. B.2R is now a serial semantic refreeze with only
-disjoint evidence/prototype slices delegated. After its gate, B.3 may fan out again
-behind the corrected contract; B.4 integrates the product workflow, and D remains
-serial. Blackboard is deferred throughout. Realistic maximum concurrency remains
+genuine three-way Phase B fan-out. B.2R used a serial semantic refreeze with only
+disjoint evidence/prototype slices delegated. B.3 followed the corrected
+contract; B.4 integrated the product workflow, and D completed the cutover.
+Blackboard is deferred throughout. Realistic maximum concurrency remains
 **3 agents**, and only after the relevant contract freezes.
 
 ## Execution vehicle
