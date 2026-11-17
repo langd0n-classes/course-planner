@@ -17,9 +17,12 @@ Read these files before doing any work in this repo:
 3. `ARCHITECTURE.md` — System design and directory
    structure.
 
-4. `ASSUMPTIONS.md` — Decisions made where requirements
-   were underspecified. Append to this file when making
-   new assumptions; do not overwrite prior entries.
+4. `docs/assumptions/` — Decisions made where requirements
+   were underspecified, one file for each change. To record
+   new assumptions, add a new file named
+   `<issue number>-<slug>.md`; do not change another
+   change's file, and do not add text to `ASSUMPTIONS.md`,
+   which only points to the directory.
 
 Read the operator's global agent guidance before you proceed. It holds the
 shared, cross-project conventions: GitHub work, credentials, durable
@@ -218,7 +221,7 @@ These patterns caused bugs and rework. Follow them:
 ## Conventions
 
 - Commit messages: imperative mood, concise, explain why
-- Append to `ASSUMPTIONS.md` when making design decisions
+- Add a file in `docs/assumptions/` when making design decisions
 - Append to `ARCHITECTURE.md` when adding new subsystems
 - Keep `docs/phase-roadmap.md` updated as phases complete
 
