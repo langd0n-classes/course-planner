@@ -1233,7 +1233,7 @@ describe("revision subsystem", () => {
       const tx = baseTx({
         topicVersion: {
           findUnique: async () => ({
-            topic: { courseId: "course-1", learningModuleId: null },
+            topic: { courseId: "course-1" },
           }),
         },
       });
@@ -1360,7 +1360,7 @@ describe("delivered revision workflow", () => {
       topicVersion: {
         findUnique: async ({ where }: any) => ({
           id: where.id,
-          topic: { courseId: "course-1", learningModuleId: null },
+          topic: { courseId: "course-1" },
         }),
       },
     });

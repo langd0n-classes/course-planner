@@ -11,7 +11,6 @@ import type {
   TermActivityDto,
   TermActivityRevisionDto,
   TopicDto,
-  TopicPrerequisiteDto,
   TopicVersionDto,
 } from "./redesign-contract";
 
@@ -263,14 +262,6 @@ export type TopicBrowserEntry = {
   prerequisiteTopicIds: Id[];
 };
 
-export type TopicBrowserBucket = {
-  key: string;
-  label: string;
-  learningModuleId: Id | null;
-  isUnassigned: boolean;
-  topics: TopicBrowserEntry[];
-};
-
 export type ComparedTopicChange = {
   kind: "added" | "removed" | "reordered";
   title: string;
@@ -315,10 +306,6 @@ export type TermCalendarTimeline = {
     | "after_term";
 };
 
-function sortText(value: string | null | undefined): string {
-  return (value ?? "").toLocaleLowerCase();
-}
-
 export function suggestTopicStableCode(title: string): string {
   const slug = title
     .toLocaleLowerCase()
@@ -328,92 +315,6 @@ export function suggestTopicStableCode(title: string): string {
     .replace(/^-+|-+$/g, "");
 
   return slug ? `topic-${slug}` : "";
-}
-
-export function buildTopicBrowserBuckets(args: {
-  learningModules: LearningModuleDto[];
-  currentVersionsByLearningModuleId: Map<Id, LearningModuleVersionDto | null>;
-  topics: TopicDto[];
-  currentVersionsByTopicId: Map<Id, TopicVersionDto | null>;
-  prerequisites: TopicPrerequisiteDto[];
-  topicVersionsById?: Map<Id, TopicVersionDto>;
-  actionsByActivityVersionId?: Map<Id, ActivityVersionTopicActionWithSiblingsDto[]>;
-}): TopicBrowserBucket[] {
-  const prerequisiteMap = new Map<Id, Id[]>();
-  for (const prerequisite of args.prerequisites) {
-    prerequisiteMap.set(prerequisite.topicId, [
-      ...(prerequisiteMap.get(prerequisite.topicId) ?? []),
-      prerequisite.prerequisiteTopicId,
-    ]);
-  }
-
-  const topicsByLearningModuleId = new Map<Id | null, TopicBrowserEntry[]>();
-  for (const topic of args.topics) {
-    const entry: TopicBrowserEntry = {
-      topic,
-      currentVersion: args.currentVersionsByTopicId.get(topic.id) ?? null,
-      prerequisiteTopicIds: prerequisiteMap.get(topic.id) ?? [],
-    };
-    const matchesTopic = (topicVersionId: Id) =>
-      topicVersionId === entry.currentVersion?.id ||
-      args.topicVersionsById?.get(topicVersionId)?.topicId === topic.id;
-    const keys = args.learningModules.filter(module => {
-      const version = args.currentVersionsByLearningModuleId.get(module.id);
-      return version?.topics.some(link => matchesTopic(link.topicVersionId)) ||
-        version?.activities?.some(link =>
-          args.actionsByActivityVersionId?.get(link.activityVersionId)?.some(action => matchesTopic(action.topicVersionId)),
-        );
-    }).map(module => module.id);
-    for (const key of keys.length ? keys : [null]) {
-      topicsByLearningModuleId.set(key, [...(topicsByLearningModuleId.get(key) ?? []), entry]);
-    }
-  }
-
-  const sortEntries = (entries: TopicBrowserEntry[]) =>
-    [...entries].sort((left, right) => {
-      const categoryCompare = sortText(left.currentVersion?.category).localeCompare(
-        sortText(right.currentVersion?.category),
-      );
-      if (categoryCompare !== 0) return categoryCompare;
-      const titleCompare = sortText(left.currentVersion?.title).localeCompare(
-        sortText(right.currentVersion?.title),
-      );
-      if (titleCompare !== 0) return titleCompare;
-      return left.topic.stableCode.localeCompare(right.topic.stableCode);
-    });
-
-  const buckets: TopicBrowserBucket[] = [];
-  const unassigned = sortEntries(topicsByLearningModuleId.get(null) ?? []);
-  buckets.push({
-    key: "unassigned",
-    label: "Unassigned Topics",
-    learningModuleId: null,
-    isUnassigned: true,
-    topics: unassigned,
-  });
-
-  const orderedModules = [...args.learningModules].sort((left, right) => {
-    const leftVersion = args.currentVersionsByLearningModuleId.get(left.id) ?? null;
-    const rightVersion = args.currentVersionsByLearningModuleId.get(right.id) ?? null;
-    const sequenceCompare = (leftVersion?.defaultSequence ?? Number.MAX_SAFE_INTEGER) - (rightVersion?.defaultSequence ?? Number.MAX_SAFE_INTEGER);
-    if (sequenceCompare !== 0) return sequenceCompare;
-    const titleCompare = sortText(leftVersion?.title).localeCompare(sortText(rightVersion?.title));
-    if (titleCompare !== 0) return titleCompare;
-    return left.stableCode.localeCompare(right.stableCode);
-  });
-
-  for (const learningModule of orderedModules) {
-    const currentVersion = args.currentVersionsByLearningModuleId.get(learningModule.id) ?? null;
-    buckets.push({
-      key: learningModule.id,
-      label: currentVersion?.title ?? learningModule.stableCode,
-      learningModuleId: learningModule.id,
-      isUnassigned: false,
-      topics: sortEntries(topicsByLearningModuleId.get(learningModule.id) ?? []),
-    });
-  }
-
-  return buckets;
 }
 
 export function compareLearningModuleVersions(args: {

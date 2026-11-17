@@ -2,11 +2,12 @@
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { buildTopicBrowserBuckets } from "@/lib/redesign-workspace";
+import ts from "typescript";
+import { createTopicSchema } from "@/lib/redesign-schemas";
 import { toTopicDto } from "@/lib/redesign-serializers";
 import { previewHardRemoval } from "./archive-removal-service";
 import { computeTermImpact } from "./planning-service";
-import { createTopic, updateTopic } from "./revision-service";
+import { createLearningModuleVersion, createTopic, updateTopic } from "./revision-service";
 
 const database = (tx: any) => ({ $transaction: async (fn: any) => fn(tx) });
 
@@ -60,48 +61,11 @@ describe("Topics independent of module ownership", () => {
     ]);
   });
 
-  it("groups a null-ownership Topic through Activity actions and historical Topic links", () => {
-    const topic = {
-      id: "t",
-      courseId: "c",
-      learningModuleId: null,
-      currentVersionId: "tv-new",
-      stableCode: "opaque",
-      archivedAt: null,
-    };
-    const oldVersion = { id: "tv-old", topicId: "t" };
-    const buckets = buildTopicBrowserBuckets({
-      topics: [topic],
-      currentVersionsByTopicId: new Map([
-        ["t", { ...oldVersion, id: "tv-new" } as any],
-      ]),
-      prerequisites: [],
-      learningModules: [
-        {
-          id: "lm",
-          courseId: "c",
-          stableCode: "LM",
-          currentVersionId: "lmv",
-          archivedAt: null,
-        },
-      ],
-      currentVersionsByLearningModuleId: new Map([
-        [
-          "lm",
-          { topics: [], activities: [{ activityVersionId: "av" }] } as any,
-        ],
-      ]),
-      topicVersionsById: new Map([["tv-old", oldVersion as any]]),
-      actionsByActivityVersionId: new Map([
-        ["av", [{ topicVersionId: "tv-old" } as any]],
-      ]),
-    });
-    expect(buckets[0].topics).toHaveLength(0);
-    expect(buckets[1].topics.map((entry) => entry.topic.id)).toEqual(["t"]);
-  });
-
-  it("previews removal through module Topic links, with null ownership on Topics", async () => {
-    const count = vi.fn(async () => 1);
+  it("counts distinct Topics across module revisions for removal", async () => {
+    const findMany = vi.fn(async () => [
+      { topicVersion: { topicId: "t" } },
+      { topicVersion: { topicId: "t" } },
+    ]);
     const preview = await previewHardRemoval(
       database({
         learningModule: { findUnique: async () => ({ id: "lm" }) },
@@ -110,22 +74,23 @@ describe("Topics independent of module ownership", () => {
             throw new Error("Legacy ownership must not be queried");
           },
         },
-        learningModuleVersionTopic: { count },
+        learningModuleVersionTopic: { findMany },
         termLearningModule: { count: async () => 0 },
         artifact: { count: async () => 0 },
       }),
       "learning_module",
       "lm",
     );
-    expect(count).toHaveBeenCalledWith({
+    expect(findMany).toHaveBeenCalledWith({
       where: { learningModuleVersion: { learningModuleId: "lm" } },
+      select: { topicVersion: { select: { topicId: true } } },
     });
     expect(preview.blockers).toContainEqual(
-      expect.objectContaining({ code: "topics_assigned", count: 1 }),
+      expect.objectContaining({ code: "topics_assigned", count: 1, message: expect.stringContaining("1 Topic linked") }),
     );
   });
 
-  it("checks offering coverage using Topic links when legacy ownership is null", async () => {
+  it("allows coverage of a Topic absent from the module snapshot", async () => {
     const topicVersion = {
       id: "tv",
       topicId: "t",
@@ -170,37 +135,40 @@ describe("Topics independent of module ownership", () => {
       "i",
       "term",
     );
-    expect(impact.issues).toContainEqual(
-      expect.objectContaining({ code: "coverage_out_of_offering" }),
-    );
-    (term.learningModules[0].learningModuleVersion.topics as any[]).push({
-      topicVersionId: "tv",
-      topicVersion,
+    expect(impact.issues.filter((issue: any) => issue.code === "coverage_out_of_offering")).toEqual([]);
+  });
+
+  it("accepts a legacy module field in a Topic request and strips it", () => {
+    const parsed = createTopicSchema.parse({
+      stableCode: "T", createdByInstructorId: "00000000-0000-4000-8000-000000000001",
+      learningModuleId: "ignored", version: { title: "Topic" },
     });
-    const linked = await computeTermImpact(
-      database({ term: { findUnique: async () => term } }),
-      "i",
-      "term",
-    );
-    expect(
-      linked.issues.some(
-        (issue: any) => issue.code === "coverage_out_of_offering",
-      ),
-    ).toBe(false);
-    (term.learningModules[0].learningModuleVersion.topics as any[]).length = 0;
-    (term.learningModules[0].learningModuleVersion as any).activities = [
-      { activityVersion: { topicActions: [{ topicVersion }] } },
-    ];
-    const throughActivity = await computeTermImpact(
-      database({ term: { findUnique: async () => term } }),
-      "i",
-      "term",
-    );
-    expect(
-      throughActivity.issues.some(
-        (issue: any) => issue.code === "coverage_out_of_offering",
-      ),
-    ).toBe(false);
+    expect(parsed).not.toHaveProperty("learningModuleId");
+  });
+
+  it("rejects snapshots from another Course and shares a Topic across modules", async () => {
+    const create = vi.fn(async ({ data }: any) => data);
+    const tx = {
+      topicVersion: { findUnique: async () => ({ topic: { courseId: "c" } }) },
+      learningModuleVersion: { create },
+    };
+    const snapshot = (id: string, courseId: string) => createLearningModuleVersion(tx as any, {
+      learningModule: { id, courseId }, revision: 1, createdByInstructorId: "i",
+      publishedAt: null, draft: { title: id, topics: [{ topicVersionId: "tv", sequence: 0 }] },
+    });
+    await expect(snapshot("other", "other-course")).rejects.toThrow();
+    expect(create).not.toHaveBeenCalled();
+    for (const id of ["lm1", "lm2"]) {
+      const version = await snapshot(id, "c");
+      expect(version.topics.create).toEqual([{ topicVersionId: "tv", sequence: 0 }]);
+    }
+    expect(create).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the ownership guard inside a single Topic call", () => {
+    expect(hasTopicOwnership('tx.topic.findMany({ where: { id: "t" } }); tx.learningModule.findMany({where:{learningModuleId:"lm"}});')).toBe(false);
+    expect(hasTopicOwnership('tx.topic.findMany({ select: { learningModuleId: true } });')).toBe(true);
+    expect(hasTopicOwnership('tx.topic.create({data:{courseId:"c", learningModuleId:"lm"}});')).toBe(true);
   });
 
   it("guards known Topic ownership access patterns throughout application sources", () => {
@@ -215,14 +183,9 @@ describe("Topics independent of module ownership", () => {
             : [],
       );
     const violations: string[] = [];
-    for (const file of walk("src")) {
+    for (const file of [...walk("src"), ...walk("scripts"), "prisma/seed.ts"]) {
       const source = readFileSync(file, "utf8");
-      if (
-        /\btopic\.learningModuleId|\btopic:\s*\{\s*select:\s*\{[^}]*learningModuleId|\btopic\.(?:count|create|createMany|findUnique|findMany|update|updateMany)\([^;]*?learningModuleId[^;]*?\);/.test(
-          source,
-        )
-      )
-        violations.push(file);
+      if (hasTopicOwnership(source)) violations.push(file);
       for (const block of source.matchAll(
         /(?:(?:const topic: TopicDto|type (?:TopicDto|TopicRow|TopicVersionWithTopic|CreateTopicRequest|UpdateTopicRequest)) = \{)([\s\S]*?)\n\}/g,
       )) {
@@ -232,3 +195,25 @@ describe("Topics independent of module ownership", () => {
     expect(violations).toEqual([]);
   });
 });
+
+// Parse call boundaries rather than matching across semicolons or other models.
+// This is a narrow syntactic guard: aliases and computed access are not resolved.
+function hasTopicOwnership(source: string): boolean {
+  const tree = ts.createSourceFile("source.ts", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let found = false;
+  const hasKey = (node: ts.Node): boolean =>
+    (ts.isPropertyAssignment(node) && node.name.getText(tree).replace(/["']/g, "") === "learningModuleId")
+    || ts.forEachChild(node, hasKey) === true;
+  const visit = (node: ts.Node) => {
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)
+      && ts.isPropertyAccessExpression(node.expression.expression)
+      && node.expression.expression.name.text === "topic"
+      && node.arguments.some(hasKey)) found = true;
+    if (ts.isPropertyAccessExpression(node) && node.name.text === "learningModuleId"
+      && node.expression.getText(tree) === "topic") found = true;
+    if (ts.isPropertyAssignment(node) && node.name.getText(tree) === "topic" && hasKey(node.initializer)) found = true;
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  return found;
+}

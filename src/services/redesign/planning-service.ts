@@ -380,11 +380,6 @@ async function loadPlanningSnapshot(tx: RedesignTx, termId: string) {
         include: {
           learningModuleVersion: {
             include: {
-              activities: {
-                include: { activityVersion: { include: {
-                  topicActions: { include: { topicVersion: { select: { topicId: true } } } },
-                } } },
-              },
               topics: {
                 orderBy: { sequence: "asc" },
                 include: {
@@ -401,11 +396,6 @@ async function loadPlanningSnapshot(tx: RedesignTx, termId: string) {
           },
           deliveredLearningModuleVersion: {
             include: {
-              activities: {
-                include: { activityVersion: { include: {
-                  topicActions: { include: { topicVersion: { select: { topicId: true } } } },
-                } } },
-              },
               topics: {
                 orderBy: { sequence: "asc" },
                 include: {
@@ -584,35 +574,6 @@ function findPlanningGaps(snapshot: PlanningSnapshot): PlanningIssueDto[] {
         { calendarSlotId: slot.id },
       ),
     );
-}
-
-function findOutOfOfferingWarnings(snapshot: PlanningSnapshot): PlanningIssueDto[] {
-  const warnings: PlanningIssueDto[] = [];
-  for (const session of snapshot.term.sessions as any[]) {
-    if (session.archivedAt || !session.termLearningModule) continue;
-    for (const coverage of session.coverages as any[]) {
-      const offering = snapshot.term.learningModules.find((candidate: any) => candidate.id === session.termLearningModule.id);
-      const version = offering?.deliveredLearningModuleVersion ?? offering?.learningModuleVersion;
-      const linked = version?.topics.some((link: any) => link.topicVersion.topicId === coverage.topicVersion.topicId)
-        || version?.activities?.some((link: any) => link.activityVersion.topicActions.some(
-          (action: any) => action.topicVersion.topicId === coverage.topicVersion.topicId,
-        ));
-      if (offering && !linked) {
-        warnings.push(
-          buildCoverageIssue(
-            "coverage_out_of_offering",
-            "warning",
-            "Coverage Topic is not linked in the scheduled Learning Module version",
-            {
-              topicVersionId: coverage.topicVersionId,
-              sessionId: session.id,
-            },
-          ),
-        );
-      }
-    }
-  }
-  return warnings;
 }
 
 function simulateWhatIfResponse(snapshot: PlanningSnapshot, sessionId: string): SessionWhatIfResponse {
@@ -1147,7 +1108,6 @@ export async function computeTermImpact(db: RedesignDb, instructorId: string, te
         );
       }
     }
-    issues.push(...findOutOfOfferingWarnings(snapshot));
     issues.push(...findPlanningGaps(snapshot));
 
     return {

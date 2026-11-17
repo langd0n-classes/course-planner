@@ -24,7 +24,7 @@ Decisions made where the requirements were underspecified. Each can be revisited
 
 - **JWT sessions only**: Auth.js uses its default stateless JWT session strategy. No Prisma adapter or auth-related schema changes are added.
 
-- **Identity routes are additive, not contract rewrites**: Learning Module and Topic detail routes use small additive update DTOs that only cover identity/archive state (`stableCode`, `learningModuleId` for Topic, and `archivedAt`). Version prose still changes only through `/versions`, which preserves the immutable published-revision rule.
+- **Identity routes are additive, not contract rewrites**: Learning Module and Topic detail routes use small additive update DTOs that only cover identity/archive state (`stableCode` and `archivedAt`). Version prose still changes only through `/versions`, which preserves the immutable published-revision rule.
 
 ## Calendar / Schedule
 
@@ -456,18 +456,12 @@ Decisions made where the requirements were underspecified. Each can be revisited
 
 - Learning Module Topic snapshots validate Course membership only. The snapshot
   link itself records module membership; a Topic can serve several modules.
-- Learning Module removal previews count Topic links across all module revisions
-  instead of Topic ownership rows. Keep the `topics_assigned` blocker code for
-  existing clients, but describe the links in its message. Historical links
-  still prevent removal.
-- Coverage-out-of-offering warnings compare Topic identities against the
-  offering's delivered revision, or its planned revision when none is delivered.
-  Both direct Topic links and module Activities' Topic actions count. Revision
-  changes to the same Topic must not create false mismatches.
-- The retained Topic-browser grouping helper uses module Topic links and supplied
-  Activity actions. Callers can supply a Topic-version lookup for historical
-  links; current Topic versions resolve without it. A Topic may appear in several
-  groups; only Topics with no matching links enter Unassigned.
+- Learning Module removal previews count distinct Topics linked across all module
+  revisions. The `topics_assigned` blocker reports that count because snapshot
+  foreign keys restrict deletion and removal does not clear those links.
+- Planning emits no warning for coverage outside a module's Topic snapshots.
+  Topics belong to Courses and can span several Learning Modules.
+- Delete the unused `buildTopicBrowserBuckets` helper and its unused bucket type.
 - Remove the legacy ownership field from Topic DTOs and create/update contract
   types as well as serializers. It no longer describes an application relation.
   Other entities' `learningModuleId` fields retain their meaning.
@@ -477,7 +471,8 @@ Decisions made where the requirements were underspecified. Each can be revisited
   still records the source's module labels; no code snapshot is regenerated.
 - Keep the nullable database column unchanged for the later removal migration.
   Default seed and demo creation use the corrected Topic creation/import paths.
-- Use a source-text regression guard for the inventoried Topic ownership access
-  patterns. It scans application files under `src/`, excludes tests, and checks
-  Topic selects, known property reads, creation blocks and contract types. It
-  cannot resolve arbitrary aliases or computed property access.
+- Use a syntax-tree regression guard for Topic Prisma call arguments, nested
+  Topic selects, known property reads and contract types. Scan application
+  sources, `prisma/seed.ts` and `scripts/`. Call boundaries prevent matches
+  against another model's fields. Arbitrary aliases and computed property
+  access remain outside this narrow guard.
