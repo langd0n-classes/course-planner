@@ -1,3 +1,4 @@
+import type { EffortFields, EffortRange } from "./effort";
 // Frozen Phase A REST contract for redesign issue #18.
 // Phase B lanes may implement these handlers, but route shapes and exported
 // request/response names are the interface of record.
@@ -462,13 +463,13 @@ export type MeetingActivityDetailDto = {
   preparationNotes: string | null;
   authoringNotes: string | null;
 };
-export type CourseworkActivityDetailDto = {
+export type CourseworkActivityDetailDto = EffortFields & {
   behaviorFamily: "coursework";
   submissionPolicy: string | null;
   releasePolicy: string | null;
   authoringNotes: string | null;
 };
-export type AssessmentActivityDetailDto = {
+export type AssessmentActivityDetailDto = EffortFields & {
   behaviorFamily: "assessment";
   modality: string | null;
   authoringNotes: string | null;
@@ -490,6 +491,7 @@ export type ActivityVersionDto = {
   changeSummary: string | null;
   publishedAt: IsoDateTime | null;
   detail: ActivityDetailDto;
+  effortParts?: EffortPartInput[];
   milestoneTemplates: ActivityVersionMilestoneTemplateDto[];
 };
 export type UpsertActivityVersionRequest = {
@@ -500,6 +502,9 @@ export type UpsertActivityVersionRequest = {
   changeSummary?: string | null;
   publish?: boolean;
   detail: ActivityDetailDto;
+  effortParts?: EffortPartInput[];
+  topicActions?: ReplaceActivityTopicActionsRequest["actions"];
+  learningModuleScopes?: ReplaceActivityLmScopeRequest["scopes"];
   milestoneTemplates?: UpsertMilestoneTemplateRequest[];
 };
 export type CreateActivityRequest = {
@@ -860,12 +865,12 @@ export type MeetingRevisionDetailDto = {
   overrideReason: string | null;
   overrideEvidence: unknown | null;
 };
-export type CourseworkRevisionDetailDto = {
+export type CourseworkRevisionDetailDto = EffortFields & {
   behaviorFamily: "coursework";
   lifecycleState: string | null;
   deliveryNotes: string | null;
 };
-export type AssessmentRevisionDetailDto = {
+export type AssessmentRevisionDetailDto = EffortFields & {
   behaviorFamily: "assessment";
   lifecycleState: string | null;
   modality: string | null;
@@ -909,6 +914,8 @@ export type TermActivityMilestoneDto = {
 // candidate revision via preview/apply below, then atomically advance
 // `TermActivity.deliveredRevisionId`.
 export type TermActivityRevisionDto = {
+  baseEffort?: EffortFields | null;
+  effectiveEffort?: EffortRange | null;
   id: Id;
   termActivityId: Id;
   revision: number;
@@ -1011,6 +1018,7 @@ export type UpsertTermActivityMilestoneRequest = {
   provenance?: unknown;
 };
 export type TermActivityRevisionPreviewRequest = {
+  advancePointer?: "planned" | "delivered";
   title: string;
   summary?: string | null;
   changeReason?: string | null;
@@ -1054,6 +1062,7 @@ export type PromotedActivityDraftDto = {
     title: string;
     summary: string | null;
     detail: ActivityDetailDto;
+    effortParts?: EffortPartInput[];
     topicActions: Array<{ topicVersionId: Id; action: CoverageLevel }>;
   };
 };
@@ -1432,6 +1441,10 @@ export const CANONICAL_ROUTES = [
   "/api/activity-types/[id]/versions",
   "/api/courses/[id]/activity-types",
   "/api/courses/[id]/activities",
+  "/api/courses/[id]/effort-sizes",
+  "/api/courses/[id]/effort-sizes/[entryId]",
+  "/api/courses/[id]/effort-part-kinds",
+  "/api/courses/[id]/effort-part-kinds/[entryId]",
   "/api/activities/[id]",
   "/api/activities/[id]/versions",
   "/api/activity-versions/[id]",
@@ -1478,3 +1491,11 @@ export type MeetingPlacementPreviewResponse = {
 };
 export type MeetingPlacementApplyRequest = MeetingPlacementPreviewRequest & { previewToken: string };
 export type MeetingPlacementApplyResponse = { kind: "applied"; placedCount: number; storedMeetingPatternCount: number };
+
+export type EffortScale = "student" | "grading";
+export type CourseEffortSizeDto = EffortRange & { id: Id; courseId: Id; scale: EffortScale; label: string; sequence: number; createdAt: IsoDateTime; updatedAt: IsoDateTime };
+export type CourseEffortPartKindDto = { id: Id; courseId: Id; label: string; sequence: number; createdAt: IsoDateTime };
+export type EffortPartInput = EffortRange & { sequence: number; label: string; partKindId?: Id | null; note?: string | null };
+export type CourseEffortSizeRequest = EffortRange & { label: string };
+export type CourseEffortPartKindRequest = { label: string };
+export type ReorderCourseEffortRequest = { ids: Id[] };

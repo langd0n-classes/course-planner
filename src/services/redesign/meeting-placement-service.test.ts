@@ -5,6 +5,7 @@ import {
   previewMeetingPlacement,
 } from "./meeting-placement-service";
 
+
 const request = {
   instructorId: "i",
   termId: "term",
@@ -282,4 +283,43 @@ it("reuses the saved time for a remaining undated meeting without a fallback", a
   expect(saved.missingMeetingTime).toBe(false);
   expect(saved.placements).toEqual(withFallback.placements);
   expect(saved.placements[0]).toMatchObject({ calendarSlotId: first.placements[0].calendarSlotId, startsAt: first.placements[0].startsAt, endsAt: first.placements[0].endsAt });
+});
+
+
+it("writes only meeting revisions and leaves coursework and assessment effort unchanged", async () => {
+  const f = fixture();
+  const nonMeetings = ["coursework", "assessment"].map((family) => ({
+    ...f.row,
+    id: family,
+    termId: "term",
+    plannedRevisionId: `${family}-revision`,
+    plannedRevision: {
+      id: `${family}-revision`,
+      [`${family}Detail`]: { effortMinMinutes: 30, effortMaxMinutes: 45 },
+    },
+    plannedActivityVersion: { [`${family}Detail`]: { effortMinMinutes: 60, effortMaxMinutes: 120 } },
+  }));
+  const before = structuredClone(nonMeetings);
+  f.tx.termCourseworkActivityRevision = { create: vi.fn(), update: vi.fn() };
+  f.tx.termAssessmentActivityRevision = { create: vi.fn(), update: vi.fn() };
+  // Include other families to exercise placement's meeting filter as well as its query.
+  f.tx.termActivity.findMany.mockResolvedValue([f.row, ...nonMeetings]);
+  f.tx.termActivity.findUnique.mockImplementation(async ({ where }: any) =>
+    [f.row, ...nonMeetings].find((row) => row.id === where.id));
+  const preview = await previewMeetingPlacement(f.db, request);
+  await applyMeetingPlacement(f.db, { ...request, previewToken: preview.previewToken });
+  expect(f.tx.termActivityRevision.create).toHaveBeenCalledTimes(1);
+  expect(f.tx.termActivityRevision.create).toHaveBeenCalledWith({
+    data: expect.objectContaining({ termActivityId: "a" }),
+  });
+  expect(f.tx.termMeetingActivityRevision.create).toHaveBeenCalledTimes(1);
+  expect(f.tx.termActivity.updateMany).toHaveBeenCalledTimes(1);
+  expect(f.tx.termActivity.updateMany).toHaveBeenCalledWith({
+    where: { id: "a", plannedRevisionId: "r" }, data: { plannedRevisionId: "new" },
+  });
+  for (const model of [f.tx.termCourseworkActivityRevision, f.tx.termAssessmentActivityRevision]) {
+    expect(model.create).not.toHaveBeenCalled();
+    expect(model.update).not.toHaveBeenCalled();
+  }
+  expect(nonMeetings).toEqual(before);
 });

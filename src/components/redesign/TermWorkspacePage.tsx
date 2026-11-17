@@ -28,6 +28,7 @@ import AdoptLearningModulePanel from "./AdoptLearningModulePanel";
 import ActivityAdoptionPanel from "./ActivityAdoptionPanel";
 import DeliveredRevisionEditor from "./DeliveredRevisionEditor";
 import GapNotice from "./GapNotice";
+import TermActivityEffortList from "./TermActivityEffortList";
 import ActiveTermDailyDriver from "./ActiveTermDailyDriver";
 import LifecycleBadge from "./LifecycleBadge";
 import LifecycleConfirmPanel from "./LifecycleConfirmPanel";
@@ -532,6 +533,7 @@ export default function TermWorkspacePage({ termId }: Props) {
         <button type="button" className="mt-2 text-sm font-medium text-sky-800 underline" onClick={() => setShowPlaceMeetings(true)}>Place meetings on the calendar</button>
         {showPlaceMeetings ? <><button type="button" className="ml-4 text-sm text-slate-600 underline" onClick={() => setShowPlaceMeetings(false)}>Close placement</button><PlaceMeetingsPanel termId={termId} onApplied={async () => { setShowPlaceMeetings(false); await loadWorkspace(); }} /></> : null}
       </section> : null}
+      <TermActivityEffortList courseId={term.courseId} activities={termActivities} revisions={activityRevisions} status={term.status} onApplied={loadWorkspace} />
 
       <ActiveTermDailyDriver
         termActivities={termActivities}

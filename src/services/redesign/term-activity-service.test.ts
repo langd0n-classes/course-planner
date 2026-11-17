@@ -70,6 +70,7 @@ describe("Term Activity adoption", () => {
   it.each(["same apply", "already adopted", "missing", "no link", "archived", "self"])("creates template milestones: %s", async (linkCase) => {
     const rows: any[] = ["already adopted", "archived"].includes(linkCase) ? [{ id: "ta-z-meeting", activityId: "z-meeting", adoptedLabel: "Existing meeting", archivedAt: linkCase === "archived" ? new Date() : null }] : [];
     const milestones: any[] = [];
+    const effortDetails: any[] = [];
     const templates = [0, 1].map((sequence) => ({
       id: `template-${sequence}`, sequence, role: sequence ? "due" : "release",
       label: sequence ? "Submit work" : "Begin work", timeZone: "UTC", notes: "Keep this note",
@@ -80,7 +81,8 @@ describe("Term Activity adoption", () => {
       activityVersion: { findUnique: async ({ where, include }: any) => {
         expect(include.milestoneTemplates).toEqual({ orderBy: { sequence: "asc" } });
         return baseActivityVersion({ id: where.id, activityId: where.id,
-          milestoneTemplates: where.id === "a-work" ? templates : [] });
+          milestoneTemplates: where.id === "a-work" ? templates : [],
+          ...(where.id === "a-work" ? { meetingDetail: null, courseworkDetail: { effortMinMinutes: 60, effortMaxMinutes: 120 } } : {}) });
       } },
       courseActivityTypeVersion: { findUnique: async () => ({}) },
       termActivity: {
@@ -91,6 +93,7 @@ describe("Term Activity adoption", () => {
       },
       termActivityRevision: { create: async ({ data }: any) => ({ id: `revision-${data.termActivityId}`, ...data }), findUnique: async () => ({ id: "revision" }) },
       termMeetingActivityRevision: { create: async () => ({}) },
+      termCourseworkActivityRevision: { create: async ({ data }: any) => { effortDetails.push(data); return data; } },
       termActivityRevisionTopicAction: { create: async () => ({}) },
       termActivityMilestone: { create: async ({ data }: any) => { milestones.push(data); return data; } },
     };
@@ -123,6 +126,8 @@ describe("Term Activity adoption", () => {
     const repeat = await previewTermActivityAdoption(db, input);
     expect(repeat.candidates).toEqual([]);
     const count = rows.length;
+    // Adoption sets no effort override.
+    expect(effortDetails).toEqual([expect.objectContaining({ effortMinMinutes: null, effortMaxMinutes: null })]);
     expect(await applyTermActivityAdoption(db, { ...input, previewToken: repeat.previewToken, expectedCurrentActivityCount: repeat.expectedCurrentActivityCount })).toMatchObject({ kind: "applied" });
     expect(rows).toHaveLength(count);
     expect(milestones).toHaveLength(followed ? 2 : 0);

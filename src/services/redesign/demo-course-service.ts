@@ -1,3 +1,4 @@
+import { seedDemoEffort } from "./demo-effort";
 import { ExemplarImportService, genericDemoExemplarSnapshot } from "./exemplar-import-service";
 import { createAcademicCalendarVersion, previewTermCalendar, applyTermCalendar } from "./academic-calendar-service";
 import { createAcademicCalendar, createInstitution } from "./course-service";
@@ -271,6 +272,8 @@ export async function loadDemoCourse(
       if (imported.ambiguities.length > 0) {
         throw new DomainInvariantError("Demo Course import contains ambiguities");
       }
+
+      await seedDemoEffort(tx, course.id);
 
       // A dedicated demo Institution keeps calendar and membership writes scoped
       // to this Instructor even when their ordinary Institution is shared.

@@ -1,3 +1,10 @@
+import type { ActivityDto, ActivityVersionDto, CreateActivityRequest, UpsertActivityVersionRequest, CourseEffortSizeDto, CourseEffortPartKindDto, CourseEffortSizeRequest, CourseEffortPartKindRequest, TermActivityDto, TermActivityRevisionDto, TermActivityRevisionPreviewRequest, TermActivityRevisionApplyRequest } from "./redesign-contract";
+import { effectiveEffort, validateEffort } from "./effort";
+import {
+  normalizeActivityEffort,
+  activityEffortDraft,
+  keepEffortOverride,
+} from "./effort";
 // Lane C (Phase B, issue #24) works against the frozen Phase A.1 contract
 // (`redesign-contract.ts`) while Lane A fills in the real handlers behind
 // CANONICAL_ROUTES (currently all 501 stubs — see redesign-stub.ts). This
@@ -76,6 +83,20 @@ export class MockConflictError extends Error {
 // ---------------------------------------------------------------------------
 
 type Store = {
+  effortSizes: Map<Id, CourseEffortSizeDto>;
+  effortKinds: Map<Id, CourseEffortPartKindDto>;
+  activities: Map<Id, ActivityDto>;
+  activityVersions: Map<Id, ActivityVersionDto>;
+  activityActions: Map<
+    Id,
+    import("./redesign-contract").ActivityVersionTopicActionWithSiblingsDto[]
+  >;
+  activityScopes: Map<
+    Id,
+    import("./redesign-contract").ActivityVersionLearningModuleScopeDto[]
+  >;
+  termActivities: Map<Id, TermActivityDto>;
+  termActivityRevisions: Map<Id, TermActivityRevisionDto>;
   institutions: Map<Id, InstitutionDto>;
   academicCalendars: Map<Id, AcademicCalendarDto>;
   courses: Map<Id, CourseDto>;
@@ -96,6 +117,14 @@ type Store = {
 
 function emptyStore(): Store {
   return {
+    activityActions: new Map(),
+    activityScopes: new Map(),
+    effortSizes: new Map(),
+    effortKinds: new Map(),
+    activities: new Map(),
+    activityVersions: new Map(),
+    termActivities: new Map(),
+    termActivityRevisions: new Map(),
     institutions: new Map(),
     academicCalendars: new Map(),
     courses: new Map(),
@@ -298,7 +327,8 @@ function seed(): void {
     topics: probVersion.topics,
     changeSummary: "Added an explicit discrete-vs-continuous learning objective after students struggled in week 2.",
   });
-  transitionTermInternal(fall.id, "close", "planned");
+  transitionTermInternal(fall.id, "close", "active");
+  seedMockEffort(ds100.id, spring.id);
 
   // Course 2: a brand-new course with no learning modules or terms yet —
   // exercises the "course exists with nothing built out" empty state.
@@ -777,14 +807,22 @@ const TERM_TRANSITIONS: Record<TermStatus, Partial<Record<TermLifecycleTransitio
   closed: { reopen: "active" },
 };
 
-function transitionTermInternal(id: Id, transition: TermLifecycleTransition, expectedStatus: TermStatus): TermDto {
+function transitionTermInternal(
+  id: Id,
+  transition: TermLifecycleTransition,
+  expectedStatus: TermStatus,
+): TermDto {
   const term = getTerm(id);
   if (term.status !== expectedStatus) {
-    throw new MockConflictError(`Term status changed since you loaded it (now "${term.status}").`);
+    throw new MockConflictError(
+      `Term status changed since you loaded it (now "${term.status}").`,
+    );
   }
   const nextStatus = TERM_TRANSITIONS[term.status]?.[transition];
   if (!nextStatus) {
-    throw new MockConflictError(`Cannot ${transition} a term in status "${term.status}".`);
+    throw new MockConflictError(
+      `Cannot ${transition} a term in status "${term.status}".`,
+    );
   }
   const updated: TermDto = {
     ...term,
@@ -961,13 +999,18 @@ export function createDeliveredRevision(
   return createDeliveredRevisionInternal(termLearningModuleId, request);
 }
 
-export function getPlannedDeliveredDiff(termLearningModuleId: Id): PlannedDeliveredDiffResponse {
+export function getPlannedDeliveredDiff(
+  termLearningModuleId: Id,
+): PlannedDeliveredDiffResponse {
   const tlm = getTermLearningModule(termLearningModuleId);
   const planned = store.learningModuleVersions.get(tlm.learningModuleVersionId);
   const delivered = tlm.deliveredLearningModuleVersionId
     ? store.learningModuleVersions.get(tlm.deliveredLearningModuleVersionId)
     : null;
-  if (!planned) throw new MockNotFoundError(`Planned version missing for ${termLearningModuleId}`);
+  if (!planned)
+    throw new MockNotFoundError(
+      `Planned version missing for ${termLearningModuleId}`,
+    );
 
   const topicChanges: PlannedDeliveredTopicChange[] = [];
   if (delivered) {
@@ -1083,6 +1126,237 @@ export function listTermAssessments(termId: Id): AssessmentDto[] {
 
 export function listArtifactsForTopicVersion(topicVersionId: Id): ArtifactDto[] {
   return [...store.artifacts.values()].filter((a) => a.topicVersionId === topicVersionId);
+}
+
+function seedMockEffort(courseId: Id, termId: Id) {
+  for (const input of [{ label: "Small", minMinutes: 30, maxMinutes: 45 }, { label: "Medium", minMinutes: 60, maxMinutes: 120 }, { label: "Large", minMinutes: 180, maxMinutes: 300 }]) createCourseEffortSize(courseId, input);
+  const reading = createCourseEffortPartKind(courseId, { label: "Reading" });
+  const practice = createCourseEffortPartKind(courseId, { label: "Practice" });
+  for (const family of ["coursework", "assessment"] as const) {
+    const activityId = nextId("activity"), versionId = nextId("activity_version"), termActivityId = nextId("term_activity"), revisionId = nextId("term_revision");
+    const range = family === "coursework" ? { effortMinMinutes: 60, effortMaxMinutes: 120 } : { effortMinMinutes: 30, effortMaxMinutes: 45 };
+    const detail = family === "coursework" ? { behaviorFamily: family, ...range, submissionPolicy: null, releasePolicy: null, authoringNotes: null } : { behaviorFamily: family, ...range, modality: null, authoringNotes: null };
+    const version: ActivityVersionDto = {
+      id: versionId,
+      activityId,
+      revision: 1,
+      title:
+        family === "coursework" ? "Independent practice" : "Knowledge check",
+      summary: null,
+      activityTypeVersionId: `demo-${family}`,
+      changeSummary: null,
+      publishedAt: now(),
+      detail,
+      milestoneTemplates: [], effortParts: family === "coursework" ? [ { sequence: 0, label: reading.label, partKindId: reading.id, minMinutes: 15, maxMinutes: 30 }, { sequence: 1, label: practice.label, partKindId: practice.id, minMinutes: 45, maxMinutes: 90 } ] : [],
+    };
+    store.activities.set(activityId, {
+      id: activityId,
+      courseId,
+      stableCode: `demo-${family}`,
+      currentVersionId: versionId,
+      archivedAt: null,
+    });
+    store.activityVersions.set(versionId, version);
+    store.termActivities.set(termActivityId, { id: termActivityId, termId, courseId, activityId, plannedActivityVersionId: versionId, activityTypeVersionId: version.activityTypeVersionId, adoptedLabel: version.title, termLearningModuleId: null, ordinal: null, lifecycleState: null, plannedRevisionId: revisionId, deliveredRevisionId: null, archivedAt: null });
+    store.termActivityRevisions.set(revisionId, { id: revisionId, termActivityId, revision: 1, baseActivityVersionId: versionId, baseEffort: range, effectiveEffort: effectiveEffort(range, null), title: version.title, summary: null, changeReason: null, createdByInstructorId: INSTRUCTOR_ID, createdAt: now(), detail: family === "coursework" ? { behaviorFamily: family, lifecycleState: null, deliveryNotes: null, effortMinMinutes: null, effortMaxMinutes: null } : { behaviorFamily: family, modality: null, lifecycleState: null, deliveryNotes: null, effortMinMinutes: null, effortMaxMinutes: null }, topicActions: [], milestones: [] });
+  }
+}
+
+function effortLabel(value: string) { const label = value.trim(); if (!label) throw new Error("A label is required"); return label; }
+export function listCourseEffortSizes(courseId: Id) { getCourse(courseId); return [...store.effortSizes.values()].filter((row) => row.courseId === courseId && row.scale === "student").sort((a, b) => a.sequence - b.sequence); }
+export function listCourseEffortPartKinds(courseId: Id) { getCourse(courseId); return [...store.effortKinds.values()].filter((row) => row.courseId === courseId).sort((a, b) => a.sequence - b.sequence); }
+export function createCourseEffortSize(courseId: Id, input: CourseEffortSizeRequest) {
+  const rows = listCourseEffortSizes(courseId); const label = effortLabel(input.label); validateEffort(input.minMinutes, input.maxMinutes);
+  if (rows.some((row) => row.label === label)) throw new Error("Label already exists in this Course");
+  const row: CourseEffortSizeDto = { ...input, label, id: nextId("size"), courseId, scale: "student", sequence: Math.max(-1, ...rows.map((row) => row.sequence)) + 1, createdAt: now(), updatedAt: now() };
+  store.effortSizes.set(row.id, row); return structuredClone(row);
+}
+export function createCourseEffortPartKind(courseId: Id, input: CourseEffortPartKindRequest) {
+  const rows = listCourseEffortPartKinds(courseId); const label = effortLabel(input.label);
+  if (rows.some((row) => row.label === label)) throw new Error("Label already exists in this Course");
+  const row = { label, id: nextId("part_kind"), courseId, sequence: Math.max(-1, ...rows.map((row) => row.sequence)) + 1, createdAt: now() };
+  store.effortKinds.set(row.id, row); return structuredClone(row);
+}
+export function updateCourseEffortSize(courseId: Id, id: Id, input: CourseEffortSizeRequest) {
+  const rows = listCourseEffortSizes(courseId); const current = rows.find((row) => row.id === id); if (!current) throw new MockNotFoundError("Effort entry not found");
+  const label = effortLabel(input.label); validateEffort(input.minMinutes, input.maxMinutes);
+  if (rows.some((row) => row.id !== id && row.label === label)) throw new Error("Label already exists in this Course");
+  const row = { ...current, ...input, label, updatedAt: now() }; store.effortSizes.set(id, row); return structuredClone(row);
+}
+export function updateCourseEffortPartKind(courseId: Id, id: Id, input: CourseEffortPartKindRequest) {
+  const rows = listCourseEffortPartKinds(courseId); const current = rows.find((row) => row.id === id); if (!current) throw new MockNotFoundError("Effort entry not found");
+  const label = effortLabel(input.label); if (rows.some((row) => row.id !== id && row.label === label)) throw new Error("Label already exists in this Course");
+  const row = { ...current, label }; store.effortKinds.set(id, row); return structuredClone(row);
+}
+export function deleteCourseEffortSize(courseId: Id, id: Id) { if (!listCourseEffortSizes(courseId).some((row) => row.id === id)) throw new MockNotFoundError("Effort entry not found"); store.effortSizes.delete(id); }
+export function deleteCourseEffortPartKind(courseId: Id, id: Id) {
+  if (!listCourseEffortPartKinds(courseId).some((row) => row.id === id)) throw new MockNotFoundError("Effort entry not found"); store.effortKinds.delete(id);
+  for (const version of store.activityVersions.values()) for (const part of version.effortParts ?? []) if (part.partKindId === id) part.partKindId = null;
+}
+function assertEffortOrder(rows: { id: Id }[], ids: Id[]) { if (ids.length !== rows.length || new Set(ids).size !== ids.length || rows.some((row) => !ids.includes(row.id))) throw new Error("Reorder must include every entry exactly once"); }
+export function reorderCourseEffortSizes(courseId: Id, ids: Id[]) { const rows = listCourseEffortSizes(courseId); assertEffortOrder(rows, ids); for (const row of rows) store.effortSizes.set(row.id, { ...row, sequence: ids.indexOf(row.id) }); return listCourseEffortSizes(courseId); }
+export function reorderCourseEffortPartKinds(courseId: Id, ids: Id[]) { const rows = listCourseEffortPartKinds(courseId); assertEffortOrder(rows, ids); for (const row of rows) store.effortKinds.set(row.id, { ...row, sequence: ids.indexOf(row.id) }); return listCourseEffortPartKinds(courseId); }
+export function listCourseActivities(courseId: Id) { getCourse(courseId); return [...store.activities.values()].filter((row) => row.courseId === courseId && !row.archivedAt).map((row) => structuredClone(row)); }
+export function getActivity(id: Id) { const activity = store.activities.get(id); if (!activity) throw new MockNotFoundError("Activity not found"); return { activity: structuredClone(activity), currentVersion: activity.currentVersionId ? getActivityVersion(activity.currentVersionId) : null }; }
+export function getActivityVersion(id: Id) { const version = store.activityVersions.get(id); if (!version) throw new MockNotFoundError("Activity version not found"); return structuredClone(version); }
+export function listActivityTopicActions(id: Id) {
+  getActivityVersion(id);
+  return structuredClone(store.activityActions.get(id) ?? []);
+}
+export function listActivityLmScope(id: Id) {
+  getActivityVersion(id);
+  return structuredClone(store.activityScopes.get(id) ?? []);
+}
+export function listActivityVersions(id: Id) { getActivity(id); return [...store.activityVersions.values()].filter((v) => v.activityId === id).map((v) => structuredClone(v)); }
+async function mockActivityVersion(
+  activity: ActivityDto,
+  input: UpsertActivityVersionRequest,
+) {
+  const prior = activity.currentVersionId ? getActivityVersion(activity.currentVersionId) : null;
+  const draft = activityEffortDraft(
+    input.detail,
+    input.effortParts,
+    prior ? { detail: prior.detail, parts: prior.effortParts } : undefined,
+  );
+  const effort = normalizeActivityEffort(draft.detail, draft.parts);
+  if (effort.detail.behaviorFamily === "coursework")
+    Object.assign(effort.detail, {
+      submissionPolicy:
+        input.detail.behaviorFamily === "coursework"
+          ? (input.detail.submissionPolicy ?? null)
+          : null,
+      releasePolicy:
+        input.detail.behaviorFamily === "coursework"
+          ? (input.detail.releasePolicy ?? null)
+          : null,
+      authoringNotes: input.detail.authoringNotes ?? null,
+    });
+  if (effort.detail.behaviorFamily === "assessment")
+    Object.assign(effort.detail, {
+      modality:
+        input.detail.behaviorFamily === "assessment"
+          ? (input.detail.modality ?? null)
+          : null,
+      authoringNotes: input.detail.authoringNotes ?? null,
+    });
+  for (const action of input.topicActions ?? []) {
+    const topic = getTopicVersion(action.topicVersionId);
+    if (getTopic(topic.topicId).topic.courseId !== activity.courseId)
+      throw new Error("Activity Topic action must belong to the same Course");
+  }
+  for (const scope of input.learningModuleScopes ?? [])
+    if (
+      getLearningModule(scope.learningModuleId).learningModule.courseId !==
+      activity.courseId
+    )
+      throw new Error(
+        "Activity Learning Module scope must belong to the same Course",
+      );
+  for (const part of effort.parts)
+    if (
+      part.partKindId &&
+      !listCourseEffortPartKinds(activity.courseId).some(
+        (kind) => kind.id === part.partKindId,
+      )
+    )
+      throw new Error("Part kind not found in this Course");
+  const version: ActivityVersionDto = {
+    id: nextId("activity_version"),
+    activityId: activity.id,
+    revision: (prior?.revision ?? 0) + 1,
+    title: input.title,
+    summary: input.summary ?? null,
+    activityTypeVersionId: input.activityTypeVersionId,
+    changeSummary: input.changeSummary ?? null,
+    publishedAt: input.publish ? now() : null,
+    detail: effort.detail as ActivityVersionDto["detail"],
+    effortParts: effort.parts,
+    milestoneTemplates: (input.milestoneTemplates ?? []).map((m) => ({ ...m, id: nextId("template"), activityVersionId: "", linkedActivityId: m.linkedActivityId ?? null, relativeDays: m.relativeDays ?? null, defaultTime: m.defaultTime ?? null, timeZone: m.timeZone ?? null, notes: m.notes ?? null, provenance: m.provenance ?? null })),
+  };
+  for (const template of version.milestoneTemplates) template.activityVersionId = version.id;
+  store.activityActions.set(
+    version.id,
+    (input.topicActions ?? []).map((action) => ({
+      ...action,
+      id: nextId("action"),
+      activityVersionId: version.id,
+      notes: action.notes ?? null,
+      provenance: action.provenance ?? null,
+      siblings: [],
+    })),
+  );
+  store.activityScopes.set(
+    version.id,
+    (input.learningModuleScopes ?? []).map((scope) => ({
+      ...scope,
+      id: nextId("scope"),
+      activityVersionId: version.id,
+      emphasis: scope.emphasis ?? null,
+      notes: scope.notes ?? null,
+    })),
+  );
+  store.activityVersions.set(version.id, structuredClone(version)); store.activities.set(activity.id, { ...activity, currentVersionId: version.id });
+  return structuredClone(version);
+}
+export async function createCourseActivity(courseId: Id, input: Omit<CreateActivityRequest, "createdByInstructorId">) {
+  getCourse(courseId); const activity: ActivityDto = { id: nextId("activity"), courseId, stableCode: input.stableCode, currentVersionId: null, archivedAt: null };
+  const currentVersion = await mockActivityVersion(activity, input.version); return { activity: getActivity(activity.id).activity, currentVersion };
+}
+export async function createActivityVersion(id: Id, input: UpsertActivityVersionRequest) {
+  const { activity } = getActivity(id); if (input.expectedCurrentVersionId && input.expectedCurrentVersionId !== activity.currentVersionId) throw new MockConflictError("Activity changed"); return mockActivityVersion(activity, input);
+}
+export function publishActivityVersion(id: Id) { const version = getActivityVersion(id); const saved = { ...version, publishedAt: version.publishedAt ?? now() }; store.activityVersions.set(id, saved); return structuredClone(saved); }
+export function listTermActivitiesWithRevisions(termId: Id) {
+  getTerm(termId); const termActivities = [...store.termActivities.values()].filter((a) => a.termId === termId);
+  return structuredClone({ termActivities, revisionsByTermActivityId: Object.fromEntries(termActivities.map((a) => [a.id, { planned: a.plannedRevisionId ? store.termActivityRevisions.get(a.plannedRevisionId) ?? null : null, delivered: a.deliveredRevisionId ? store.termActivityRevisions.get(a.deliveredRevisionId) ?? null : null }])) });
+}
+export function previewTermActivityRevision(
+  id: Id,
+  input: TermActivityRevisionPreviewRequest,
+) {
+  const activity = store.termActivities.get(id);
+  if (!activity) throw new MockNotFoundError("Term Activity not found");
+  const base = getActivityVersion(activity.plannedActivityVersionId);
+  const baseEffort = base.detail.behaviorFamily === "meeting" ? null : base.detail;
+  const currentId =
+    input.advancePointer === "planned"
+      ? activity.plannedRevisionId
+      : (activity.deliveredRevisionId ?? activity.plannedRevisionId);
+  const current = currentId ? store.termActivityRevisions.get(currentId) : null;
+  const detail = keepEffortOverride(
+    input.detail,
+    current?.detail.behaviorFamily === "meeting" ? null : current?.detail,
+  );
+  const effective =
+    detail.behaviorFamily === "meeting"
+      ? null
+      : effectiveEffort(baseEffort, detail);
+  const pointer = input.advancePointer === "planned" ? activity.plannedRevisionId : activity.deliveredRevisionId;
+  const revision: TermActivityRevisionDto = {
+    id: nextId("term_revision"),
+    termActivityId: id, revision: [...store.termActivityRevisions.values()].filter((r) => r.termActivityId === id).length + 1,
+    baseActivityVersionId: base.id,
+    baseEffort,
+    effectiveEffort: effective,
+    title: input.title,
+    summary: input.summary ?? null,
+    changeReason: input.changeReason ?? null,
+    createdByInstructorId: INSTRUCTOR_ID,
+    createdAt: now(),
+    detail: structuredClone(detail), topicActions: (input.topicActions ?? []).map((action) => ({ ...action, id: nextId("action"), termActivityRevisionId: "", notes: action.notes ?? null, provenance: action.provenance ?? null })), milestones: (input.milestones ?? []).map((milestone) => ({ ...milestone, id: nextId("milestone"), termActivityRevisionId: "", sourceTemplateId: milestone.sourceTemplateId ?? null, linkedTermActivityId: milestone.linkedTermActivityId ?? null, occursAt: milestone.occursAt ?? null, timeZone: milestone.timeZone ?? null, notes: milestone.notes ?? null, provenance: milestone.provenance ?? null })),
+  };
+  for (const row of [...revision.topicActions, ...revision.milestones]) row.termActivityRevisionId = revision.id;
+  return { kind: "preview" as const, previewToken: JSON.stringify({ id, pointer, input: { ...input, detail, advancePointer: undefined } }), expectedCurrentRevisionId: pointer, proposedRevision: revision, impact: { issues: [], topicActionDuplicates: [], calendarConflicts: [] } };
+}
+export function applyTermActivityRevision(id: Id, input: TermActivityRevisionApplyRequest) {
+  const { previewToken, expectedCurrentRevisionId, ...draft } = input;
+  const preview = previewTermActivityRevision(id, draft);
+  if (preview.previewToken !== previewToken || preview.expectedCurrentRevisionId !== expectedCurrentRevisionId) throw new MockConflictError("Term Activity preview is stale");
+  const activity = store.termActivities.get(id)!;
+  const term = getTerm(activity.termId); if (term.status === "closed" || (input.advancePointer === "delivered" && term.status !== "active")) throw new Error("Term is not writable");
+  store.termActivityRevisions.set(preview.proposedRevision.id, preview.proposedRevision);
+  const updated = { ...activity, [input.advancePointer === "planned" ? "plannedRevisionId" : "deliveredRevisionId"]: preview.proposedRevision.id };
+  store.termActivities.set(id, updated); return { kind: "applied" as const, termActivity: structuredClone(updated), revision: structuredClone(preview.proposedRevision) };
 }
 
 // Initialize on module load so pages/tests get a populated store immediately.
