@@ -388,6 +388,11 @@ Decisions made where the requirements were underspecified. Each can be revisited
   all distinct class-day weekdays and spans the Term's start and end dates.
   Existing patterns remain unchanged. Meeting instants are stored in new planned
   revisions; coursework milestones retain their dates.
+- A stored pattern is a snapshot of the Term at the time of the apply. It is
+  written only when the request gives a meeting time, and only for the types
+  placed in that apply. A later change to the Term's dates or class days does
+  not change it, so a class day added later on another weekday or outside the
+  stored dates gets no meeting of that type until the pattern is changed.
 - `applyTermCalendar` deletes all the Term's pattern rows and writes the rows
   in its input, so a later Term calendar apply removes a stored time that its
   input does not include.
@@ -399,7 +404,8 @@ Decisions made where the requirements were underspecified. Each can be revisited
   local date using the applicable pattern's zone (or the request fallback zone).
   Without either source of time zone, only its explicit slot can be reserved.
 - The panel requires a new preview after editing a fallback time or receiving an
-  apply conflict. Apply returns `placedCount` and `storedMeetingPatternCount`; the workspace reloads after apply.
+  apply conflict. Apply returns `placedCount` and
+  `storedMeetingPatternCount`; the workspace reloads after apply.
 - The fallback meeting time exists because a Term created in the workspace
   stores meeting days and no time. `TermMeetingPattern` rows hold times, and
   meeting placement apply also writes them for placed types that have none.
