@@ -4,6 +4,7 @@ import {
   ExemplarImportService,
   genericDemoExemplarSnapshot,
 } from "../src/services/redesign/exemplar-import-service";
+import { ensureDemoTerms } from "../src/services/redesign/demo-course-service";
 
 // These IDs are reserved for the default demo. A natural-key conflict with a
 // user row fails the seed instead of adopting or changing that row.
@@ -17,7 +18,7 @@ export function seedId(key: string): string {
 /** Insert missing demo rows and set version pointers only on seed-owned rows. */
 export async function seedDemoRows(
   db: PrismaClient,
-  options: { instructorEmail?: string; instructorName?: string } = {},
+  options: { instructorEmail?: string; instructorName?: string; today?: Date } = {},
 ): Promise<void> {
   const id = seedId;
   const instructorEmail = options.instructorEmail?.trim() || "instructor-a";
@@ -490,4 +491,18 @@ export async function seedDemoRows(
       snapshot: genericDemoExemplarSnapshot,
     });
   }
+  // The foundation course keeps its fixed Spring 2026 Term as a past-Term
+  // example. The exemplar course gets the Terms that are current and next on
+  // the day the seed runs, so a later run adds the Terms that are then missing.
+  await db.$transaction(
+    (tx) =>
+      ensureDemoTerms(tx, {
+        instructorId: instructor.id,
+        courseId: exemplarCourse.id,
+        institutionId: institution.id,
+        today: options.today ?? new Date(),
+        requireEveryModule: false,
+      }),
+    { timeout: 300_000, maxWait: 30_000 },
+  );
 }
