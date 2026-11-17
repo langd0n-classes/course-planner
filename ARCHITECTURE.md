@@ -308,3 +308,16 @@ versions. The secondary `TopicBrowser` links to
 `/courses/[courseId]/topics/[topicId]`, where `TopicWorkspacePage` loads Course
 Topics and prerequisites and `TopicEditor` edits the selected Topic. Identity,
 prerequisite, and content revision calls retain their existing contracts.
+
+## Demo-mode guard (#78)
+
+Demo mode requires two keys: the server variable `COURSE_PLANNER_DEMO=true`
+and the marker table `public._demo_marker`.
+
+The flag together with a configured sign-in variable raises
+`DemoModeConfigError`. The error names the variables without exposing their
+values.
+
+`assertDemoDatabase` in `src/lib/demo-mode.ts` checks the flag and the marker
+table. A test in `src/services/no-model-sdk.test.ts` fails when a model SDK
+or a model API key name enters the build.
