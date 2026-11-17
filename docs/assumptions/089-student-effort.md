@@ -16,14 +16,24 @@
   kind link. The service sums both bounds when parts exist, because substantial
   steps must remain visible. Renaming or deleting a kind preserves the snapshot
   label; deletion clears its link. Part sequences are unique and nonnegative.
-- New Activity versions copy the estimate and parts. Omitting these inputs
-  preserves the source snapshot; an explicit empty parts list removes the parts,
-  and explicit null bounds clear the estimate. Effort saves also preserve Topic
-  actions, module scopes, and milestone templates, so editing effort does not
-  discard other version content. Existing module and Term version pins remain.
-- Term revision bounds are an optional override; null uses the base Activity
-  version. Adoption sets no override, and Term revisions do not override parts.
-  The effective revision is delivered when present, otherwise planned.
+- New Activity versions keep omitted effort bounds and parts. An explicit empty
+  parts list removes the parts and keeps omitted bounds; explicit null bounds
+  clear the estimate. Supplied parts determine the total. If supplied bounds
+  differ from their sum, validation rejects the request. If the source has parts,
+  supplying bounds without a parts list is rejected with “This estimate is built
+  from parts. Change the parts, or remove them.” Changing to the meeting family
+  removes inherited parts and the estimate.
+- Other Activity version inputs retain replacement semantics: omitted detail
+  fields become null; omitted milestone templates, Topic actions, and module
+  scopes become empty lists. The effort editor submits the complete current
+  version content with its changed effort. Existing module and Term pins remain.
+- Term revision bounds are an optional override. Omitted bounds keep the current
+  override on the target pointer; a delivered edit without a delivered revision
+  inherits the planned override. Explicit null bounds clear the override and use
+  the base Activity version. Adoption sets no override, and Term revisions do not
+  override parts. The effective revision is delivered when present, otherwise
+  planned. Preview and apply use the same resolved override; changing inherited
+  effort after preview invalidates apply.
 - The size table reserves `student` and `grading` scales. Only student sizes are
   exposed in this build; grading effort, workload views, and feeds are deferred.
 - No coursework or assessment detail editor existed. The estimate group is in
@@ -55,12 +65,12 @@ Term revision details store nullable overrides. The handwritten migration adds
 paired-null, range, and nonempty-label constraints.
 
 `effort-service.ts` owns student vocabulary CRUD/reorder, Course ownership, part
-kind scoping, and estimate normalization. `activity-service.ts` reads and writes
-estimates and parts through immutable draft/publish versions, copying omitted
-snapshot content from the source. `term-activity-service.ts` validates and writes
+kind scoping, and domain error translation. `activity-service.ts` reads and writes
+estimates and parts through immutable draft/publish versions, keeping only omitted
+effort from the source. `term-activity-service.ts` validates and writes
 overrides through revision preview/apply. Revision hydration and serializers
 include the base and effective estimates. `src/lib/effort.ts` provides formatting,
-hours/minutes parsing, exact size matching, part sums, and override fallback.
+hours/minutes parsing, exact size matching, part sums, pure estimate normalization, omission rules, and override fallback.
 
 `/api/courses/[id]/effort-sizes` and `/effort-part-kinds` provide GET lists, POST
 creation, and PUT reordering with every entry ID. Their `[entryId]` routes provide

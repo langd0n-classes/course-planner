@@ -35,12 +35,14 @@ export default function EffortRangeInput({
   onChange,
   error,
   disabled = false,
+  errorDescriptionId,
 }: {
   label: string;
   value: RangeInput;
   onChange: (value: RangeInput) => void;
   error?: string | null;
   disabled?: boolean;
+  errorDescriptionId?: string;
 }) {
   const errorId = useId();
   return (
@@ -67,8 +69,8 @@ export default function EffortRangeInput({
               onChange={(event) =>
                 onChange({ ...value, [key]: event.target.value })
               }
-              aria-invalid={Boolean(error)}
-              aria-describedby={error ? errorId : undefined}
+              aria-invalid={Boolean(error || errorDescriptionId)}
+              aria-describedby={error ? errorId : errorDescriptionId}
               className="mt-1 block w-full rounded border border-slate-300 bg-white p-2 text-sm tabular-nums disabled:bg-slate-100"
             />
           </label>

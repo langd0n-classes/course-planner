@@ -110,8 +110,8 @@ describe("Activity effort validation", () => {
       "c",
       {
         behaviorFamily: "coursework",
-        effortMinMinutes: 999,
-        effortMaxMinutes: 999,
+        effortMinMinutes: 30,
+        effortMaxMinutes: 45,
       },
       [{ sequence: 0, label: " Read ", minMinutes: 30, maxMinutes: 45 }],
     );
@@ -181,7 +181,14 @@ describe("version effort snapshots", () => {
       id: "v1",
       activityId: "a",
       revision: 1,
-      courseworkDetail: { effortMinMinutes: 10, effortMaxMinutes: 20 },
+      courseworkDetail: {
+        effortMinMinutes: 10,
+        effortMaxMinutes: 20,
+        submissionPolicy: "Keep only if supplied",
+        releasePolicy: "Release",
+        authoringNotes: "Notes",
+      },
+      milestoneTemplates: [{ sequence: 0, role: "due", label: "Due" }],
       effortParts: [
         {
           id: "p",
@@ -224,11 +231,46 @@ describe("version effort snapshots", () => {
         detail: { behaviorFamily: "coursework" as const },
       },
     };
+    await expect(
+      reviseActivity(db(tx), {
+        ...input,
+        draft: {
+          ...input.draft,
+          detail: {
+            behaviorFamily: "coursework",
+            effortMinMinutes: 5,
+            effortMaxMinutes: 9,
+          },
+        },
+      }),
+    ).rejects.toThrow(
+      "This estimate is built from parts. Change the parts, or remove them.",
+    );
+    await expect(
+      reviseActivity(db(tx), {
+        ...input,
+        draft: {
+          ...input.draft,
+          detail: {
+            behaviorFamily: "coursework",
+            effortMinMinutes: 5,
+            effortMaxMinutes: 9,
+          },
+          effortParts: current.effortParts,
+        },
+      }),
+    ).rejects.toThrow("sum");
     await reviseActivity(db(tx), input);
     expect(create.mock.calls[0][0].data.courseworkDetail.create).toMatchObject({
       effortMinMinutes: 10,
       effortMaxMinutes: 20,
     });
+    expect(create.mock.calls[0][0].data.courseworkDetail.create).toMatchObject({
+      submissionPolicy: null,
+      releasePolicy: null,
+      authoringNotes: null,
+    });
+    expect(create.mock.calls[0][0].data.milestoneTemplates.create).toEqual([]);
     expect(create.mock.calls[0][0].data.effortParts.create).toEqual([
       expect.objectContaining({
         label: "Read",
@@ -248,6 +290,16 @@ describe("version effort snapshots", () => {
         effortParts: [],
       },
     });
+    expect(create.mock.calls[1][0].data.effortParts.create).toEqual([]);
+    tx.activityTypeVersion.findUnique = async () => ({
+      activityType: { instructorId: "i", behaviorFamily: "meeting" },
+    });
+    await reviseActivity(db(tx), {
+      ...input,
+      draft: { ...input.draft, detail: { behaviorFamily: "meeting" } },
+    });
+    expect(create.mock.calls[2][0].data.effortParts.create).toEqual([]);
+    expect(create.mock.calls[2][0].data.courseworkDetail).toBeUndefined();
     expect(create.mock.calls[1][0].data.courseworkDetail.create).toMatchObject({
       effortMinMinutes: null,
       effortMaxMinutes: null,
@@ -268,6 +320,14 @@ describe("Term effort overrides", () => {
         plannedActivityVersionId: "v",
         plannedRevisionId: "r1",
         deliveredRevisionId: null,
+        plannedRevision: {
+          courseworkDetail: { effortMinMinutes: 12, effortMaxMinutes: 24 },
+          assessmentDetail: { effortMinMinutes: 12, effortMaxMinutes: 24 },
+        },
+        deliveredRevision: {
+          courseworkDetail: { effortMinMinutes: 30, effortMaxMinutes: 45 },
+          assessmentDetail: { effortMinMinutes: 30, effortMaxMinutes: 45 },
+        },
         revisions: [{ revision: 1 }],
         term: {
           courseId: "c",
@@ -295,6 +355,51 @@ describe("Term effort overrides", () => {
           },
         },
       };
+      const dateChange = {
+        title: "Changed date",
+        detail: { behaviorFamily: family, lifecycleState: "canceled" },
+      };
+      const plannedPreview = await previewTermActivityRevision(db(tx), {
+        instructorId: "i",
+        termActivityId: "ta",
+        advancePointer: "planned",
+        draft: dateChange,
+      });
+      expect(plannedPreview.expectedCurrentRevisionId).toBe("r1");
+      expect(
+        plannedPreview.proposedRevision[
+          family === "coursework" ? "courseworkDetail" : "assessmentDetail"
+        ],
+      ).toMatchObject({ effortMinMinutes: 12, effortMaxMinutes: 24 });
+      await applyTermActivityRevision(db(tx), {
+        instructorId: "i",
+        termActivityId: "ta",
+        advancePointer: "planned",
+        draft: dateChange,
+        previewToken: plannedPreview.previewToken,
+        expectedCurrentRevisionId: "r1",
+      });
+      expect(writes.at(-1)).toMatchObject({
+        effortMinMinutes: 12,
+        effortMaxMinutes: 24,
+      });
+      await expect(
+        applyTermActivityRevision(db(tx), {
+          instructorId: "i",
+          termActivityId: "ta",
+          advancePointer: "planned",
+          draft: {
+            ...dateChange,
+            detail: {
+              ...dateChange.detail,
+              effortMinMinutes: 1,
+              effortMaxMinutes: 2,
+            },
+          },
+          previewToken: plannedPreview.previewToken,
+          expectedCurrentRevisionId: "r1",
+        }),
+      ).rejects.toThrow("stale");
       for (const [low, high] of [
         [60, 90],
         [null, null],
@@ -348,7 +453,7 @@ describe("Term effort overrides", () => {
   );
 });
 
-it("preserves Topic actions and module scopes when saving a new effort version", async () => {
+it("clears omitted Topic actions and module scopes as on main", async () => {
   const { reviseActivity } = await import("./activity-service");
   const create = vi.fn(async ({ data }) => data);
   const tx = {
@@ -401,15 +506,94 @@ it("preserves Topic actions and module scopes when saving a new effort version",
       },
     },
   });
-  expect(create.mock.calls[0][0].data.topicActions.create).toEqual([
-    {
-      topicVersionId: "topic",
-      action: "practiced",
-      notes: "Keep",
-      provenance: undefined,
+  expect(create.mock.calls[0][0].data.topicActions?.create ?? []).toEqual([]);
+  expect(
+    create.mock.calls[0][0].data.learningModuleScopes?.create ?? [],
+  ).toEqual([]);
+});
+
+it("rejects an explicit total that differs from its parts", async () => {
+  await expect(
+    normalizeActivityEffort(
+      {},
+      "c",
+      {
+        behaviorFamily: "coursework",
+        effortMinMinutes: 99,
+        effortMaxMinutes: 100,
+      },
+      [{ sequence: 0, label: "Read", minMinutes: 10, maxMinutes: 20 }],
+    ),
+  ).rejects.toThrow("sum");
+});
+
+it.each(["update", "delete"])(
+  "does not write another instructor's size on %s",
+  async (operation) => {
+    const tx = fixture();
+    tx.courseEffortSize.findFirst.mockResolvedValue(null as never);
+    const action =
+      operation === "update"
+        ? updateCourseEffort(db(tx), "i", "c", "sizes", "foreign", {
+            label: "X",
+            minMinutes: 1,
+            maxMinutes: 2,
+          })
+        : deleteCourseEffort(db(tx), "i", "c", "sizes", "foreign");
+    await expect(action).rejects.toThrow("not found");
+    expect(tx.courseEffortSize.findFirst).toHaveBeenCalledWith({
+      where: { id: "foreign", courseId: "c", scale: "student" },
+    });
+    expect(tx.courseEffortSize.update).not.toHaveBeenCalled();
+    expect(tx.courseEffortSize.delete).not.toHaveBeenCalled();
+  },
+);
+
+it("rejects an apply when the inherited override changed after preview", async () => {
+  const { previewTermActivityRevision, applyTermActivityRevision } =
+    await import("./term-activity-service");
+  const activity = {
+    id: "ta",
+    termId: "t",
+    plannedActivityVersionId: "v",
+    plannedRevisionId: "r1",
+    deliveredRevisionId: null,
+    deliveredRevision: null,
+    plannedRevision: {
+      courseworkDetail: { effortMinMinutes: 10, effortMaxMinutes: 20 },
     },
-  ]);
-  expect(create.mock.calls[0][0].data.learningModuleScopes.create).toEqual([
-    { learningModuleId: "lm", emphasis: "Recap", notes: null },
-  ]);
+    revisions: [{ revision: 1 }],
+    term: { courseId: "c", status: "active", course: { instructorId: "i" } },
+  };
+  const create = vi.fn(async () => ({ id: "new" }));
+  const tx = {
+    termActivity: {
+      findUnique: async () => activity,
+      updateMany: async () => ({ count: 1 }),
+    },
+    termActivityRevision: { create, findUnique: async () => ({ id: "new" }) },
+    termCourseworkActivityRevision: { create: vi.fn() },
+  };
+  const input = {
+    instructorId: "i",
+    termActivityId: "ta",
+    draft: {
+      title: "Date edit",
+      detail: { behaviorFamily: "coursework" as const },
+    },
+  };
+  const preview = await previewTermActivityRevision(db(tx), input);
+  activity.plannedRevisionId = "r2";
+  activity.plannedRevision = {
+    courseworkDetail: { effortMinMinutes: 30, effortMaxMinutes: 40 },
+  };
+  await expect(
+    applyTermActivityRevision(db(tx), {
+      ...input,
+      advancePointer: "delivered",
+      expectedCurrentRevisionId: null,
+      previewToken: preview.previewToken,
+    }),
+  ).rejects.toThrow("stale");
+  expect(create).not.toHaveBeenCalled();
 });

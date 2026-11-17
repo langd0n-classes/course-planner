@@ -230,3 +230,203 @@ describe("effort controls", () => {
     );
   });
 });
+
+it("focuses added and remaining parts, preserves typed labels and shows one linked parts error", async () => {
+  setMockBackend({
+    listCourseEffortSizes: async () => [],
+    listCourseEffortPartKinds: async () => [
+      { id: "k", courseId: "c", label: "Read", sequence: 0, createdAt: "" },
+    ],
+  });
+    render(
+      <ActivityEffortEditor
+        courseId="c"
+        version={createCourseworkActivityVersion()}
+        onSaved={vi.fn()}
+      />,
+    );
+  await waitFor(() =>
+    expect(screen.getByLabelText("Course size")).toBeTruthy(),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Add part" }));
+  expect(screen.getByLabelText("Part 1 kind")).toHaveFocus();
+  fireEvent.change(screen.getByLabelText("Part 1 label"), {
+    target: { value: "My label" },
+  });
+  fireEvent.change(screen.getByLabelText("Part 1 kind"), {
+    target: { value: "k" },
+  });
+  expect(screen.getByLabelText("Part 1 label")).toHaveValue("My label");
+  fireEvent.click(screen.getByRole("button", { name: "Add part" }));
+  expect(screen.getByLabelText("Part 2 kind")).toHaveFocus();
+  fireEvent.click(screen.getByRole("button", { name: "Save effort draft" }));
+  expect(await screen.findAllByRole("alert")).toHaveLength(1);
+  expect(screen.getByLabelText("Part 1 low hours")).toHaveAttribute(
+    "aria-describedby",
+  );
+  expect(screen.getByLabelText("Part 2 label")).not.toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Remove part 1" }));
+  expect(screen.getByLabelText("Part 1 kind")).toHaveFocus();
+  fireEvent.click(screen.getByRole("button", { name: "Remove part 1" }));
+  expect(screen.getByRole("button", { name: "Add part" })).toHaveFocus();
+});
+
+it("sends the complete version content with changed effort", async () => {
+  mockVocabulary();
+  const version = createCourseworkActivityVersion();
+  const actions = [
+    {
+      topicVersionId: "tv",
+      action: "practiced" as const,
+      notes: "Keep",
+      provenance: { source: "manual" },
+    },
+  ];
+  const scopes = [
+    { learningModuleId: "lm", emphasis: "Review", notes: "Keep" },
+  ];
+  const save = vi
+    .spyOn(redesignApi, "createActivityVersion")
+    .mockResolvedValue(version);
+  render(
+    <ActivityEffortEditor
+      courseId="c"
+      version={version}
+      topicActions={actions}
+      learningModuleScopes={scopes}
+      onSaved={vi.fn()}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Save effort draft" }));
+  await waitFor(() =>
+    expect(save).toHaveBeenCalledWith(
+      version.activityId,
+      expect.objectContaining({
+        detail: expect.objectContaining(version.detail),
+        topicActions: actions,
+        learningModuleScopes: scopes,
+        milestoneTemplates: version.milestoneTemplates,
+      }),
+    ),
+  );
+  expect(
+    screen.getByText(/unpublished save creates a draft version/i),
+  ).toBeTruthy();
+  save.mockRestore();
+});
+
+it("confirms deletes, keeps row identity and restores focus with one announcement region", async () => {
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  const remove = vi.fn(async () => {});
+  const update = vi.fn(async (_course, _id, input) => ({
+    ...size,
+    ...input,
+    updatedAt: "new",
+  }));
+  let rows = [size];
+  setMockBackend({
+    listCourseEffortSizes: async () => rows,
+    listCourseEffortPartKinds: async () => [
+      { id: "k", courseId: "c", label: "Read", sequence: 0, createdAt: "" },
+    ],
+    deleteCourseEffortSize: remove,
+    deleteCourseEffortPartKind: remove,
+    updateCourseEffortSize: update,
+  });
+  render(<CourseEffortSettings courseId="c" />);
+  const label = await screen.findByLabelText("Small label");
+  fireEvent.click(screen.getByRole("button", { name: "Delete Small" }));
+  expect(confirm).toHaveBeenCalled();
+  expect(remove).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Delete Read" }));
+  expect(confirm).toHaveBeenLastCalledWith(
+    expect.stringMatching(/keeps.*label/i),
+  );
+  rows = [{ ...size, updatedAt: "new" }];
+  fireEvent.click(screen.getByRole("button", { name: "Save Small" }));
+  await waitFor(() =>
+    expect(screen.getByLabelText("Small label")).toHaveFocus(),
+  );
+  expect(screen.getByLabelText("Small label")).toBe(label);
+  confirm.mockReturnValue(true);
+  rows = [];
+  fireEvent.click(screen.getByRole("button", { name: "Delete Small" }));
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Add size" })).toHaveFocus(),
+  );
+  expect(screen.getAllByRole("status")).toHaveLength(1);
+  confirm.mockRestore();
+});
+
+it("prefills a new Term override from the Activity and mounts its preview live region early", () => {
+  const revision = {
+    id: "r",
+    termActivityId: "ta",
+    revision: 1,
+    baseActivityVersionId: "v",
+    title: "A",
+    summary: null,
+    changeReason: null,
+    createdByInstructorId: null,
+    createdAt: "",
+    detail: {
+      behaviorFamily: "coursework" as const,
+      lifecycleState: null,
+      deliveryNotes: null,
+      effortMinMinutes: null,
+      effortMaxMinutes: null,
+    },
+    topicActions: [],
+    milestones: [],
+    baseEffort: { effortMinMinutes: 60, effortMaxMinutes: 90 },
+  };
+  render(
+    <TermEffortEditor
+      revision={revision}
+      editable
+      advancePointer="planned"
+      onApplied={vi.fn()}
+    />,
+  );
+  expect(screen.getByLabelText("Effort preview")).toHaveAttribute(
+    "aria-live",
+    "polite",
+  );
+  fireEvent.click(screen.getByLabelText("Override student effort"));
+  expect(screen.getByLabelText("Term override low hours")).toHaveValue(1);
+  expect(screen.getByLabelText("Term override high minutes")).toHaveValue(30);
+});
+
+it("moves focus with a reordered row and announces errors in the same live region", async () => {
+  const second = { ...size, id: "s2", label: "Large", sequence: 1 };
+  let rows = [size, second];
+  const reorder = vi.fn(async (_course, ids: string[]) => {
+    rows = ids.map((id) => rows.find((row) => row.id === id)!);
+    return rows;
+  });
+  setMockBackend({
+    listCourseEffortSizes: async () => rows,
+    listCourseEffortPartKinds: async () => [],
+    reorderCourseEffortSizes: reorder,
+  });
+  render(<CourseEffortSettings courseId="c" />);
+  const move = await screen.findByRole("button", { name: "Move down Small" });
+  expect(move.getAttribute("aria-label")).toMatch(/^Move down/);
+  fireEvent.click(move);
+  await waitFor(() =>
+    expect(screen.getByLabelText("Small label")).toHaveFocus(),
+  );
+  expect(reorder).toHaveBeenCalledWith("c", ["s2", "s"]);
+  fireEvent.change(screen.getByLabelText("Small label"), {
+    target: { value: " " },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save Small" }));
+  await waitFor(() =>
+    expect(screen.getByRole("status")).toHaveTextContent("Enter a label."),
+  );
+  expect(screen.getAllByRole("status")).toHaveLength(1);
+  expect(screen.queryByRole("alert")).toBeNull();
+});

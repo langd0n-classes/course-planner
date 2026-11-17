@@ -101,6 +101,12 @@ export type ActivityVersionDraft = {
   detail: ActivityDetailDraft;
   milestoneTemplates?: MilestoneTemplateDraft[];
   effortParts?: EffortPartDraft[];
+  topicActions?: TermActivityRevisionTopicActionInput[];
+  learningModuleScopes?: {
+    learningModuleId: string;
+    emphasis?: string | null;
+    notes?: string | null;
+  }[];
 };
 
 export type TermActivityRevisionDetailDraft =

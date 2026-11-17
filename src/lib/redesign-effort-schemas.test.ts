@@ -77,3 +77,20 @@ describe("effort request validation", () => {
     );
   });
 });
+
+it("rejects a total that disagrees with explicitly supplied parts", () => {
+  expect(
+    upsertActivityVersionSchema.safeParse({
+      title: "A",
+      activityTypeVersionId: "00000000-0000-4000-8000-000000000001",
+      detail: {
+        behaviorFamily: "coursework",
+        effortMinMinutes: 20,
+        effortMaxMinutes: 30,
+      },
+      effortParts: [
+        { sequence: 0, label: "Read", minMinutes: 10, maxMinutes: 15 },
+      ],
+    }).success,
+  ).toBe(false);
+});

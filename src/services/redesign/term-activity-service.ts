@@ -1,4 +1,4 @@
-import { assertEffort } from "./effort-service";
+import { keepEffortOverride } from "@/lib/effort";import { assertEffort } from "./effort-service";
 import { createHash } from "node:crypto";
 import { ConcurrencyConflictError, DomainInvariantError } from "./errors";
 import { assertSameCourse } from "./invariants";
@@ -466,7 +466,18 @@ async function buildRevisionPreview(
     throw new DomainInvariantError("Term Activity not found");
   }
 
-  await validateTermActivityDraft(tx, input.instructorId, hydrated, input.draft);
+  const current =
+    input.advancePointer === "planned"
+      ? hydrated.plannedRevision
+      : (hydrated.deliveredRevision ?? hydrated.plannedRevision);
+  const draft = {
+    ...input.draft,
+    detail: keepEffortOverride(
+      input.draft.detail,
+      current?.courseworkDetail ?? current?.assessmentDetail,
+    ),
+  };
+  await validateTermActivityDraft(tx, input.instructorId, hydrated, draft);
 
   const nextRevision = (hydrated.revisions[0]?.revision ?? 0) + 1;
   const expectedCurrentRevisionId =
@@ -479,43 +490,43 @@ async function buildRevisionPreview(
     termActivityId: hydrated.id,
     revision: nextRevision,
     baseActivityVersionId: hydrated.plannedActivityVersionId,
-    title: input.draft.title,
-    summary: input.draft.summary ?? null,
-    changeReason: input.draft.changeReason ?? null,
+    title: draft.title,
+    summary: draft.summary ?? null,
+    changeReason: draft.changeReason ?? null,
     createdByInstructorId: input.instructorId,
     createdAt: new Date(),
     meetingDetail:
-      input.draft.detail.behaviorFamily === "meeting"
+      draft.detail.behaviorFamily === "meeting"
         ? {
-            calendarSlotId: input.draft.detail.calendarSlotId ?? null,
-            startsAt: input.draft.detail.startsAt ?? null,
-            endsAt: input.draft.detail.endsAt ?? null,
-            status: input.draft.detail.status ?? null,
-            modality: input.draft.detail.modality ?? null,
-            overrideReason: input.draft.detail.overrideReason ?? null,
-            overrideEvidence: input.draft.detail.overrideEvidence ?? null,
+            calendarSlotId: draft.detail.calendarSlotId ?? null,
+            startsAt: draft.detail.startsAt ?? null,
+            endsAt: draft.detail.endsAt ?? null,
+            status: draft.detail.status ?? null,
+            modality: draft.detail.modality ?? null,
+            overrideReason: draft.detail.overrideReason ?? null,
+            overrideEvidence: draft.detail.overrideEvidence ?? null,
           }
         : null,
     courseworkDetail:
-      input.draft.detail.behaviorFamily === "coursework"
+      draft.detail.behaviorFamily === "coursework"
         ? {
-            effortMinMinutes: input.draft.detail.effortMinMinutes ?? null,
-            effortMaxMinutes: input.draft.detail.effortMaxMinutes ?? null,
-            lifecycleState: input.draft.detail.lifecycleState ?? null,
-            deliveryNotes: input.draft.detail.deliveryNotes ?? null,
+            effortMinMinutes: draft.detail.effortMinMinutes ?? null,
+            effortMaxMinutes: draft.detail.effortMaxMinutes ?? null,
+            lifecycleState: draft.detail.lifecycleState ?? null,
+            deliveryNotes: draft.detail.deliveryNotes ?? null,
           }
         : null,
     assessmentDetail:
-      input.draft.detail.behaviorFamily === "assessment"
+      draft.detail.behaviorFamily === "assessment"
         ? {
-            effortMinMinutes: input.draft.detail.effortMinMinutes ?? null,
-            effortMaxMinutes: input.draft.detail.effortMaxMinutes ?? null,
-            lifecycleState: input.draft.detail.lifecycleState ?? null,
-            modality: input.draft.detail.modality ?? null,
-            deliveryNotes: input.draft.detail.deliveryNotes ?? null,
+            effortMinMinutes: draft.detail.effortMinMinutes ?? null,
+            effortMaxMinutes: draft.detail.effortMaxMinutes ?? null,
+            lifecycleState: draft.detail.lifecycleState ?? null,
+            modality: draft.detail.modality ?? null,
+            deliveryNotes: draft.detail.deliveryNotes ?? null,
           }
         : null,
-    topicActions: (input.draft.topicActions ?? []).map((action, index) => ({
+    topicActions: (draft.topicActions ?? []).map((action, index) => ({
       id: `preview-topic-action-${index}`,
       termActivityRevisionId: `preview-${hydrated.id}-${nextRevision}`,
       topicVersionId: action.topicVersionId,
@@ -523,7 +534,7 @@ async function buildRevisionPreview(
       notes: action.notes ?? null,
       provenance: action.provenance ?? null,
     })),
-    milestones: (input.draft.milestones ?? []).map((milestone, index) => ({
+    milestones: (draft.milestones ?? []).map((milestone, index) => ({
       id: `preview-milestone-${index}`,
       termActivityRevisionId: `preview-${hydrated.id}-${nextRevision}`,
       sourceTemplateId: milestone.sourceTemplateId ?? null,
@@ -542,6 +553,7 @@ async function buildRevisionPreview(
   return {
     termActivity,
     nextRevision,
+    draft,
     expectedCurrentRevisionId,
     proposedRevision,
   };
@@ -771,7 +783,7 @@ export async function previewTermActivityRevision(
       previewToken: previewToken({
         termActivityId: input.termActivityId,
         expectedCurrentRevisionId: preview.expectedCurrentRevisionId,
-        draft: input.draft,
+        draft: preview.draft,
       }),
       expectedCurrentRevisionId: preview.expectedCurrentRevisionId,
       proposedRevision: preview.proposedRevision,
@@ -818,7 +830,7 @@ export async function applyTermActivityRevision(
         previewToken({
           termActivityId: input.termActivityId,
           expectedCurrentRevisionId: preview.expectedCurrentRevisionId,
-          draft: input.draft,
+          draft: preview.draft,
         }) !== input.previewToken
       ) {
         throw new ConcurrencyConflictError("Term Activity revision preview is stale");
@@ -835,7 +847,7 @@ export async function applyTermActivityRevision(
         summary: input.draft.summary ?? null,
         changeReason: input.draft.changeReason ?? null,
         createdByInstructorId: input.instructorId,
-        detail: input.draft.detail,
+        detail: preview.draft.detail,
         topicActions: input.draft.topicActions ?? [],
         milestones: input.draft.milestones ?? [],
       });

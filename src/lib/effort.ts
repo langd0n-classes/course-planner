@@ -95,3 +95,117 @@ export function effectiveEffort(
     validateEffort(base?.effortMinMinutes, base?.effortMaxMinutes)
   );
 }
+
+export type EffortPart = EffortRange & {
+  sequence: number;
+  label: string;
+  partKindId?: string | null;
+  note?: string | null;
+};
+type EffortDetail = EffortFields & { behaviorFamily: string };
+
+// Only effort is inherited; other version inputs keep replacement semantics.
+export function activityEffortDraft<T extends EffortDetail>(
+  detail: T,
+  parts?: EffortPart[],
+  source?: { detail: EffortDetail; parts?: EffortPart[] },
+) {
+  if (detail.behaviorFamily === "meeting") return { detail, parts: [] };
+  const hasBounds =
+    detail.effortMinMinutes !== undefined ||
+    detail.effortMaxMinutes !== undefined;
+  if (source?.parts?.length && parts === undefined && hasBounds)
+    throw new Error(
+      "This estimate is built from parts. Change the parts, or remove them.",
+    );
+  const inherited =
+    source?.detail.behaviorFamily === "meeting" ? undefined : source?.detail;
+  return {
+    detail: {
+      ...detail,
+      effortMinMinutes:
+        detail.effortMinMinutes === undefined && !parts?.length
+          ? inherited?.effortMinMinutes
+          : detail.effortMinMinutes,
+      effortMaxMinutes:
+        detail.effortMaxMinutes === undefined && !parts?.length
+          ? inherited?.effortMaxMinutes
+          : detail.effortMaxMinutes,
+    },
+    parts: parts ?? source?.parts ?? [],
+  };
+}
+
+export function normalizeActivityEffort<T extends EffortDetail>(
+  detail: T,
+  parts: EffortPart[],
+) {
+  if (detail.behaviorFamily === "meeting") {
+    if (
+      parts.length ||
+      "effortMinMinutes" in detail ||
+      "effortMaxMinutes" in detail
+    )
+      throw new Error("Meetings do not carry student effort");
+    return { detail, parts: [] };
+  }
+  const sequences = new Set<number>();
+  const normalized = parts.map((part) => {
+    if (
+      !Number.isInteger(part.sequence) ||
+      part.sequence < 0 ||
+      sequences.has(part.sequence)
+    )
+      throw new Error("Part sequence must be nonnegative and unique");
+    sequences.add(part.sequence);
+    validateEffort(part.minMinutes, part.maxMinutes);
+    if (!part.label.trim()) throw new Error("A label is required");
+    return {
+      sequence: part.sequence,
+      label: part.label.trim(),
+      partKindId: part.partKindId ?? null,
+      minMinutes: part.minMinutes,
+      maxMinutes: part.maxMinutes,
+      note: part.note ?? null,
+    };
+  });
+  const explicit = validateEffort(
+    detail.effortMinMinutes,
+    detail.effortMaxMinutes,
+  );
+  const range = normalized.length ? sumEffortParts(normalized) : explicit;
+  if (
+    normalized.length &&
+    (detail.effortMinMinutes !== undefined ||
+      detail.effortMaxMinutes !== undefined) &&
+    (explicit?.minMinutes !== range?.minMinutes ||
+      explicit?.maxMinutes !== range?.maxMinutes)
+  )
+    throw new Error("The estimate must equal the sum of its parts.");
+  return {
+    detail: {
+      ...detail,
+      effortMinMinutes: range?.minMinutes ?? null,
+      effortMaxMinutes: range?.maxMinutes ?? null,
+    },
+    parts: normalized,
+  };
+}
+
+export function keepEffortOverride<T extends EffortDetail>(
+  detail: T,
+  current?: EffortFields | null,
+): T {
+  if (detail.behaviorFamily === "meeting") return detail;
+  return {
+    ...detail,
+    effortMinMinutes:
+      detail.effortMinMinutes === undefined
+        ? (current?.effortMinMinutes ?? null)
+        : detail.effortMinMinutes,
+    effortMaxMinutes:
+      detail.effortMaxMinutes === undefined
+        ? (current?.effortMaxMinutes ?? null)
+        : detail.effortMaxMinutes,
+  };
+}

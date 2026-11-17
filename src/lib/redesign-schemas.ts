@@ -1,4 +1,4 @@
-import { validateEffort } from "./effort";
+import { validateEffort, normalizeActivityEffort } from "./effort";
 // Zod request validators for the Lane A (domain + REST) redesign handlers.
 // Shapes mirror the frozen types in `redesign-contract.ts`; this file only
 // adds runtime validation, it does not redefine the contract.
@@ -522,17 +522,54 @@ export const upsertMilestoneTemplateSchema = z.object({
   provenance: z.unknown().nullable().optional(),
 });
 
-export const upsertActivityVersionSchema = z.object({
-  expectedCurrentVersionId: z.string().uuid().optional(),
-  title: z.string().min(1),
-  summary: z.string().nullable().optional(),
-  activityTypeVersionId: z.string().uuid(),
-  changeSummary: z.string().nullable().optional(),
-  publish: z.boolean().optional(),
-  detail: activityDetailSchema,
-  effortParts: z.array(effortPartSchema).optional(),
-  milestoneTemplates: z.array(upsertMilestoneTemplateSchema).optional(),
-}).refine((data) => !(data.detail.behaviorFamily === "meeting" && data.effortParts?.length), { message: "Meetings do not carry effort parts", path: ["effortParts"] }).refine((data) => !data.effortParts || new Set(data.effortParts.map((part) => part.sequence)).size === data.effortParts.length, { message: "Part sequences must be unique", path: ["effortParts"] });
+export const upsertActivityVersionSchema = z
+  .object({
+    expectedCurrentVersionId: z.string().uuid().optional(),
+    title: z.string().min(1),
+    summary: z.string().nullable().optional(),
+    activityTypeVersionId: z.string().uuid(),
+    changeSummary: z.string().nullable().optional(),
+    publish: z.boolean().optional(),
+    detail: activityDetailSchema,
+    effortParts: z.array(effortPartSchema).optional(),
+    topicActions: z
+      .array(
+        z.object({
+          topicVersionId: z.string().uuid(),
+          action: z.enum(["introduced", "practiced", "assessed"]),
+          notes: z.string().nullable().optional(),
+          provenance: z.unknown().optional(),
+        }),
+      )
+      .optional(),
+    learningModuleScopes: z.array(z.object({
+      learningModuleId: z.string().uuid(),
+      emphasis: z.string().nullable().optional(),
+      notes: z.string().nullable().optional(),
+    })).optional(),
+    milestoneTemplates: z.array(upsertMilestoneTemplateSchema).optional(),
+  })
+  .refine(
+    (data) => {
+      try {
+        normalizeActivityEffort(data.detail, data.effortParts ?? []);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    {
+      message:
+        "The estimate must equal the sum of its parts and stay within 60000 minutes.",
+      path: ["effortParts"],
+    },
+  )
+  .refine((data) => !(data.detail.behaviorFamily === "meeting" && data.effortParts?.length),
+    { message: "Meetings do not carry effort parts", path: ["effortParts"] },
+  )
+  .refine((data) => !data.effortParts || new Set(data.effortParts.map((part) => part.sequence)).size === data.effortParts.length,
+    { message: "Part sequences must be unique", path: ["effortParts"] },
+  );
 
 export const createActivitySchema = z.object({
   stableCode: z.string().min(1),
@@ -575,12 +612,12 @@ export const replaceActivityTopicActionsSchema = z.object({
     })
   ),
 }).refine(
-  (data) => {
-    const pairs = data.actions.map(a => `${a.topicVersionId}:${a.action}`);
-    return new Set(pairs).size === pairs.length;
-  },
-  { message: "duplicate topicVersionId/action pair in actions" }
-);
+    (data) => {
+      const pairs = data.actions.map((a) => `${a.topicVersionId}:${a.action}`);
+      return new Set(pairs).size === pairs.length;
+    },
+    { message: "duplicate topicVersionId/action pair in actions" },
+  );
 
 export const replaceActivityTopicScopeSchema = z.object({
   scopes: z.array(
@@ -713,13 +750,15 @@ export const termActivityRevisionPreviewRequestSchema = z.object({
   ).optional(),
   milestones: z.array(upsertTermActivityMilestoneSchema).optional(),
 }).refine(
-  (data) => {
-    if (!data.topicActions) return true;
-    const pairs = data.topicActions.map(a => `${a.topicVersionId}:${a.action}`);
-    return new Set(pairs).size === pairs.length;
-  },
-  { message: "duplicate topicVersionId/action pair in topicActions" }
-);
+    (data) => {
+      if (!data.topicActions) return true;
+      const pairs = data.topicActions.map(
+        (a) => `${a.topicVersionId}:${a.action}`,
+      );
+      return new Set(pairs).size === pairs.length;
+    },
+    { message: "duplicate topicVersionId/action pair in topicActions" },
+  );
 
 export const termActivityRevisionApplyRequestSchema = termActivityRevisionPreviewRequestSchema.safeExtend({
   previewToken: z.string().min(1),

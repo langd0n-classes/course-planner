@@ -1,4 +1,4 @@
-import { normalizeActivityEffort } from "./effort-service";
+import { activityEffortDraft } from "@/lib/effort";import { normalizeActivityEffort } from "./effort-service";
 import { ConcurrencyConflictError, DomainInvariantError } from "./errors";
 import { assertSameCourse, assertSameIdentityVersion } from "./invariants";
 import { getOwnedCourseForInstructor } from "./ownership-service";
@@ -83,21 +83,36 @@ export async function reviseActivity(
       }
       assertSameIdentityVersion(activity.id, activity.currentVersion.activityId, "Activity");
 
+      let effortDraft;
+      try {
+        effortDraft = activityEffortDraft(
+          input.draft.detail,
+          input.draft.effortParts,
+          {
+            detail: {
+              behaviorFamily: activity.currentVersion.meetingDetail
+                ? "meeting"
+                : activity.currentVersion.assessmentDetail
+                  ? "assessment"
+                  : "coursework",
+              ...(activity.currentVersion.courseworkDetail ?? activity.currentVersion.assessmentDetail ?? {}),
+            },
+            parts: activity.currentVersion.effortParts,
+          },
+        );
+      } catch (error) {
+        throw new DomainInvariantError((error as Error).message);
+      }
       const nextRevision = activity.currentVersion.revision + 1;
       const version = await createActivityVersion(tx, {
         activity,
         instructorId: input.instructorId,
         revision: nextRevision,
-        sourceVersion: activity.currentVersion,
         createdByInstructorId: input.createdByInstructorId,
         draft: {
           ...input.draft,
-          detail: input.draft.detail.behaviorFamily === "meeting" ? input.draft.detail : {
-            ...(activity.currentVersion.courseworkDetail ?? activity.currentVersion.assessmentDetail ?? {}),
-            ...input.draft.detail,
-          },
-          milestoneTemplates: input.draft.milestoneTemplates ?? activity.currentVersion.milestoneTemplates,
-          effortParts: input.draft.effortParts ?? activity.currentVersion.effortParts ?? [],
+          detail: effortDraft.detail,
+          effortParts: effortDraft.parts,
         },
         publishedAt: input.publish ? new Date() : null,
       });
@@ -264,10 +279,6 @@ async function createActivityVersion(
     activity: { id: string; courseId: string };
     instructorId: string;
     revision: number;
-    sourceVersion?: {
-      topicActions?: { topicVersionId: string; action: string; notes: string | null; provenance: unknown }[];
-      learningModuleScopes?: { learningModuleId: string; emphasis: string | null; notes: string | null }[];
-    };
     createdByInstructorId: string;
     draft: ActivityVersionDraft;
     publishedAt: Date | null;
@@ -289,6 +300,31 @@ async function createActivityVersion(
   assertValidMilestoneSequences(milestoneTemplates);
   await assertMilestoneAnchorsInCourse(tx, input.activity.courseId, milestoneTemplates);
 
+  for (const action of input.draft.topicActions ?? []) {
+    const topicVersion = await tx.topicVersion.findUnique({
+      where: { id: action.topicVersionId },
+      include: { topic: true },
+    });
+    if (!topicVersion)
+      throw new DomainInvariantError("Topic version not found");
+    assertSameCourse(
+      input.activity.courseId,
+      topicVersion.topic.courseId,
+      "Activity Topic action",
+    );
+  }
+  for (const scope of input.draft.learningModuleScopes ?? []) {
+    const learningModule = await tx.learningModule.findUnique({
+      where: { id: scope.learningModuleId },
+    });
+    if (!learningModule) throw new DomainInvariantError("Learning Module not found");
+    assertSameCourse(
+      input.activity.courseId,
+      learningModule.courseId,
+      "Activity Learning Module scope",
+    );
+  }
+
   const effort = await normalizeActivityEffort(tx, input.activity.courseId, input.draft.detail, input.draft.effortParts ?? []);
   return tx.activityVersion.create({
     data: {
@@ -302,8 +338,25 @@ async function createActivityVersion(
       publishedAt: input.publishedAt,
       ...detailCreateData(effort.detail),
       effortParts: { create: effort.parts },
-      topicActions: { create: (input.sourceVersion?.topicActions ?? []).map(({ topicVersionId, action, notes, provenance }) => ({ topicVersionId, action, notes, provenance: provenance ?? undefined })) },
-      learningModuleScopes: { create: (input.sourceVersion?.learningModuleScopes ?? []).map(({ learningModuleId, emphasis, notes }) => ({ learningModuleId, emphasis, notes })) },
+      topicActions: {
+        create: (input.draft.topicActions ?? []).map(
+          ({ topicVersionId, action, notes, provenance }) => ({
+            topicVersionId,
+            action,
+            notes: notes ?? null,
+            provenance: provenance ?? undefined,
+          }),
+        ),
+      },
+      learningModuleScopes: {
+        create: (input.draft.learningModuleScopes ?? []).map(
+          ({ learningModuleId, emphasis, notes }) => ({
+            learningModuleId,
+            emphasis: emphasis ?? null,
+            notes: notes ?? null,
+          }),
+        ),
+      },
       milestoneTemplates: {
         create: milestoneTemplates.map((template) => ({
           sequence: template.sequence,

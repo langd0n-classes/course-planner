@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import {
   badRequest,
+  conflict,
   created,
   notFound,
   ok,
@@ -25,7 +26,11 @@ import {
   reorderCourseEffort,
   type CourseEffortKind,
 } from "@/services/redesign/effort-service";
-import { DomainInvariantError } from "@/services/redesign/errors";
+import {
+  DomainInvariantError,
+  NotFoundError,
+  DuplicateLabelError,
+} from "@/services/redesign/errors";
 
 type Context = { params: Promise<{ id: string; entryId?: string }> };
 export function courseEffortHandlers(kind: CourseEffortKind) {
@@ -34,10 +39,9 @@ export function courseEffortHandlers(kind: CourseEffortKind) {
   const serialize =
     kind === "sizes" ? toCourseEffortSizeDto : toCourseEffortPartKindDto;
   function failure(error: unknown) {
-    if (error instanceof DomainInvariantError)
-      return error.message.endsWith("not found")
-        ? notFound(error.message)
-        : badRequest(error.message);
+    if (error instanceof NotFoundError) return notFound(error.message);
+    if (error instanceof DuplicateLabelError) return conflict(error.message);
+    if (error instanceof DomainInvariantError) return badRequest(error.message);
     throw error;
   }
   return {
@@ -59,7 +63,9 @@ export function courseEffortHandlers(kind: CourseEffortKind) {
       const { id } = await context.params;
       const instructor = await getAuthenticatedInstructor(prisma);
       if (!instructor) return unauthorized();
-      const parsed = schema.safeParse(await request.json());
+      const parsed = schema.safeParse(
+        await request.json().catch(() => undefined),
+      );
       if (!parsed.success)
         return badRequest(
           "Invalid request",
@@ -85,7 +91,9 @@ export function courseEffortHandlers(kind: CourseEffortKind) {
       const { id, entryId } = await context.params;
       const instructor = await getAuthenticatedInstructor(prisma);
       if (!instructor) return unauthorized();
-      const parsed = schema.safeParse(await request.json());
+      const parsed = schema.safeParse(
+        await request.json().catch(() => undefined),
+      );
       if (!parsed.success)
         return badRequest(
           "Invalid request",
@@ -123,7 +131,9 @@ export function courseEffortHandlers(kind: CourseEffortKind) {
       const { id } = await context.params;
       const instructor = await getAuthenticatedInstructor(prisma);
       if (!instructor) return unauthorized();
-      const parsed = reorderCourseEffortSchema.safeParse(await request.json());
+      const parsed = reorderCourseEffortSchema.safeParse(
+        await request.json().catch(() => undefined),
+      );
       if (!parsed.success)
         return badRequest(
           "Invalid request",

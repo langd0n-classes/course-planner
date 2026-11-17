@@ -506,6 +506,8 @@ export type UpsertActivityVersionRequest = {
   publish?: boolean;
   detail: ActivityDetailDto;
   effortParts?: EffortPartInput[];
+  topicActions?: ReplaceActivityTopicActionsRequest["actions"];
+  learningModuleScopes?: ReplaceActivityLmScopeRequest["scopes"];
   milestoneTemplates?: UpsertMilestoneTemplateRequest[];
 };
 export type CreateActivityRequest = {

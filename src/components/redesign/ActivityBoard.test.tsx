@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { setMockBackend } from "@/lib/redesign-api-client";
+import { redesignApi, setMockBackend } from "@/lib/redesign-api-client";
 import type { ActivityVersionLearningModuleScopeDto } from "@/lib/redesign-contract";
 import ActivityBoard from "./ActivityBoard";
 
@@ -104,4 +104,23 @@ describe("ActivityBoard", () => {
     expect(await screen.findByText("Emphasis: Keep")).toBeInTheDocument();
     expect(screen.getByText("Scope save failed")).toBeInTheDocument();
   });
+});
+
+it("shows a size load error with a working retry", async () => {
+  const sizes = vi
+    .spyOn(redesignApi, "listCourseEffortSizes")
+    .mockRejectedValueOnce(new Error("Sizes unavailable"))
+    .mockResolvedValue([]);
+  renderBoard();
+  expect(
+    await screen.findByText(/Unable to load effort sizes/),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Retry effort sizes" }));
+  await waitFor(() => expect(sizes).toHaveBeenCalledTimes(2));
+  await waitFor(() =>
+    expect(
+      screen.queryByText(/Unable to load effort sizes/),
+    ).not.toBeInTheDocument(),
+  );
+  sizes.mockRestore();
 });

@@ -107,6 +107,7 @@ export default function TermEffortEditor({
               checked={override}
               onChange={(event) => {
                 setOverride(event.target.checked);
+                if (event.target.checked) setValue(rangeInput(base));
                 setPreview(null);
               }}
             />{" "}
@@ -135,19 +136,20 @@ export default function TermEffortEditor({
           >
             Preview effort override
           </button>
-          {preview ? (
-            <div className="border-t border-slate-200 pt-3">
-              <p className="text-sm">
-                {override
-                  ? `Proposed effort: ${formatEffortRange(readRange(value)!)}`
-                  : "Use the Activity version’s estimate."}
-              </p>
-              {preview.response.impact.issues.map((issue) => (
+          <div aria-label="Effort preview" aria-live="polite">
+            {preview ? (
+              <div className="border-t border-slate-200 pt-3">
+                <p className="text-sm">
+                  {override
+                    ? `Proposed effort: ${formatEffortRange(readRange(value)!)}`
+                    : "Use the Activity version’s estimate."}
+                </p>
+                {preview.response.impact.issues.map((issue) => (
                 <p key={issue.code} className="text-sm">
                   {issue.message}
                 </p>
               ))}
-              <button
+                <button
                 type="button"
                 disabled={busy}
                 onClick={() => void apply()}
@@ -155,8 +157,9 @@ export default function TermEffortEditor({
               >
                 Apply effort override
               </button>
-            </div>
-          ) : null}
+              </div>
+            ) : null}
+          </div>
         </>
       ) : null}
     </div>

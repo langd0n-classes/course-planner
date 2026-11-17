@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState, useRef, useLayoutEffect } from "react";
 import { redesignApi } from "@/lib/redesign-api-client";
 import type {
   ActivityVersionDto,
@@ -30,7 +30,11 @@ export default function ActivityEffortEditor({
   version,
   onSaved,
   effortSettingsRevision,
+  topicActions = [],
+  learningModuleScopes = [],
 }: {
+  topicActions?: import("@/lib/redesign-contract").ReplaceActivityTopicActionsRequest["actions"];
+  learningModuleScopes?: import("@/lib/redesign-contract").ReplaceActivityLmScopeRequest["scopes"];
   courseId: string;
   effortSettingsRevision?: number;
   version: ActivityVersionDto;
@@ -58,6 +62,21 @@ export default function ActivityEffortEditor({
   const [status, setStatus] = useState("");
   const [publish, setPublish] = useState(false);
   const errorId = useId();
+  const [partError, setPartError] = useState<{
+    index: number;
+    field: "label" | "range";
+  } | null>(null);
+  const partRefs = useRef<(HTMLFieldSetElement | null)[]>([]);
+  const addRef = useRef<HTMLButtonElement>(null);
+  const pendingFocus = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (pendingFocus.current === null) return;
+    (
+      partRefs.current[pendingFocus.current]?.querySelector("select") ??
+      addRef.current
+    )?.focus();
+    pendingFocus.current = null;
+  }, [parts]);
   useEffect(() => {
     let active = true;
     Promise.all([
@@ -100,18 +119,28 @@ export default function ActivityEffortEditor({
       current.map((part, i) => (i === index ? { ...part, ...patch } : part)),
     );
     setError(null);
+    setPartError(null);
   }
   async function save() {
     if (version.detail.behaviorFamily === "meeting") return;
     setError(null);
     setStatus("");
+    setPartError(null);
     try {
       const parsedParts: EffortPartInput[] = parts.map((part, sequence) => {
-        const range = readRange(part.range);
-        if (!part.label.trim() || !range)
-          throw new Error(
-            `Part ${sequence + 1} needs a label and both effort bounds.`,
-          );
+        if (!part.label.trim()) {
+          setPartError({ index: sequence, field: "label" });
+          throw new Error(`Part ${sequence + 1} needs a label.`);
+        }
+        let range;
+        try {
+          range = readRange(part.range);
+          if (!range)
+            throw new Error(`Part ${sequence + 1} needs both effort bounds.`);
+        } catch (error) {
+          setPartError({ index: sequence, field: "range" });
+          throw error;
+        }
         return {
           ...range,
           sequence,
@@ -138,6 +167,21 @@ export default function ActivityEffortEditor({
           },
           effortParts: parsedParts,
           milestoneTemplates: version.milestoneTemplates,
+          topicActions: topicActions.map(
+            ({ topicVersionId, action, notes, provenance }) => ({
+              topicVersionId,
+              action,
+              notes,
+              provenance,
+            }),
+          ),
+          learningModuleScopes: learningModuleScopes.map(
+            ({ learningModuleId, emphasis, notes }) => ({
+              learningModuleId,
+              emphasis,
+              notes,
+            }),
+          ),
           publish,
         },
       );
@@ -194,6 +238,9 @@ export default function ActivityEffortEditor({
       {parts.map((part, index) => (
         <fieldset
           key={index}
+          ref={(element) => {
+            partRefs.current[index] = element;
+          }}
           className="space-y-2 border-t border-slate-200 pt-3"
         >
           <legend className="text-sm font-medium">Part {index + 1}</legend>
@@ -206,7 +253,7 @@ export default function ActivityEffortEditor({
                 const kind = kinds.find((k) => k.id === event.target.value);
                 changePart(index, {
                   partKindId: kind?.id ?? null,
-                  ...(kind ? { label: kind.label } : {}),
+                  ...(kind && !part.label.trim() ? { label: kind.label } : {}),
                 });
               }}
               className="ml-2 rounded border border-slate-300 bg-white p-2"
@@ -227,8 +274,18 @@ export default function ActivityEffortEditor({
               onChange={(event) =>
                 changePart(index, { label: event.target.value })
               }
-              aria-invalid={Boolean(error)}
-              aria-describedby={error ? errorId : undefined}
+              aria-invalid={Boolean(
+                error &&
+                partError?.index === index &&
+                partError.field === "label",
+              )}
+              aria-describedby={
+                error &&
+                partError?.index === index &&
+                partError.field === "label"
+                  ? errorId
+                  : undefined
+              }
               className="ml-2 rounded border border-slate-300 p-2"
             />
           </label>
@@ -236,7 +293,11 @@ export default function ActivityEffortEditor({
             label={`Part ${index + 1}`}
             value={part.range}
             onChange={(range) => changePart(index, { range })}
-            error={error}
+            errorDescriptionId={
+              error && partError?.index === index && partError.field === "range"
+                ? errorId
+                : undefined
+            }
           />
           <label className="block text-sm">
             Note
@@ -251,9 +312,12 @@ export default function ActivityEffortEditor({
           </label>
           <button
             type="button"
-            onClick={() =>
-              setParts((current) => current.filter((_, i) => i !== index))
-            }
+            onClick={() => {
+              pendingFocus.current = index;
+              setParts((current) => current.filter((_, i) => i !== index));
+              setError(null);
+              setPartError(null);
+            }}
             className="text-sm underline"
           >
             Remove part {index + 1}
@@ -262,12 +326,14 @@ export default function ActivityEffortEditor({
       ))}
       <button
         type="button"
-        onClick={() =>
+        ref={addRef}
+        onClick={() => {
+          pendingFocus.current = parts.length;
           setParts((current) => [
             ...current,
             { label: "", partKindId: null, note: "", range: rangeInput() },
-          ])
-        }
+          ]);
+        }}
         className="rounded border border-slate-300 px-3 py-2 text-sm"
       >
         Add part
@@ -278,7 +344,7 @@ export default function ActivityEffortEditor({
         </p>
       ) : null}
       {error && parts.length ? (
-        <p id={errorId} className="text-sm text-rose-700">
+        <p id={errorId} role="alert" className="text-sm text-rose-700">
           {error}
         </p>
       ) : null}
@@ -302,6 +368,9 @@ export default function ActivityEffortEditor({
             ? "Publish effort"
             : "Save effort draft"}
       </button>
+      <p className="text-sm text-slate-600">
+        An unpublished save creates a draft version.
+      </p>
       <p role="status" className="text-sm text-slate-600">
         {status}
       </p>

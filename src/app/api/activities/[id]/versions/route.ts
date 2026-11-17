@@ -35,7 +35,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   }
 }
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   const { id } = await params;
   const instructor = await getAuthenticatedInstructor(prisma);
   if (!instructor) return unauthorized();
@@ -66,6 +69,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         changeSummary: parsed.data.changeSummary,
         detail: parsed.data.detail,
         effortParts: parsed.data.effortParts,
+        topicActions: parsed.data.topicActions,
+        learningModuleScopes: parsed.data.learningModuleScopes,
         milestoneTemplates: parsed.data.milestoneTemplates,
       },
     });

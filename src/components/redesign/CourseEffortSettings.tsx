@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState, useRef, useLayoutEffect } from "react";
 import { redesignApi } from "@/lib/redesign-api-client";
 import type {
   CourseEffortSizeDto,
@@ -16,7 +16,9 @@ function VocabularyRow({
   remove,
   up,
   down,
+  report,
 }: {
+  report: (message: string) => void;
   entry?: Entry;
   isSize: boolean;
   prefix: string;
@@ -37,17 +39,24 @@ function VocabularyRow({
   const errorId = useId();
   async function run(action: () => Promise<void>) {
     setError(null);
+    report("");
     setBusy(true);
     try {
       await action();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to save.");
+      const message =
+        caught instanceof Error ? caught.message : "Unable to save.";
+      setError(message);
+      report(message);
     } finally {
       setBusy(false);
     }
   }
   return (
-    <div className="space-y-3 border-t border-slate-200 py-4">
+    <div
+      data-effort-row={entry?.id ?? (isSize ? "add-size" : "add-kind")}
+      className="space-y-3 border-t border-slate-200 py-4"
+    >
       <label className="block text-sm text-slate-700">
         Label
         <input
@@ -64,15 +73,11 @@ function VocabularyRow({
           label={prefix}
           value={value}
           onChange={setValue}
-          error={error}
+          errorDescriptionId={error ? errorId : undefined}
         />
       ) : null}
       {error ? (
-        <p
-          id={errorId}
-          role={isSize ? undefined : "alert"}
-          className="text-sm text-rose-700"
-        >
+        <p id={errorId} className="text-sm text-rose-700">
           {error}
         </p>
       ) : null}
@@ -106,7 +111,7 @@ function VocabularyRow({
             <button
               type="button"
               disabled={busy || !up}
-              aria-label={`Move ${entry.label} up`}
+              aria-label={`Move up ${entry.label}`}
               onClick={() => up && void run(up)}
               className="text-sm underline disabled:opacity-50"
             >
@@ -115,7 +120,7 @@ function VocabularyRow({
             <button
               type="button"
               disabled={busy || !down}
-              aria-label={`Move ${entry.label} down`}
+              aria-label={`Move down ${entry.label}`}
               onClick={() => down && void run(down)}
               className="text-sm underline disabled:opacity-50"
             >
@@ -124,7 +129,17 @@ function VocabularyRow({
             <button
               type="button"
               disabled={busy}
-              onClick={() => remove && void run(remove)}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    isSize
+                      ? `Delete ${entry.label}?`
+                      : `Delete ${entry.label}? Deleting a kind keeps the label on existing parts.`,
+                  )
+                ) {
+                  if (remove) void run(remove);
+                }
+              }}
               className="text-sm underline"
             >
               Delete {entry.label}
@@ -144,8 +159,23 @@ export default function CourseEffortSettings({
 }) {
   const [sizes, setSizes] = useState<CourseEffortSizeDto[]>([]);
   const [kinds, setKinds] = useState<CourseEffortPartKindDto[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const rootRef = useRef<HTMLElement>(null);
+  const focusAfterReload = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const target = focusAfterReload.current;
+    if (!target) return;
+    const row = Array.from(
+      rootRef.current?.querySelectorAll<HTMLElement>("[data-effort-row]") ?? [],
+    ).find((element) => element.dataset.effortRow === target);
+    row
+      ?.querySelector<HTMLElement>(
+        target.startsWith("add-") ? "button" : "input",
+      )
+      ?.focus();
+    focusAfterReload.current = null;
+  }, [sizes, kinds]);
   useEffect(() => {
     let active = true;
     Promise.all([
@@ -160,19 +190,21 @@ export default function CourseEffortSettings({
         }
       })
       .catch((e: Error) => {
-        if (active) setError(e.message);
+        if (active) setStatus(e.message);
       });
     return () => {
       active = false;
     };
   }, [courseId]);
-  async function reload() {
+  async function reload(target: string) {
     const [s, k] = await Promise.all([
       redesignApi.listCourseEffortSizes(courseId),
       redesignApi.listCourseEffortPartKinds(courseId),
     ]);
+    focusAfterReload.current = target;
     setSizes(s);
     setKinds(k);
+    setStatus("Effort settings saved.");
     onChanged?.();
   }
   async function reorder(isSize: boolean, index: number, offset: number) {
@@ -180,10 +212,11 @@ export default function CourseEffortSettings({
     [ids[index], ids[index + offset]] = [ids[index + offset], ids[index]];
     if (isSize) await redesignApi.reorderCourseEffortSizes(courseId, ids);
     else await redesignApi.reorderCourseEffortPartKinds(courseId, ids);
-    await reload();
+    await reload(ids[index + offset]);
   }
   return (
     <section
+      ref={rootRef}
       aria-label="Course student effort sizes"
       className="rounded-2xl border border-slate-200 bg-white p-5"
     >
@@ -194,12 +227,15 @@ export default function CourseEffortSettings({
         Define this Course’s sizes and part kinds. Changing a size leaves saved
         Activity estimates as they were.
       </p>
-      {error ? (
-        <p role="alert" className="mt-3 text-sm text-rose-700">
-          {error}
-        </p>
-      ) : !loaded ? (
-        <p role="status">Loading effort settings…</p>
+      <p
+        role="status"
+        aria-live="polite"
+        className="mt-3 text-sm text-slate-700"
+      >
+        {status}
+      </p>
+      {!loaded ? (
+        <p>{status ? "" : "Loading effort settings…"}</p>
       ) : (
         <>
           {sizes.length === 0 ? (
@@ -207,7 +243,8 @@ export default function CourseEffortSettings({
           ) : null}
           {sizes.map((entry, index) => (
             <VocabularyRow
-              key={`${entry.id}-${entry.updatedAt}`}
+              report={setStatus}
+              key={entry.id}
               entry={entry}
               isSize
               prefix={entry.label}
@@ -216,11 +253,11 @@ export default function CourseEffortSettings({
                   label,
                   ...range!,
                 });
-                await reload();
+                await reload(entry.id);
               }}
               remove={async () => {
                 await redesignApi.deleteCourseEffortSize(courseId, entry.id);
-                await reload();
+                await reload("add-size");
               }}
               up={index ? () => reorder(true, index, -1) : undefined}
               down={
@@ -231,6 +268,7 @@ export default function CourseEffortSettings({
             />
           ))}
           <VocabularyRow
+            report={setStatus}
             isSize
             prefix="New size"
             save={async (label, range) => {
@@ -238,7 +276,7 @@ export default function CourseEffortSettings({
                 label,
                 ...range!,
               });
-              await reload();
+              await reload("add-size");
             }}
           />
           <h3 className="mt-5 font-semibold text-slate-900">Part kinds</h3>
@@ -249,7 +287,8 @@ export default function CourseEffortSettings({
           ) : null}
           {kinds.map((entry, index) => (
             <VocabularyRow
-              key={`${entry.id}-${entry.label}`}
+              report={setStatus}
+              key={entry.id}
               entry={entry}
               isSize={false}
               prefix={entry.label}
@@ -259,14 +298,14 @@ export default function CourseEffortSettings({
                   entry.id,
                   { label },
                 );
-                await reload();
+                await reload(entry.id);
               }}
               remove={async () => {
                 await redesignApi.deleteCourseEffortPartKind(
                   courseId,
                   entry.id,
                 );
-                await reload();
+                await reload("add-kind");
               }}
               up={index ? () => reorder(false, index, -1) : undefined}
               down={
@@ -277,11 +316,12 @@ export default function CourseEffortSettings({
             />
           ))}
           <VocabularyRow
+            report={setStatus}
             isSize={false}
             prefix="New part kind"
             save={async (label) => {
               await redesignApi.createCourseEffortPartKind(courseId, { label });
-              await reload();
+              await reload("add-kind");
             }}
           />
         </>

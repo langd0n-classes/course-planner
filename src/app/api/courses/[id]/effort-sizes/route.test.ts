@@ -113,3 +113,92 @@ describe.each(["sizes", "part-kinds"] as const)(
     });
   },
 );
+
+it.each(["POST", "PATCH", "PUT"] as const)(
+  "returns 400 for invalid JSON on %s",
+  async (method) => {
+      auth.mockResolvedValue({
+        id: "i",
+        email: "test@example.test",
+        name: "Test",
+      });
+    const { courseEffortHandlers } =
+      await import("@/app/api/course-effort-handlers");
+    const response = await courseEffortHandlers("sizes")[method](
+      new NextRequest("http://localhost", { method, body: "{" }),
+      ctx,
+    );
+    expect(response.status).toBe(400);
+  },
+);
+it.each([
+  ["P2025", 404],
+  ["P2002", 409],
+] as const)("maps database %s by class to %s", async (code, status) => {
+      auth.mockResolvedValue({
+        id: "i",
+        email: "test@example.test",
+        name: "Test",
+      });
+  prismaMock.$transaction.mockRejectedValue({ code });
+  const { PATCH } = await import("./[entryId]/route");
+  expect(
+    (
+      await PATCH(
+        request("PATCH", { label: "Small", minMinutes: 30, maxMinutes: 45 }),
+        ctx,
+      )
+    ).status,
+  ).toBe(status);
+});
+
+it.each(["PATCH", "DELETE"] as const)(
+  "returns 404 on %s for a missing or foreign entry",
+  async (method) => {
+      auth.mockResolvedValue({
+        id: "i",
+        email: "test@example.test",
+        name: "Test",
+      });
+    prismaMock.$transaction.mockImplementation(async (fn) =>
+      fn({
+        course: { findUnique: async () => ({ id: "c" }) },
+        courseEffortSize: { findFirst: async () => null },
+      }),
+    );
+    const item = await import("./[entryId]/route");
+    expect(
+      (
+        await item[method](
+          request(
+            method,
+            method === "PATCH"
+              ? { label: "Small", minMinutes: 30, maxMinutes: 45 }
+              : undefined,
+          ),
+          ctx,
+        )
+      ).status,
+    ).toBe(404);
+  },
+);
+it("keeps part-kind validation at 400 regardless of not-found wording", async () => {
+      auth.mockResolvedValue({
+        id: "i",
+        email: "test@example.test",
+        name: "Test",
+      });
+  const { DomainInvariantError } = await import("@/services/redesign/errors");
+  prismaMock.$transaction.mockRejectedValue(
+    new DomainInvariantError("Part kind not found in this Course"),
+  );
+  const { POST } = await import("./route");
+  expect(
+    (
+      await POST(
+        request("POST", { label: "Small", minMinutes: 30, maxMinutes: 45 }),
+        ctx,
+      )
+    ).status,
+  ).toBe(400);
+});

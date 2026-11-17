@@ -1,5 +1,12 @@
-import { validateEffort, sumEffortParts } from "@/lib/effort";
-import { DomainInvariantError } from "./errors";
+import {
+  validateEffort,
+  normalizeActivityEffort as normalizeEffort,
+} from "@/lib/effort";
+import {
+  DomainInvariantError,
+  NotFoundError,
+  DuplicateLabelError,
+} from "./errors";
 import { getOwnedCourseForInstructor } from "./ownership-service";
 import type {
   ActivityDetailDraft,
@@ -48,7 +55,14 @@ async function uniqueWrite<T>(fn: () => Promise<T>): Promise<T> {
       "code" in error &&
       error.code === "P2002"
     )
-      throw new DomainInvariantError("Label already exists in this Course");
+      throw new DuplicateLabelError("Label already exists in this Course");
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "P2025"
+    )
+      throw new NotFoundError("Effort entry not found");
     throw error;
   }
 }
@@ -107,11 +121,11 @@ export async function updateCourseEffort(
     db.$transaction(async (tx) => {
       await getOwnedCourseForInstructor(tx, instructorId, courseId);
       if (
-        !(await delegate(tx, kind).findFirst({
-          where: { id, ...whereCourse(courseId, kind) },
-        }))
+      !(await delegate(tx, kind).findFirst({
+        where: { id, ...whereCourse(courseId, kind) },
+      }))
       )
-        throw new DomainInvariantError("Effort entry not found");
+        throw new NotFoundError("Effort entry not found");
       return delegate(tx, kind).update({
         where: { id },
         data: vocabularyData(kind, input),
@@ -126,16 +140,18 @@ export async function deleteCourseEffort(
   kind: CourseEffortKind,
   id: string,
 ) {
-  return db.$transaction(async (tx) => {
-    await getOwnedCourseForInstructor(tx, instructorId, courseId);
-    if (
+  return uniqueWrite(() =>
+    db.$transaction(async (tx) => {
+      await getOwnedCourseForInstructor(tx, instructorId, courseId);
+      if (
       !(await delegate(tx, kind).findFirst({
         where: { id, ...whereCourse(courseId, kind) },
       }))
-    )
-      throw new DomainInvariantError("Effort entry not found");
-    await delegate(tx, kind).delete({ where: { id } });
-  });
+      )
+        throw new NotFoundError("Effort entry not found");
+      await delegate(tx, kind).delete({ where: { id } });
+    }),
+  );
 }
 export async function reorderCourseEffort(
   db: RedesignDb,
@@ -144,7 +160,7 @@ export async function reorderCourseEffort(
   kind: CourseEffortKind,
   ids: string[],
 ) {
-  return db.$transaction(async (tx) => {
+  return uniqueWrite(() => db.$transaction(async (tx) => {
     await getOwnedCourseForInstructor(tx, instructorId, courseId);
     const rows: { id: string }[] = await delegate(tx, kind).findMany({
       where: whereCourse(courseId, kind),
@@ -163,7 +179,8 @@ export async function reorderCourseEffort(
       where: whereCourse(courseId, kind),
       orderBy: [{ sequence: "asc" }, { id: "asc" }],
     });
-  });
+  }),
+  );
 }
 
 export async function normalizeActivityEffort(
@@ -172,28 +189,13 @@ export async function normalizeActivityEffort(
   detail: ActivityDetailDraft,
   parts: EffortPartDraft[],
 ) {
-  if (detail.behaviorFamily === "meeting") {
-    if (
-      parts.length ||
-      "effortMinMinutes" in detail ||
-      "effortMaxMinutes" in detail
-    )
-      throw new DomainInvariantError("Meetings do not carry student effort");
-    return { detail, parts: [] };
+  let effort;
+  try {
+    effort = normalizeEffort(detail, parts);
+  } catch (error) {
+    throw new DomainInvariantError((error as Error).message);
   }
-  const sequences = new Set<number>();
-  const normalized = [];
-  for (const part of parts) {
-    if (
-      !Number.isInteger(part.sequence) ||
-      part.sequence < 0 ||
-      sequences.has(part.sequence)
-    )
-      throw new DomainInvariantError(
-        "Part sequence must be nonnegative and unique",
-      );
-    sequences.add(part.sequence);
-    assertEffort(part.minMinutes, part.maxMinutes);
+  for (const part of effort.parts) {
     if (
       part.partKindId &&
       !(await tx.courseEffortPartKind.findFirst({
@@ -201,29 +203,6 @@ export async function normalizeActivityEffort(
       }))
     )
       throw new DomainInvariantError("Part kind not found in this Course");
-    normalized.push({
-      sequence: part.sequence,
-      label: label(part.label),
-      partKindId: part.partKindId ?? null,
-      minMinutes: part.minMinutes,
-      maxMinutes: part.maxMinutes,
-      note: part.note ?? null,
-    });
   }
-  let range;
-  try {
-    range = normalized.length
-      ? sumEffortParts(normalized)
-      : assertEffort(detail.effortMinMinutes, detail.effortMaxMinutes);
-  } catch (error) {
-    throw new DomainInvariantError((error as Error).message);
-  }
-  return {
-    detail: {
-      ...detail,
-      effortMinMinutes: range?.minMinutes ?? null,
-      effortMaxMinutes: range?.maxMinutes ?? null,
-    },
-    parts: normalized,
-  };
+  return effort;
 }
