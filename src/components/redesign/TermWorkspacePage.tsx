@@ -24,6 +24,7 @@ import {
   isCapacityAdvisory,
 } from "./CalendarCapacityPresentation";
 import AdoptLearningModulePanel from "./AdoptLearningModulePanel";
+import ActivityAdoptionPanel from "./ActivityAdoptionPanel";
 import DeliveredRevisionEditor from "./DeliveredRevisionEditor";
 import GapNotice from "./GapNotice";
 import ActiveTermDailyDriver from "./ActiveTermDailyDriver";
@@ -855,6 +856,18 @@ export default function TermWorkspacePage({ termId }: Props) {
               }}
             />
           </div>
+        ) : null}
+
+        {term.status !== "closed" && moduleWorkspaces.length > 0 ? (
+          <ActivityAdoptionPanel
+            key={moduleWorkspaces.map((row) => `${row.termLearningModule.id}:${row.termLearningModule.learningModuleVersionId}`).join(",")}
+            termId={term.id}
+            selections={moduleWorkspaces.flatMap((row) => row.termLearningModule.learningModuleVersionId ? [{
+              termLearningModuleId: row.termLearningModule.id,
+              learningModuleVersionId: row.termLearningModule.learningModuleVersionId,
+            }] : [])}
+            onAdopted={loadWorkspace}
+          />
         ) : null}
 
         {courseLearningModules.length === 0 ? (

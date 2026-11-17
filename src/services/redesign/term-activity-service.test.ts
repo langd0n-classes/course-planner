@@ -67,6 +67,54 @@ function baseActivityVersion(overrides: Record<string, unknown> = {}) {
 }
 
 describe("Term Activity adoption", () => {
+  it.each(["same apply", "already adopted", "missing", "no link"])("creates template milestones: %s", async (linkCase) => {
+    const rows: any[] = linkCase === "already adopted" ? [{ id: "ta-z-meeting", activityId: "z-meeting" }] : [];
+    const milestones: any[] = [];
+    const templates = [0, 1].map((sequence) => ({
+      id: `template-${sequence}`, sequence, role: sequence ? "due" : "release",
+      label: sequence ? "Submit work" : "Begin work", timeZone: "UTC", notes: "Keep this note",
+      linkedActivityId: linkCase === "no link" ? null : "z-meeting",
+    }));
+    const tx = {
+      term: { findUnique: async () => baseTerm() },
+      activityVersion: { findUnique: async ({ where, include }: any) => {
+        expect(include.milestoneTemplates).toEqual({ orderBy: { sequence: "asc" } });
+        return baseActivityVersion({ id: where.id, activityId: where.id,
+          milestoneTemplates: where.id === "a-work" ? templates : [] });
+      } },
+      courseActivityTypeVersion: { findUnique: async () => ({}) },
+      termActivity: {
+        count: async () => rows.length,
+        findMany: async () => rows,
+        create: async ({ data }: any) => { const row = { id: `ta-${data.activityId}`, ...data }; rows.push(row); return row; },
+        update: async () => ({}),
+      },
+      termActivityRevision: { create: async ({ data }: any) => ({ id: `revision-${data.termActivityId}`, ...data }), findUnique: async () => ({ id: "revision" }) },
+      termMeetingActivityRevision: { create: async () => ({}) },
+      termActivityRevisionTopicAction: { create: async () => ({}) },
+      termActivityMilestone: { create: async ({ data }: any) => { milestones.push(data); return data; } },
+    };
+    const input = { instructorId: "instructor-1", termId: "term-1", learningModuleVersionSelections: [],
+      crossCuttingSelections: (linkCase === "same apply" ? ["a-work", "z-meeting"] : ["a-work"])
+        .map((id) => ({ activityId: id, activityVersionId: id })) };
+    const db = createTransactionalDb(tx);
+    const preview = await previewTermActivityAdoption(db, input);
+    expect(preview.candidates[0]).toMatchObject({ milestoneCount: 2,
+      standaloneMilestones: linkCase === "missing" ? templates.map((t) => ({
+        sourceTemplateId: t.id, label: t.label, reason: "Linked Activity is not adopted in this Term",
+      })) : [],
+    });
+    await applyTermActivityAdoption(db, { ...input, previewToken: preview.previewToken, expectedCurrentActivityCount: preview.expectedCurrentActivityCount });
+    expect(milestones).toEqual(templates.map((t) => expect.objectContaining({
+      sourceTemplateId: t.id, role: t.role, label: t.label, timeZone: t.timeZone, notes: t.notes, occursAt: null,
+      linkedTermActivityId: ["same apply", "already adopted"].includes(linkCase) ? "ta-z-meeting" : null,
+      anchorPolicy: ["same apply", "already adopted"].includes(linkCase) ? "follow_activity" : "standalone",
+    })));
+    const repeat = await previewTermActivityAdoption(db, input);
+    await applyTermActivityAdoption(db, { ...input, previewToken: repeat.previewToken, expectedCurrentActivityCount: repeat.expectedCurrentActivityCount });
+    expect(milestones).toHaveLength(2);
+  });
+
   it("previews candidates from selected learning-module memberships and cross-cutting selections", async () => {
     const tx = {
       term: { findUnique: async () => baseTerm() },
@@ -102,7 +150,7 @@ describe("Term Activity adoption", () => {
       courseActivityTypeVersion: {
         findUnique: async () => ({ courseId: "course-1" }),
       },
-      termActivity: { count: async () => 0 },
+      termActivity: { count: async () => 0, findMany: async () => [] },
     };
 
     const preview = await previewTermActivityAdoption(createTransactionalDb(tx), {
@@ -159,7 +207,7 @@ describe("Term Activity adoption", () => {
           termActivityUpdates.push(data);
           return data;
         },
-        findMany: async () => [{
+        findMany: async () => termActivityCreates.length ? [{
           id: "ta-1",
           termId: "term-1",
           courseId: "course-1",
@@ -173,7 +221,7 @@ describe("Term Activity adoption", () => {
           plannedRevisionId: "tar-1",
           deliveredRevisionId: null,
           archivedAt: null,
-        }],
+        }] : [],
       },
       termActivityRevision: {
         create: async ({ data }: any) => ({ id: "tar-1", createdAt: new Date("2026-07-15T00:00:00.000Z"), ...data }),
@@ -268,7 +316,7 @@ describe("Term Activity adoption", () => {
           termActivityUpdates.push(data);
           return data;
         },
-        findMany: async () => [{
+        findMany: async () => termActivityCreates.length ? [{
           id: "ta-1",
           termId: "term-1",
           courseId: "course-1",
@@ -282,7 +330,7 @@ describe("Term Activity adoption", () => {
           plannedRevisionId: "tar-1",
           deliveredRevisionId: null,
           archivedAt: null,
-        }],
+        }] : [],
       },
       termActivityRevision: {
         create: async ({ data }: any) => ({ id: "tar-1", createdAt: new Date("2026-07-15T00:00:00.000Z"), ...data }),
@@ -360,7 +408,7 @@ describe("Term Activity adoption", () => {
       learningModuleVersion: { findUnique: async () => ({ id: "lmv-1", learningModuleId: "lm-1", activities: [] }) },
       activityVersion: { findUnique: async () => baseActivityVersion() },
       courseActivityTypeVersion: { findUnique: async () => ({ courseId: "course-1" }) },
-      termActivity: { count: async () => 0 },
+      termActivity: { count: async () => 0, findMany: async () => [] },
     };
     const preview = await previewTermActivityAdoption(createTransactionalDb(tx), {
       instructorId: "instructor-1",

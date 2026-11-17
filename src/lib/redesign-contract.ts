@@ -962,6 +962,8 @@ export type TermAdoptionPreviewRequest = {
   crossCuttingSelections: TermActivityAdoptionSelectionDto[];
 };
 export type TermActivityAdoptionCandidateDto = {
+  milestoneCount: number;
+  standaloneMilestones: Array<{ sourceTemplateId: Id; label: string; reason: string }>;
   activityId: Id;
   activityVersionId: Id;
   adoptedLabel: string;

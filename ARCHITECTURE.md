@@ -308,3 +308,11 @@ versions. The secondary `TopicBrowser` links to
 `/courses/[courseId]/topics/[topicId]`, where `TopicWorkspacePage` loads Course
 Topics and prerequisites and `TopicEditor` edits the selected Topic. Identity,
 prerequisite, and content revision calls retain their existing contracts.
+
+## Adoption milestone materialization (#87)
+
+`term-activity-service.ts` loads ordered Activity Version milestone templates for adoption. Preview excludes already-adopted Activities and reports each candidate's milestone count and missing-anchor warnings. Apply creates all Term Activity identities first, then creates the first planned revisions with undated milestones, resolving anchors against both existing and newly created Term Activities. Existing transaction timeouts and stale-preview checks remain in force.
+
+`POST /api/terms/[id]/adoption-preview` serializes the extended response through `toTermAdoptionPreviewDto` in `redesign-serializers.ts`. `redesign-contract.ts` defines the milestone count and standalone warning fields, and `redesign-api-client.ts` exposes those types to UI callers. `ActivityAdoptionPanel`, rendered by `TermWorkspacePage`, previews the planned Learning Module selections and shows milestone counts and missing-link reasons before applying.
+
+The generic snapshot in `exemplar-import-service.ts` includes two coursework template sets and same-module meeting anchors. Its importer resolves stable Activity codes to template links after creating Activity identities. `demo-course-service.ts` uses this imported content in its existing current-Term adoption transaction; its next Term remains unadopted. The database smoke script checks five undated Term milestones and repeat-load stability. No schema or migration changes are required.

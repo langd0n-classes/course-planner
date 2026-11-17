@@ -53,7 +53,7 @@ describe("Term adoption preview route", () => {
       kind: "preview",
       previewToken: "preview-token",
       expectedCurrentActivityCount: 0,
-      candidates: [{ activityId: "activity-1", activityVersionId: "av-1", adoptedLabel: "Lecture", ordinal: 0, termLearningModuleId: "tlm-1" }],
+      candidates: [{ activityId: "activity-1", activityVersionId: "av-1", adoptedLabel: "Lecture", milestoneCount: 2, standaloneMilestones: [{ sourceTemplateId: "template", label: "Due", reason: "Linked Activity is not adopted in this Term" }], ordinal: 0, termLearningModuleId: "tlm-1" }],
       impact: { issues: [], topicActionDuplicates: [], calendarConflicts: [] },
     });
 
@@ -70,5 +70,6 @@ describe("Term adoption preview route", () => {
     const body = await response.json();
     expect(body.previewToken).toBe("preview-token");
     expect(body.candidates).toHaveLength(1);
+    expect(body.candidates[0]).toMatchObject({ milestoneCount: 2, standaloneMilestones: [{ sourceTemplateId: "template", label: "Due", reason: "Linked Activity is not adopted in this Term" }] });
   });
 });

@@ -46,6 +46,13 @@ async function main() {
     assert.equal(currentTerm.learningModules.length, course.learningModules.length);
     assert.equal(currentTerm.activities.length, course.activities.length);
     assert.ok(currentTerm.activities.length > 0);
+    const milestones = await db.termActivityMilestone.findMany({
+      where: { termActivityRevision: { termActivity: { termId: currentTerm.id } } },
+    });
+    assert.equal(milestones.length, 5);
+    assert.equal(milestones.filter((row) => row.anchorPolicy === "follow_activity" && row.linkedTermActivityId).length, 4);
+    assert.equal(milestones.filter((row) => row.anchorPolicy === "standalone" && row.linkedTermActivityId === null).length, 1);
+    assert.ok(milestones.every((row) => row.occursAt === null && row.sourceTemplateId && row.timeZone === "UTC"));
     const nextTerm = termFor(next.code);
     assert.equal(nextTerm.learningModules.length, 0);
     assert.equal(nextTerm.activities.length, 0);
@@ -54,13 +61,13 @@ async function main() {
 
     const countsBefore = await Promise.all([
       db.course.count(), db.term.count(), db.institution.count(), db.academicCalendar.count(),
-      db.calendarSlot.count(), db.termActivity.count(), db.instructorInstitution.count(),
+      db.calendarSlot.count(), db.termActivity.count(), db.instructorInstitution.count(), db.termActivityMilestone.count(),
     ]);
     const second = await loadDemoCourse(db, owner.id, undefined, today);
     assert.deepEqual(second, { courseId: first.courseId, created: false });
     const countsAfter = await Promise.all([
       db.course.count(), db.term.count(), db.institution.count(), db.academicCalendar.count(),
-      db.calendarSlot.count(), db.termActivity.count(), db.instructorInstitution.count(),
+      db.calendarSlot.count(), db.termActivity.count(), db.instructorInstitution.count(), db.termActivityMilestone.count(),
     ]);
     assert.deepEqual(countsAfter, countsBefore);
 

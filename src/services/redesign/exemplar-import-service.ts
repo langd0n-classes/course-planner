@@ -33,6 +33,7 @@ type ExemplarSnapshot = {
     learningModuleCode?: string | null;
     title: string;
     summary?: string | null;
+    milestoneTemplates?: Array<{ role: "release" | "due" | "review"; label: string; linkedActivityCode?: string; relativeDays: number; defaultTime: string; timeZone: string }>;
     topicActions?: Array<{
       topicRef: string;
       action: CoverageAction;
@@ -169,6 +170,11 @@ export const genericDemoExemplarSnapshot = {
       stableCode: "ACT-SUMMARY-PRACTICE",
       typeKey: "practice",
       learningModuleCode: "LM-DATA",
+      milestoneTemplates: [
+        { role: "release", label: "Practice opens", linkedActivityCode: "ACT-INTRO-DATA", relativeDays: 0, defaultTime: "10:00", timeZone: "UTC" },
+        { role: "due", label: "Practice due", linkedActivityCode: "ACT-INTRO-DATA", relativeDays: 7, defaultTime: "17:00", timeZone: "UTC" },
+        { role: "review", label: "Review your work", relativeDays: 10, defaultTime: "10:00", timeZone: "UTC" },
+      ],
       title: "Summary Practice",
       summary: "Practice computing summaries on invented values.",
       topicActions: [{ topicRef: "TOPIC-SUMMARY", action: "practiced" }],
@@ -177,12 +183,21 @@ export const genericDemoExemplarSnapshot = {
       stableCode: "ACT-MODEL-CHECK",
       typeKey: "practice",
       learningModuleCode: "LM-MODEL",
+      milestoneTemplates: [
+        { role: "release", label: "Model check opens", linkedActivityCode: "ACT-MODEL-STUDIO", relativeDays: 0, defaultTime: "10:00", timeZone: "UTC" },
+        { role: "due", label: "Model check due", linkedActivityCode: "ACT-MODEL-STUDIO", relativeDays: 7, defaultTime: "17:00", timeZone: "UTC" },
+      ],
       title: "Model Check",
       summary: "Assess interpretation of simple generic model output.",
       topicActions: [
         { topicRef: "TOPIC-MODEL", action: "introduced" },
         { topicRef: "TOPIC-MODEL", action: "assessed" },
       ],
+    },
+    {
+      stableCode: "ACT-MODEL-STUDIO", typeKey: "lecture", learningModuleCode: "LM-MODEL",
+      title: "Model Comparison Studio", summary: "Compare predictions using invented examples.",
+      topicActions: [],
     },
   ],
 } satisfies ExemplarSnapshot;
@@ -767,6 +782,16 @@ async function applyBatched(
         createdByInstructorId: input.instructorId,
       })),
     });
+    const templates = newActivities.flatMap(({ versionId, activity }) =>
+      (activity.milestoneTemplates ?? []).map((template, sequence) => {
+        const linkedActivityId = template.linkedActivityCode ? activities.get(template.linkedActivityCode)?.id : null;
+        if (template.linkedActivityCode && !linkedActivityId) throw new DomainInvariantError("Milestone linked Activity not found");
+        return { activityVersionId: versionId, sequence, role: template.role, label: template.label,
+          linkedActivityId: linkedActivityId ?? null, relativeDays: template.relativeDays,
+          defaultTime: template.defaultTime, timeZone: template.timeZone };
+      }),
+    );
+    if (templates.length) await tx.activityVersionMilestoneTemplate.createMany({ data: templates });
     for (const family of ["meeting", "coursework", "assessment"] as const) {
       const rows = newActivities.filter((row) => row.family === family);
       if (!rows.length) continue;

@@ -27,6 +27,7 @@ function createMemoryTx() {
     meetingActivityVersions: [],
     courseworkActivityVersions: [],
     assessmentActivityVersions: [],
+    activityVersionMilestoneTemplates: [],
     activityVersionTopicActions: [],
     activityTopicScopes: [],
   };
@@ -124,6 +125,29 @@ function createMemoryTx() {
 }
 
 describe("ExemplarImportService", () => {
+  it("imports release and due templates on two demo Activities with same-module meeting links and one unlinked template", async () => {
+    const tx = createMemoryTx();
+    const service = new ExemplarImportService();
+    const input = { instructorId: "instructor-1", courseId: "course-1", snapshot: genericDemoExemplarSnapshot };
+    await service.apply(transactionalDb(tx), input);
+    const templates = tx.__state.activityVersionMilestoneTemplates;
+    expect(templates).toHaveLength(5);
+    for (const code of ["ACT-SUMMARY-PRACTICE", "ACT-MODEL-CHECK"]) {
+      const activity = tx.__state.activities.find((a: any) => a.stableCode === code);
+      const linked = templates.filter((t: any) => t.activityVersionId === activity.currentVersionId && t.linkedActivityId);
+      expect(linked.map((t: any) => t.role)).toEqual(["release", "due"]);
+      const snapshotActivity = genericDemoExemplarSnapshot.activities.find((a) => a.stableCode === code)!;
+      for (const template of linked) {
+        expect(template).toMatchObject({ relativeDays: expect.any(Number), defaultTime: expect.any(String), timeZone: "UTC" });
+        const anchor = tx.__state.activities.find((a: any) => a.id === template.linkedActivityId);
+        expect(genericDemoExemplarSnapshot.activities.find((a) => a.stableCode === anchor.stableCode)?.learningModuleCode).toBe(snapshotActivity.learningModuleCode);
+      }
+    }
+    expect(templates.filter((t: any) => t.linkedActivityId === null)).toHaveLength(1);
+    await service.apply(transactionalDb(tx), input);
+    expect(templates).toHaveLength(5);
+  });
+
   it("stages, previews deterministically, and carries provenance for generic content", () => {
     const service = new ExemplarImportService();
     const staged = service.stage(genericDemoExemplarSnapshot);

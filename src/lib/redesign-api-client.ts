@@ -804,3 +804,6 @@ export const redesignApi: typeof _api = new Proxy(_api, {
     return m ?? target[key];
   },
 }) as typeof _api;
+
+// Adoption previews include milestone counts and unresolved meeting links.
+export type { TermAdoptionPreviewRequest, TermAdoptionPreviewResponse, TermActivityAdoptionCandidateDto } from "./redesign-contract";
