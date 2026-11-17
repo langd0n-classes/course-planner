@@ -124,7 +124,7 @@ coverage gaps, and workload. The agent reasons from them;
 it does not replace them.
 
 The mock planner (`MockAiPlanner`) stands in for the agent
-in tests and builds, so tests cost nothing. Its responses
+in tests and builds, so they spend no money. Its responses
 look realistic, so the UX can be built and tested against
-them. A public demo that uses the real agent needs strict
-usage limits.
+them. A demo that uses the real agent needs strict usage
+limits.
