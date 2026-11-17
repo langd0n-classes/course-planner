@@ -157,7 +157,7 @@ async function ensureDemoTerm(context: DemoTermContext, semester: DemoSemester):
 }
 
 /**
- * Adopts the Course's Learning Modules and their Activities into a new Term.
+ * Adopts the Course's Learning Modules, Activities, and undated template milestones into a new Term.
  * A new demo Course requires a current version on every module. An existing
  * Course can hold the instructor's own draft-only modules; those are skipped.
  */

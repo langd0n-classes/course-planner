@@ -1052,3 +1052,26 @@ export function toActivityTopicScopeDto(scope: ActivityTopicScopeRow): ActivityT
     provenance: scope.provenance ?? null,
   };
 }
+
+export function toTermAdoptionPreviewDto(
+  preview: import("./redesign-contract").TermAdoptionPreviewResponse,
+): import("./redesign-contract").TermAdoptionPreviewResponse {
+  return {
+    kind: preview.kind,
+    previewToken: preview.previewToken,
+    expectedCurrentActivityCount: preview.expectedCurrentActivityCount,
+    alreadyAdopted: preview.alreadyAdopted.map(({ activityId, adoptedLabel }) => ({ activityId, adoptedLabel })),
+    candidates: preview.candidates.map((candidate) => ({
+      activityId: candidate.activityId,
+      activityVersionId: candidate.activityVersionId,
+      adoptedLabel: candidate.adoptedLabel,
+      ordinal: candidate.ordinal,
+      termLearningModuleId: candidate.termLearningModuleId,
+      milestoneCount: candidate.milestoneCount,
+      standaloneMilestones: candidate.standaloneMilestones.map((milestone) => ({
+        sourceTemplateId: milestone.sourceTemplateId, label: milestone.label, reason: milestone.reason,
+      })),
+    })),
+    impact: preview.impact,
+  };
+}

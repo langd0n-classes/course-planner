@@ -959,6 +959,8 @@ export type TermAdoptionPreviewRequest = {
   crossCuttingSelections: TermActivityAdoptionSelectionDto[];
 };
 export type TermActivityAdoptionCandidateDto = {
+  milestoneCount: number;
+  standaloneMilestones: Array<{ sourceTemplateId: Id; label: string; reason: string }>;
   activityId: Id;
   activityVersionId: Id;
   adoptedLabel: string;
@@ -971,6 +973,7 @@ export type TermAdoptionPreviewResponse = {
   // Pointer proving no concurrent adoption happened between preview and
   // apply: the number of TermActivity rows already adopted for this Term.
   expectedCurrentActivityCount: number;
+  alreadyAdopted: Array<{ activityId: Id; adoptedLabel: string }>;
   candidates: TermActivityAdoptionCandidateDto[];
   impact: PreviewImpactDto;
 };

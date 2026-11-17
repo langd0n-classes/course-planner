@@ -56,6 +56,7 @@ async function findOwnedActivityVersionForTerm(
     include: {
       activity: { include: { course: { select: { instructorId: true } } } },
       activityTypeVersion: { include: { activityType: { select: { instructorId: true } } } },
+      milestoneTemplates: { orderBy: { sequence: "asc" } },
       meetingDetail: true,
       courseworkDetail: true,
       assessmentDetail: true,
@@ -127,6 +128,7 @@ type AdoptionCandidate = {
   ordinal: number | null;
   termLearningModuleId: string | null;
   activityTypeVersionId: string;
+  milestoneTemplates: Array<{ id: string; sequence: number; role: TermActivityMilestoneInput["role"]; label: string; linkedActivityId: string | null; timeZone: string | null; notes: string | null }>;
   baseRevision: {
     title: string;
     summary: string | null;
@@ -213,6 +215,7 @@ async function buildAdoptionCandidates(
         activityTypeVersionId: activityVersion.activityTypeVersionId,
         termLearningModuleId: offering.id,
         ordinal: membership.sequence,
+        milestoneTemplates: activityVersion.milestoneTemplates ?? [],
         baseRevision: {
           title: activityVersion.title,
           summary: activityVersion.summary,
@@ -262,6 +265,7 @@ async function buildAdoptionCandidates(
       activityTypeVersionId: activityVersion.activityTypeVersionId,
       termLearningModuleId: selection.termLearningModuleId ?? null,
       ordinal: null,
+      milestoneTemplates: activityVersion.milestoneTemplates ?? [],
       baseRevision: {
         title: activityVersion.title,
         summary: activityVersion.summary,
@@ -281,9 +285,14 @@ async function buildAdoptionCandidates(
     });
   }
 
+  const existingActivities: Array<{ id: string; activityId: string; adoptedLabel: string; archivedAt: Date | null }> = await tx.termActivity.findMany({ where: { termId: term.id }, select: { id: true, activityId: true, adoptedLabel: true, archivedAt: true } });
+  const existingIds = new Set(existingActivities.map((row: { activityId: string }) => row.activityId));
   return {
     term,
-    candidates: candidates.sort((left, right) => {
+    existingActivities,
+    alreadyAdopted: existingActivities.filter((row) => seenActivityIds.has(row.activityId))
+      .map((row) => ({ activityId: row.activityId, adoptedLabel: row.adoptedLabel })),
+    candidates: candidates.filter((candidate) => !existingIds.has(candidate.activityId)).sort((left, right) => {
       if ((left.termLearningModuleId ?? "") !== (right.termLearningModuleId ?? "")) {
         return (left.termLearningModuleId ?? "").localeCompare(right.termLearningModuleId ?? "");
       }
@@ -618,7 +627,8 @@ export async function previewTermActivityAdoption(
   },
 ) {
   return db.$transaction(async (tx) => {
-    const { term, candidates } = await buildAdoptionCandidates(tx, input);
+    const { term, candidates, existingActivities, alreadyAdopted } = await buildAdoptionCandidates(tx, input);
+    const adoptedIds = new Set([...existingActivities.filter((row) => !row.archivedAt).map((row) => row.activityId), ...candidates.map((row) => row.activityId)]);
     const expectedCurrentActivityCount = await tx.termActivity.count({ where: { termId: term.id } });
     return {
       kind: "preview" as const,
@@ -630,13 +640,26 @@ export async function previewTermActivityAdoption(
           activityVersionId: candidate.activityVersionId,
           termLearningModuleId: candidate.termLearningModuleId,
           ordinal: candidate.ordinal,
+          milestoneTemplates: candidate.milestoneTemplates,
         })),
       }),
       expectedCurrentActivityCount,
+      alreadyAdopted,
       candidates: candidates.map((candidate) => ({
         activityId: candidate.activityId,
         activityVersionId: candidate.activityVersionId,
         adoptedLabel: candidate.adoptedLabel,
+        milestoneCount: candidate.milestoneTemplates.length,
+        standaloneMilestones: candidate.milestoneTemplates
+          .flatMap((template) => {
+            if (!template.linkedActivityId) return [];
+            const reason = template.linkedActivityId === candidate.activityId
+              ? "A milestone cannot follow its own Activity"
+              : existingActivities.some((row) => row.activityId === template.linkedActivityId && row.archivedAt)
+                ? "Linked Activity is archived in this Term"
+                : !adoptedIds.has(template.linkedActivityId) ? "Linked Activity is not adopted in this Term" : null;
+            return reason ? [{ sourceTemplateId: template.id, label: template.label, reason }] : [];
+          }),
         ordinal: candidate.ordinal,
         termLearningModuleId: candidate.termLearningModuleId,
       })),
@@ -709,7 +732,15 @@ export async function applyTermActivityAdoption(
         createdByInstructorId: input.instructorId,
         detail: candidate.baseRevision.detail,
         topicActions: candidate.baseRevision.topicActions,
-        milestones: [],
+        milestones: candidate.milestoneTemplates.map((template) => {
+          const linkedTermActivityId = template.linkedActivityId === candidate.activityId ? null : [...createdActivities, ...candidates.existingActivities.filter((row) => !row.archivedAt)]
+            .find((row) => row.activityId === template.linkedActivityId)?.id ?? null;
+          return {
+            sourceTemplateId: template.id, role: template.role, label: template.label,
+            timeZone: template.timeZone, notes: template.notes, occursAt: null,
+            linkedTermActivityId, anchorPolicy: linkedTermActivityId ? "follow_activity" : "standalone",
+          };
+        }),
       });
       pointerRows.push(
         tx.termActivity.update({

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
+import { toTermAdoptionPreviewDto } from "@/lib/redesign-serializers";
 import { badRequest, notFound, ok, unauthorized } from "@/lib/api-helpers";
 import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 import { termAdoptionPreviewRequestSchema } from "@/lib/redesign-schemas";
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       learningModuleVersionSelections: parsed.data.learningModuleVersionSelections,
       crossCuttingSelections: parsed.data.crossCuttingSelections,
     });
-    return ok(preview satisfies TermAdoptionPreviewResponse);
+    return ok(toTermAdoptionPreviewDto(preview) satisfies TermAdoptionPreviewResponse);
   } catch (error) {
     if (error instanceof DomainInvariantError) {
       return isNotFoundError(error) ? notFound(error.message) : badRequest(error.message);
