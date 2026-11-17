@@ -131,11 +131,13 @@ export async function createInstitution(db: RedesignDb, input: CreateInstitution
   assertNonblank(input.name, "Institution name");
 
   return db.$transaction(async (tx) => {
-    const name = input.name.trim();
+    const name = input.name.trim().replace(/\s+/g, " ");
     // Serialize creation by normalized name, including differently cased requests.
     await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(lower(${name}), 0))`;
     const existing = await tx.institution.findFirst({
-      where: { name: { equals: name, mode: "insensitive" } },
+      // Prisma uses ILIKE for insensitive equality; escape its pattern characters.
+      where: { name: { equals: name.replace(/[\\%_]/g, "\\$&"), mode: "insensitive" } },
+      orderBy: { createdAt: "asc" },
     });
     if (existing?.archivedAt) throw new InstitutionNameConflictError();
 
@@ -158,7 +160,7 @@ export async function createInstitution(db: RedesignDb, input: CreateInstitution
         status: "active",
         isDefault: existingMembershipCount === 0,
       },
-      update: {},
+      update: { status: "active" },
     });
 
     return { ...institution, created: !existing };

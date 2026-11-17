@@ -82,7 +82,7 @@ Reasons:
 
 #### The showcase
 
-- The showcase belongs to one fixed Instructor, `showcase@example.test`. The
+- The showcase belongs to one fixed Instructor, `showcase@demo.invalid`. The
   bootstrap script creates it and runs the demo load for it.
 - The reset keeps the showcase. After each reset, the reset job runs the
   repeat demo load on the showcase. That load adds the current and next Term

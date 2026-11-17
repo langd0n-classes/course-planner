@@ -94,11 +94,11 @@ out again.
 
 Build a one-way DS100 importer plus a committed, sanitized demo snapshot from:
 
-- `<private path>`, excluding every
+- `<private path 1>`, excluding every
   `grading/` subtree;
-- `<private path>`, excluding grading;
+- `<private path 2>`, excluding grading;
   and
-- `<private path>`, excluding grading.
+- `<private path 3>`, excluding grading.
 
 The current-Term `course-info` and `lms` directories provide the initial mapping;
 the two historical Terms are comparison evidence for reusable-course versus

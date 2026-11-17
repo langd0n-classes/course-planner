@@ -73,7 +73,7 @@ variables for `.env.local`.
 | `GOOGLE_CLIENT_SECRET` | *(not set)* | Google OAuth client secret |
 | `NEXTAUTH_URL` | `http://localhost:3000` | Public app URL for auth callbacks |
 | `ALLOWED_EMAIL` | *(not set)* | Comma-separated allowed sign-in emails; checked at sign-in and on every session read |
-| `COURSE_PLANNER_PREVIEW_AUTH` | `false` | Enables review login when `VERCEL_ENV=preview` |
+| `COURSE_PLANNER_PREVIEW_AUTH` | `false` | Enables review login when `VERCEL_ENV=preview`; scope this to a protected preview branch |
 | `COURSE_PLANNER_PREVIEW_EMAIL` | *(not set)* | Instructor email used by preview login; provisioned at the first authenticated request |
 | `OPENAI_API_KEY` | *(not set)* | Future: OpenAI API key |
 | `ANTHROPIC_API_KEY` | *(not set)* | Future: Anthropic API key |

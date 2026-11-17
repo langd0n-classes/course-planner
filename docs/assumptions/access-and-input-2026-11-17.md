@@ -8,15 +8,20 @@
   shared retired-route response (410); sign-in provisions identity. The legacy
   Terms page shows the current Instructor and uses that identity for creation
   and cloning because ownership is determined by sign-in.
-- Creating an Institution trims the name and matches it without case. An
-  existing active Institution is returned and the instructor gets an active
-  membership if none exists. Existing memberships, including inactive ones,
-  and Institution fields are unchanged. An archived name returns 409 with
-  “An institution with this name is archived.” The route retains the
-  `institution` envelope and adds `created: true | false` locally; the shared
-  contract stays unchanged. New Institutions return 201; joins return 200.
-  A transaction advisory lock on the normalized name serializes concurrent
-  create-or-join requests without a schema change.
+- Creating an Institution trims the name and collapses whitespace runs before
+  matching or creating, so formatting differences do not create separate names.
+  Case-insensitive matches select the oldest Institution (`createdAt asc`) for
+  a consistent join target. Pattern characters `_`, `%`, and `\` match literally
+  so a name cannot join an unrelated Institution. Existing Institution fields
+  stay unchanged because joining does not authorize editing shared identity.
+  Memberships are created or set to active so a successful join grants membership.
+  Existing membership defaults are preserved to avoid changing the instructor's
+  chosen default. An archived name returns 409 with “An institution with this
+  name is archived.” to prevent silently restoring archived data. The response
+  retains the `institution` envelope and adds `created: true | false` to
+  distinguish creation (201) from joining (200). A transaction advisory lock
+  on the normalized name serializes concurrent create-or-join requests without
+  a schema change.
 - Instructors can belong to multiple Institutions and attach their own Courses
   to those Institutions. Membership grants no access to another instructor's
   Courses, Terms, or Activities. Each member can currently read and write the
@@ -24,12 +29,16 @@
   Write access to a shared calendar is an open question.
 - Editable JSON handlers use `readJsonBody`, including the shared Course effort
   handlers. Malformed JSON returns 400 with “The request body is not valid
-  JSON.” Authentication still precedes body parsing. Retired handlers do not
-  parse bodies. The Term and Term Activity route trees retain their existing
-  implementations because they are outside this change's scope.
+  JSON.” This treats invalid syntax as a client error. Authentication precedes
+  body parsing so unauthenticated requests cannot reach input processing.
+  Retired handlers do not parse bodies because those endpoints cannot accept edits.
 - Artifact path IDs, parent query IDs, and parent body IDs must be UUIDs. Course
   Topic and Learning Module collection path IDs must also be UUIDs. Invalid
   IDs return 400 before a database query, so they are client validation errors.
+- Topic, Learning Module, and Institution creation preserve known Prisma
+  errors as 400 responses with their original messages, so duplicate codes
+  remain client errors. Unexpected errors return a fixed 500 message and are
+  logged on the server to keep private diagnostics out of responses.
 - Preview sign-in keeps the provider and configuration from `origin/main`.
   The project is before its production release, and previews stay simple.
   No preview secret or additional production rule is introduced.
@@ -45,10 +54,6 @@
   separate application resource and script policy decisions. HSTS does not
   opt into subdomains or preload because those affect deployment beyond this
   application.
-- Mutating API requests with an Origin must have the same host, including port,
-  as the request URL. Invalid and opaque Origins return 403. GET, HEAD, OPTIONS,
-  absent Origins, non-API paths, and `/api/auth/` retain existing behavior.
-  The proxy remains wrapped by Auth.js so its sign-in redirects remain active.
 - Exemplar import reads at most 2 MiB (2,097,152 bytes) before parsing JSON.
   Both Content-Length and streamed bytes are checked because a request can omit
   Content-Length. Exceeding either limit returns 413. Other JSON routes retain
@@ -66,11 +71,17 @@
   to 20,000; time zones to 100. Required identity strings must be nonempty.
   Milestone offsets are integral days in the range -3650 to 3650, times use
   24-hour HH:MM, and time zones must be accepted as IANA zones by the runtime's
-  Intl implementation, excluding numeric UTC offsets. These bounds accommodate course planning while keeping
-  imported values finite. The batch regression uses up to 100 Learning Modules
-  and still checks constant database-operation counts.
+  Intl implementation, excluding numeric UTC offsets. These bounds accommodate
+  course planning while keeping imported values finite.
 - Local PostgreSQL publishes only on `127.0.0.1`. Public documents use neutral
   placeholders for private paths, hosts, and contact information. Generic
   shell locations such as `~/bin` and `~/.bashrc` remain executable conventions;
   they do not identify an operator or a private directory layout. Attribution
   trailer templates retain their prescribed text.
+
+## Not in this change
+
+- Cross-site request filtering moves to a later change. It needs a test through
+  the real Auth.js proxy and a browser run: wrapping `auth` with a handler stops
+  page sign-in redirects, and Auth.js rewrites the request host inside that
+  handler, which can reject valid preview-host requests.

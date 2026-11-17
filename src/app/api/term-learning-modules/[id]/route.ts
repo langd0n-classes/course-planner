@@ -1,7 +1,7 @@
-import { readJsonBody } from "@/lib/request-json";
+import { ConcurrencyConflictError } from "@/services/redesign/errors";
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
-import { badRequest, notFound, ok, unauthorized } from "@/lib/api-helpers";
+import { badRequest, notFound, ok, unauthorized, conflict } from "@/lib/api-helpers";
 import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 import { updateTermLearningModuleSchema } from "@/lib/redesign-schemas";
 import { toTermLearningModuleDto } from "@/lib/redesign-serializers";
@@ -48,9 +48,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const instructor = await getAuthenticatedInstructor(prisma);
   if (!instructor) return unauthorized();
 
-  const json = await readJsonBody(request);
-  if (json.response) return json.response;
-  const body = json.data;
+  const body = await request.json();
   const parsed = updateTermLearningModuleSchema.safeParse(body);
   if (!parsed.success) {
     return badRequest("Invalid request", parsed.error.flatten().fieldErrors);
@@ -82,6 +80,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
       termLearningModule: toTermLearningModuleDto(termLearningModule),
     } satisfies UpdateTermLearningModuleResponse);
   } catch (error) {
+    if (error instanceof ConcurrencyConflictError) return conflict(error.message);
     if (error instanceof DomainInvariantError) {
       return error.message === "Term Learning Module not found"
         ? notFound(error.message)

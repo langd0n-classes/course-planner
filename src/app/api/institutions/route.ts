@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { DomainInvariantError, InstitutionNameConflictError } from "@/services/redesign/errors";
 import { unexpectedRouteError } from "@/lib/route-errors";
 import { readJsonBody } from "@/lib/request-json";
@@ -54,6 +55,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof InstitutionNameConflictError) return conflict(error.message);
     if (error instanceof DomainInvariantError) return badRequest(error.message);
+    if (error instanceof Prisma.PrismaClientKnownRequestError) return badRequest(error.message);
     return unexpectedRouteError(error);
   }
 }

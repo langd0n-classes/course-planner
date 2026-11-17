@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { z as idSchema } from "zod";
 import { unexpectedRouteError } from "@/lib/route-errors";
 import { readJsonBody } from "@/lib/request-json";
@@ -70,6 +71,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (error instanceof DomainInvariantError) {
       return error.message === "Course not found" ? notFound(error.message) : badRequest(error.message);
     }
+    if (error instanceof Prisma.PrismaClientKnownRequestError) return badRequest(error.message);
     return unexpectedRouteError(error);
   }
 }

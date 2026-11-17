@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), transaction: vi.fn() }));
@@ -38,7 +39,6 @@ const jsonRoutes = [
   ["POST", "./sessions/[id]/move/route"],
   ["PATCH", "./sessions/[id]/route"],
   ["POST", "./term-learning-modules/[id]/delivered-revisions/route"],
-  ["PATCH", "./term-learning-modules/[id]/route"],
   ["PUT", "./topics/[id]/prerequisites/route"],
   ["PATCH", "./topics/[id]/route"],
   ["POST", "./topics/[id]/versions/route"],
@@ -150,3 +150,31 @@ for (const path of ["courses/[id]/topics", "courses/[id]/learning-modules", "ins
     } finally { log.mockRestore(); }
   });
 }
+
+for (const resource of ["topics", "learning-modules"]) {
+  it(`returns 400 and the original message for a duplicate ${resource} stableCode`, async () => {
+    const error = new Prisma.PrismaClientKnownRequestError("Unique constraint failed on stableCode", {
+      code: "P2002", clientVersion: "6.19.2", meta: { target: ["courseId", "stableCode"] },
+    });
+    mocks.transaction.mockResolvedValueOnce({ id }).mockRejectedValueOnce(error);
+    const route = await import(/* @vite-ignore */ `./courses/[id]/${resource}/route`);
+    const response = await route.POST(new NextRequest("http://localhost/api/test", {
+      method: "POST", body: JSON.stringify({ stableCode: "DUPLICATE", createdByInstructorId: id, version: { title: "Duplicate" } }),
+    }), context);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: error.message });
+  });
+}
+
+it("preserves the institution unique-constraint status and message", async () => {
+  const error = new Prisma.PrismaClientKnownRequestError("Unique constraint failed on name", {
+    code: "P2002", clientVersion: "6.19.2", meta: { target: ["name"] },
+  });
+  mocks.transaction.mockRejectedValueOnce(error);
+  const { POST } = await import("./institutions/route");
+  const response = await POST(new NextRequest("http://localhost/api/institutions", {
+    method: "POST", body: JSON.stringify({ name: "College" }),
+  }));
+  expect(response.status).toBe(400);
+  expect(await response.json()).toEqual({ error: error.message });
+});

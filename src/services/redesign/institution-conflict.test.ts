@@ -5,13 +5,20 @@ import { getOwnedTermForInstructor } from "./ownership-service";
 import type { RedesignDb } from "./types";
 
 function database() {
-  const institutions = [{ id: "existing", name: "College", shortName: "Original", canonicalUri: "https://example.test", archivedAt: null as Date | null }];
+  const institutions = [{ id: "existing", name: "College", shortName: "Original", canonicalUri: "https://example.test", createdAt: new Date("2020-01-01"), archivedAt: null as Date | null }];
   const memberships = [{ instructorId: "B", institutionId: "existing", status: "active", isDefault: true }];
   const course = { id: "course-B", instructorId: "B", title: "Private course" };
   const tx = {
     $queryRaw: vi.fn().mockResolvedValue([{ locked: 1 }]),
     institution: {
-      findFirst: vi.fn(async ({ where }) => institutions.find((row) => row.name.toLowerCase() === where.name.equals.toLowerCase()) ?? null),
+      findFirst: vi.fn(async ({ where, orderBy }) => {
+        // PostgreSQL ILIKE semantics used by Prisma's insensitive equals filter.
+        const pattern = where.name.equals.replace(/\\(.)|([%_])|([.*+?^${}()|[\]\\])/g,
+          (_match: string, escaped: string, wildcard: string, special: string) => escaped ? `\\${escaped}` : wildcard === "%" ? ".*" : wildcard === "_" ? "." : `\\${special}`);
+        const rows = institutions.filter((row) => new RegExp(`^${pattern}$`, "i").test(row.name));
+        if (orderBy?.createdAt === "asc") rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+        return rows[0] ?? null;
+      }),
       create: vi.fn(async ({ data }) => { const row = { id: "new", archivedAt: null, ...data }; institutions.push(row); return row; }),
       findMany: vi.fn(async ({ where }) => institutions.filter((row) => memberships.some((m) => m.institutionId === row.id && m.instructorId === where.instructors.some.instructorId && m.status === "active"))),
     },
@@ -48,18 +55,18 @@ it("joins an existing name after trimming and ignoring case, preserving institut
   expect(memberships).toContainEqual({ instructorId: "A", institutionId: "existing", status: "active", isDefault: true });
 });
 
-it.each(["active", "inactive"])("preserves an existing %s membership", async (status) => {
+it.each(["active", "inactive"])("activates an existing %s membership without changing its default", async (status) => {
   const { db, memberships } = database();
   memberships.push({ instructorId: "A", institutionId: "existing", status, isDefault: false });
   const before = structuredClone(memberships);
   await createInstitution(db, { instructorId: "A", name: "College" });
-  expect(memberships).toEqual(before);
+  expect(memberships).toEqual(before.map((membership) => membership.instructorId === "A" ? { ...membership, status: "active" } : membership));
 });
 
 it("creates a trimmed new institution and permits multiple memberships without changing the default", async () => {
   const { db, memberships } = database();
   await createInstitution(db, { instructorId: "A", name: "College" });
-  const result = await createInstitution(db, { instructorId: "A", name: "  Second College  ", shortName: "SC" });
+  const result = await createInstitution(db, { instructorId: "A", name: "  Second   College  ", shortName: "SC" });
   expect(result).toMatchObject({ name: "Second College", shortName: "SC", created: true });
   expect(memberships.filter((m) => m.instructorId === "A")).toEqual([
     { instructorId: "A", institutionId: "existing", status: "active", isDefault: true },
@@ -113,4 +120,22 @@ it("shared institution membership gives A no read or change access to B's Course
   expect(tx.course.update).not.toHaveBeenCalled();
   expect(tx.courseInstitution.deleteMany).not.toHaveBeenCalled();
   expect(course.title).toBe("Private course");
+});
+
+it("joins the oldest matching institution after collapsing interior spaces", async () => {
+  const { db, institutions } = database();
+  institutions[0].name = "Example College";
+  institutions.unshift({ ...institutions[0], id: "newer", name: "EXAMPLE COLLEGE", createdAt: new Date("2025-01-01") });
+  const result = await createInstitution(db, { instructorId: "A", name: "  example   college  " });
+  expect(result).toMatchObject({ id: "existing", created: false });
+});
+
+it.each(["_", "%", "\\"])("matches %s literally in institution names", async (character) => {
+  const { db, institutions } = database();
+  institutions[0].name = "ExampleXCollege";
+  const name = `Example${character}College`;
+  const created = await createInstitution(db, { instructorId: "A", name });
+  expect(created).toMatchObject({ name, created: true });
+  const joined = await createInstitution(db, { instructorId: "A", name: name.toLowerCase() });
+  expect(joined).toMatchObject({ id: created.id, name, created: false });
 });

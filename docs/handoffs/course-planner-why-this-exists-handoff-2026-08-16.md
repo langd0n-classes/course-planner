@@ -96,8 +96,8 @@ and remains a separate AI-C architectural piece.
 
 ## Environment notes
 
-- `ssh <host alias>` resolves to a stale public address. Use
-  `ssh <host>` from `<source host>`.
+- `ssh <host alias>` (replace the placeholder) resolves to a stale public address. Use
+  `ssh <host>` (replace the placeholder) from `<source host>`.
 - `<source host>`'s Course Planner checkout currently has unrelated pre-existing untracked
   paths: `.agents/`, `docs/plans/course-planner-gate-0-checkpoint-2026-07-12.md`,
   `docs/prompts/fable-capability-build-2026-07.md`, `production`, and `skills/`.
