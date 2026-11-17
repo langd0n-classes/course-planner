@@ -18,7 +18,9 @@
   label; deletion clears its link. Part sequences are unique and nonnegative.
 - New Activity versions keep omitted effort bounds and parts. An explicit empty
   parts list removes the parts and keeps omitted bounds; explicit null bounds
-  clear the estimate. Supplied parts determine the total. If supplied bounds
+  clear the estimate when no parts remain. One bound alone is rejected; bounds
+  are inherited only when both are omitted. Parts with explicit null bounds are
+  rejected. Supplied parts determine the total. If supplied bounds
   differ from their sum, validation rejects the request. If the source has parts,
   supplying bounds without a parts list is rejected with “This estimate is built
   from parts. Change the parts, or remove them.” Changing to the meeting family

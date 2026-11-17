@@ -111,6 +111,8 @@ export function activityEffortDraft<T extends EffortDetail>(
   source?: { detail: EffortDetail; parts?: EffortPart[] },
 ) {
   if (detail.behaviorFamily === "meeting") return { detail, parts: [] };
+  if ((detail.effortMinMinutes === undefined) !== (detail.effortMaxMinutes === undefined))
+    throw new Error("Set both effort bounds.");
   const hasBounds =
     detail.effortMinMinutes !== undefined ||
     detail.effortMaxMinutes !== undefined;
@@ -124,11 +126,11 @@ export function activityEffortDraft<T extends EffortDetail>(
     detail: {
       ...detail,
       effortMinMinutes:
-        detail.effortMinMinutes === undefined && !parts?.length
+        !hasBounds && !parts?.length
           ? inherited?.effortMinMinutes
           : detail.effortMinMinutes,
       effortMaxMinutes:
-        detail.effortMaxMinutes === undefined && !parts?.length
+        !hasBounds && !parts?.length
           ? inherited?.effortMaxMinutes
           : detail.effortMaxMinutes,
     },

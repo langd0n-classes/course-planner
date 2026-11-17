@@ -1062,7 +1062,7 @@ export type PromotedActivityDraftDto = {
     title: string;
     summary: string | null;
     detail: ActivityDetailDto;
-  effortParts?: EffortPartInput[];
+    effortParts?: EffortPartInput[];
     topicActions: Array<{ topicVersionId: Id; action: CoverageLevel }>;
   };
 };

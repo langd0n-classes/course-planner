@@ -5,8 +5,6 @@ import {
   previewMeetingPlacement,
 } from "./meeting-placement-service";
 
-import { createRevisionSnapshot } from "./term-activity-service";
-import { toTermActivityRevisionDto } from "@/lib/redesign-serializers";
 
 const request = {
   instructorId: "i",
@@ -288,32 +286,40 @@ it("reuses the saved time for a remaining undated meeting without a fallback", a
 });
 
 
-it.each(["coursework", "assessment"] as const)("keeps a %s effort override when placing meetings", async (behaviorFamily) => {
+it("writes only meeting revisions and leaves coursework and assessment effort unchanged", async () => {
   const f = fixture();
-  const detailRows: any[] = [];
-  const detailModel = behaviorFamily === "coursework" ? "termCourseworkActivityRevision" : "termAssessmentActivityRevision";
-  f.tx[detailModel] = { create: vi.fn(async ({ data }: any) => { detailRows.push(data); return data; }) };
-  const baseDetail = { effortMinMinutes: 60, effortMaxMinutes: 120 };
-  const revision = {
-    id: "effort-revision", termActivityId: "work", baseActivityVersionId: "work-version",
-    revision: 1, title: "Work", summary: null, changeReason: null,
-    createdByInstructorId: "i", createdAt: new Date(),
-    baseActivityVersion: { [`${behaviorFamily}Detail`]: baseDetail },
-    [`${behaviorFamily}Detail`]: { effortMinMinutes: 30, effortMaxMinutes: 45 },
-  };
-  f.tx.termActivityRevision.findUnique.mockResolvedValue(revision);
-  const saved = await createRevisionSnapshot(f.tx, {
-    termActivityId: "work", baseActivityVersionId: "work-version", revision: 1,
-    title: "Work", summary: null, createdByInstructorId: "i",
-    detail: { behaviorFamily, effortMinMinutes: 30, effortMaxMinutes: 45 },
-    topicActions: [], milestones: [],
-  });
-  expect(toTermActivityRevisionDto(saved).effectiveEffort).toEqual({ minMinutes: 30, maxMinutes: 45 });
+  const nonMeetings = ["coursework", "assessment"].map((family) => ({
+    ...f.row,
+    id: family,
+    termId: "term",
+    plannedRevisionId: `${family}-revision`,
+    plannedRevision: {
+      id: `${family}-revision`,
+      [`${family}Detail`]: { effortMinMinutes: 30, effortMaxMinutes: 45 },
+    },
+    plannedActivityVersion: { [`${family}Detail`]: { effortMinMinutes: 60, effortMaxMinutes: 120 } },
+  }));
+  const before = structuredClone(nonMeetings);
+  f.tx.termCourseworkActivityRevision = { create: vi.fn(), update: vi.fn() };
+  f.tx.termAssessmentActivityRevision = { create: vi.fn(), update: vi.fn() };
+  // Include other families to exercise placement's meeting filter as well as its query.
+  f.tx.termActivity.findMany.mockResolvedValue([f.row, ...nonMeetings]);
+  f.tx.termActivity.findUnique.mockImplementation(async ({ where }: any) =>
+    [f.row, ...nonMeetings].find((row) => row.id === where.id));
   const preview = await previewMeetingPlacement(f.db, request);
   await applyMeetingPlacement(f.db, { ...request, previewToken: preview.previewToken });
-  expect(f.tx[detailModel].create).toHaveBeenCalledTimes(1);
-  expect(detailRows).toEqual([expect.objectContaining({ effortMinMinutes: 30, effortMaxMinutes: 45 })]);
-  expect(toTermActivityRevisionDto(saved).effectiveEffort).toEqual({ minMinutes: 30, maxMinutes: 45 });
+  expect(f.tx.termActivityRevision.create).toHaveBeenCalledTimes(1);
+  expect(f.tx.termActivityRevision.create).toHaveBeenCalledWith({
+    data: expect.objectContaining({ termActivityId: "a" }),
+  });
+  expect(f.tx.termMeetingActivityRevision.create).toHaveBeenCalledTimes(1);
   expect(f.tx.termActivity.updateMany).toHaveBeenCalledTimes(1);
-  expect(f.tx.termActivity.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "a", plannedRevisionId: "r" } }));
+  expect(f.tx.termActivity.updateMany).toHaveBeenCalledWith({
+    where: { id: "a", plannedRevisionId: "r" }, data: { plannedRevisionId: "new" },
+  });
+  for (const model of [f.tx.termCourseworkActivityRevision, f.tx.termAssessmentActivityRevision]) {
+    expect(model.create).not.toHaveBeenCalled();
+    expect(model.update).not.toHaveBeenCalled();
+  }
+  expect(nonMeetings).toEqual(before);
 });

@@ -37,7 +37,7 @@ function toDraftDetail(
       behaviorFamily: "coursework" as const,
       effortMinMinutes: detail.effortMinMinutes as number | null | undefined,
       effortMaxMinutes: detail.effortMaxMinutes as number | null | undefined,
-    lifecycleState: (detail.lifecycleState as string | null | undefined) ?? null,
+      lifecycleState: (detail.lifecycleState as string | null | undefined) ?? null,
       deliveryNotes: (detail.deliveryNotes as string | null | undefined) ?? null,
     };
   }

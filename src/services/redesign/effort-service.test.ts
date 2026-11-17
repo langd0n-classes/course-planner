@@ -260,6 +260,46 @@ describe("version effort snapshots", () => {
         },
       }),
     ).rejects.toThrow("sum");
+    for (const detail of [
+      { behaviorFamily: "coursework" as const, effortMinMinutes: null, effortMaxMinutes: null },
+      { behaviorFamily: "coursework" as const, effortMinMinutes: 10 },
+      { behaviorFamily: "coursework" as const, effortMaxMinutes: 20 },
+    ]) {
+      await expect(reviseActivity(db(tx), {
+        ...input,
+        draft: { ...input.draft, detail, effortParts: current.effortParts },
+      })).rejects.toThrow();
+    }
+    await expect(reviseActivity(db(tx), {
+      ...input,
+      draft: { ...input.draft, detail: {
+        behaviorFamily: "coursework", effortMinMinutes: null, effortMaxMinutes: null,
+      } },
+    })).rejects.toThrow("This estimate is built from parts. Change the parts, or remove them.");
+    for (const detail of [
+      { behaviorFamily: "coursework" as const, effortMinMinutes: 5 },
+      { behaviorFamily: "coursework" as const, effortMaxMinutes: 25 },
+    ]) {
+      await expect(reviseActivity(db(tx), {
+        ...input,
+        draft: { ...input.draft, detail, effortParts: [] },
+      })).rejects.toThrow("Set both effort bounds");
+    }
+    expect(create).not.toHaveBeenCalled();
+    for (const detail of [
+      { behaviorFamily: "coursework" as const, effortMinMinutes: 5, effortMaxMinutes: 9 },
+      { behaviorFamily: "coursework" as const },
+    ]) {
+      await reviseActivity(db(tx), {
+        ...input, draft: { ...input.draft, detail, effortParts: [] },
+      });
+      expect(create.mock.calls.at(-1)![0].data.effortParts.create).toEqual([]);
+      expect(create.mock.calls.at(-1)![0].data.courseworkDetail.create).toMatchObject({
+        effortMinMinutes: "effortMinMinutes" in detail ? 5 : 10,
+        effortMaxMinutes: "effortMaxMinutes" in detail ? 9 : 20,
+      });
+    }
+    create.mockClear();
     await reviseActivity(db(tx), input);
     expect(create.mock.calls[0][0].data.courseworkDetail.create).toMatchObject({
       effortMinMinutes: 10,
@@ -324,10 +364,7 @@ describe("Term effort overrides", () => {
           courseworkDetail: { effortMinMinutes: 12, effortMaxMinutes: 24 },
           assessmentDetail: { effortMinMinutes: 12, effortMaxMinutes: 24 },
         },
-        deliveredRevision: {
-          courseworkDetail: { effortMinMinutes: 30, effortMaxMinutes: 45 },
-          assessmentDetail: { effortMinMinutes: 30, effortMaxMinutes: 45 },
-        },
+        deliveredRevision: null,
         revisions: [{ revision: 1 }],
         term: {
           courseId: "c",
@@ -400,6 +437,16 @@ describe("Term effort overrides", () => {
           expectedCurrentRevisionId: "r1",
         }),
       ).rejects.toThrow("stale");
+      const deliveredPreview = await previewTermActivityRevision(db(tx), {
+        instructorId: "i", termActivityId: "ta", advancePointer: "delivered", draft: dateChange,
+      });
+      expect(activity.deliveredRevision).toBeNull();
+      expect(deliveredPreview.expectedCurrentRevisionId).toBeNull();
+      await applyTermActivityRevision(db(tx), {
+        instructorId: "i", termActivityId: "ta", advancePointer: "delivered", draft: dateChange,
+        previewToken: deliveredPreview.previewToken, expectedCurrentRevisionId: null,
+      });
+      expect(writes.at(-1)).toMatchObject({ effortMinMinutes: 12, effortMaxMinutes: 24 });
       for (const [low, high] of [
         [60, 90],
         [null, null],

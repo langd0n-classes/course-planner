@@ -1,8 +1,8 @@
-import { validateEffort, normalizeActivityEffort } from "./effort";
 // Zod request validators for the Lane A (domain + REST) redesign handlers.
 // Shapes mirror the frozen types in `redesign-contract.ts`; this file only
 // adds runtime validation, it does not redefine the contract.
 import { z } from "zod";
+import { validateEffort, normalizeActivityEffort } from "./effort";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected an ISO date (YYYY-MM-DD)");
 const isoDateTime = z.string().datetime();
