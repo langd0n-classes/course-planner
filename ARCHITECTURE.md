@@ -11,7 +11,8 @@ Prisma transactions. `prisma/schema.prisma` defines the PostgreSQL model.
 
 The homepage lists Courses. Course workspaces organize versioned curriculum.
 Term workspaces adopt that curriculum and record planned and delivered work.
-The Module and Skill pages remain as legacy UI.
+The Module and Skill pages remain as legacy UI. `src/lib/api-client.ts` is
+legacy. New code must use `src/lib/redesign-api-client.ts`.
 
 ## Directory Structure
 
@@ -31,12 +32,20 @@ The Module and Skill pages remain as legacy UI.
 | `src/lib/redesign-auth.ts` | Authenticated Instructor resolution |
 | `src/lib/prisma.ts` | Prisma client singleton |
 | `src/lib/term-order-checks.ts` | Advisory date-order checks |
-| `src/domain/` | Retained coverage and what-if functions |
+| `src/domain/` | Coverage and what-if functions used by legacy coverage/flow UI and `src/services/redesign/planning-service.ts` |
 | `prisma/schema.prisma` | Database models |
 | `prisma/seed.ts` | Default seed |
 | `e2e/` | Playwright tests |
 
 ## Data Model
+
+`Course.shortId` is unique per Instructor. The optional `demoKey` identifies
+a demo Course per Instructor; `titleIsPlaceholder` and `numberIsPlaceholder`
+mark placeholder values.
+
+`Institution` holds institutional identity and owns Academic Calendars.
+`CourseInstitution` links Courses to Institutions; `InstructorInstitution`
+links Instructors to Institutions with membership status and a default flag.
 
 Course curriculum separates stable identities from content versions.
 `LearningModule`, `Topic`, and `Activity` belong to a `Course`. Each identity
@@ -63,6 +72,13 @@ does not use it for ownership.
 `ActivityTopicScope` records identity-level Topic scope.
 `TopicPrerequisite` links stable Topic identities within the same Course.
 
+`Term.clonedFromId` records source-Term lineage within the same Course.
+`src/services/redesign/clone-service.ts` previews and applies Term clones.
+
+`TermStatus` has values `planned`, `active`, and `closed`.
+`src/services/redesign/lifecycle-service.ts` supports activation, closure, and
+reopening, with expected-status checks.
+
 `Term` belongs to a Course and selects an Institution and Academic Calendar.
 `TermLearningModule` pins a planned Learning Module version and an optional
 separate delivered version. `TermActivity` adopts an Activity and its type
@@ -82,24 +98,49 @@ can follow another Term Activity. Adoption creates a milestone only when it
 can follow a valid Term Activity. An unlinked, absent, archived, or self-linked
 anchor creates no milestone; a standalone milestone requires a date.
 
+`TermMilestoneAnchorPolicy` has values `follow_activity`, `fixed_instant`, and
+`standalone`; `MilestoneRole` has values `release`, `work`, `phase_release`,
+`review`, and `due`. The database requires a linked Term Activity for
+`follow_activity`, an `occursAt` date for `fixed_instant` or `standalone`, and
+no linked Term Activity for `standalone`.
+
 `AcademicCalendar` belongs to an `Institution`. `AcademicCalendarVersion`
 contains `AcademicCalendarEvent` rows and `AcademicCalendarPeriod` ranges.
 `CalendarSlot` materializes a date within a Term and can retain its source event.
-`InstructorCalendarOverride` records instructor overrides. `TermMeetingPattern`
-stores type-specific weekdays, local times, time zone, and date bounds.
+`CalendarSlot.slotType` has values `class_day`, `holiday`, `finals`, and
+`break_day`; its capacity fields are `instructionalCapacity`, `capacitySource`,
+and `capacityReason`. `InstructionalCapacity` has values `normal`,
+`reduced_engagement`, `recovery`, and `assessment_period`; `CapacitySource` has
+values `baseline`, `heuristic`, and `instructor_override`.
+
+`InstructorCalendarOverride` records instructor overrides. The
+`Term.meetingPattern` JSON column stores role-based days only.
+`TermMeetingPattern` rows store type-specific weekdays, local times, time zone,
+and date bounds.
 `TermCalendarException` records Term-only changes and can target a type, slot,
 or date.
 
-`Session`, `Coverage`, `Assessment`, and `AssessmentTopic` remain in the schema
-and canonical services. Session coverage references Topic versions. `Artifact`
-can attach to curriculum versions, Term Activity revisions, Sessions, or
-Assessments. These retained records support scheduling, coverage health,
-materials, and package workflows alongside Term Activities.
+`Session` is a legacy model retained for scheduling and coverage services.
+`SessionPriorArt` links a legacy Session to a source Session through
+`sessionId` and `sourceSessionId`, with an optional note.
+
+`Coverage`, `Assessment`, and `AssessmentTopic` remain in the schema and
+canonical services. Session coverage references Topic versions.
+
+An `Artifact` has a polymorphic parent. `parentType` selects the parent kind
+from the nullable parent columns: `learningModuleVersionId`, `topicVersionId`,
+`sessionId`, `assessmentId`, `activityVersionId`, and `termActivityRevisionId`.
 
 ### Key Relationships
 
 - `Instructor` owns Courses and Activity Types. Term ownership follows Course.
 - `Course` owns Learning Modules, Topics, Activities, and Terms.
+- `CourseInstitution` and `InstructorInstitution` link Courses and Instructors
+  to Institutions.
+- `Term.clonedFromId` links a clone to its source Term in the same Course.
+- `SessionPriorArt` links derived and source legacy Sessions.
+- `Artifact` has a polymorphic parent among curriculum versions, Term Activity
+  revisions, legacy Sessions, and Assessments.
 - `LearningModuleVersionActivity` connects module and Activity versions in order.
 - `ActivityVersionTopicAction` connects Activity and Topic versions through I/P/A.
 - `TopicPrerequisite` connects Topic identities independently of their versions.
@@ -115,8 +156,15 @@ materials, and package workflows alongside Term Activities.
 ## Authentication
 
 
-- Auth.js (`next-auth` v5) provides Google OAuth for the
-  single-user instructor workflow.
+- Auth.js (`next-auth` v5) enables Google OAuth when both Google credentials
+  are configured.
+- The `course-planner-preview` Credentials provider is enabled when
+  `VERCEL_ENV=preview`, `COURSE_PLANNER_PREVIEW_AUTH=true`, and
+  `COURSE_PLANNER_PREVIEW_EMAIL` is nonempty. It signs in as the configured
+  preview Instructor.
+- The sign-in callback calls `isSignInEmailAllowed` in `src/lib/auth-config.ts`.
+  It accepts a normalized email in the comma-separated `ALLOWED_EMAIL`
+  allowlist or the enabled preview email. Missing emails are rejected.
 - Root config lives in `auth.ts`, exporting `auth`,
   `handlers`, `signIn`, and `signOut`.
 - `src/app/api/auth/[...nextauth]/route.ts` exposes the
@@ -180,7 +228,8 @@ prerequisite, and content revision calls retain their existing contracts.
 
 Adoption creates a milestone only when it can follow a Term Activity. A
 missing link, absent or archived target, or self link creates no milestone.
-Preview reports each skipped template and its reason. `milestoneCount` counts
+Preview reports each skipped template and its reason in `standaloneMilestones`,
+which lists templates that create no milestone. `milestoneCount` counts
 only the milestones that apply creates. The instructor can add a standalone
 milestone by hand with a date. Adoption does not copy relative offsets into
 dates.
@@ -248,11 +297,28 @@ Playwright E2E tests live in `e2e/`. Config: `playwright.config.ts`. Run with `n
 The Module and Skill pages are legacy. `src/app/skills/` and the Module,
 Session, Skill, coverage, flow, impact, import, calendar, and assessment pages
 under `src/app/terms/` still use `src/lib/api-client.ts`. The Term root page
-uses `TermWorkspacePage` instead. Old Module/Skill CRUD and JSON/CSV import
-routes return `410 legacy_route_retired` through `src/app/api/redesign-stub.ts`.
-Some shared canonical routes still serve Session, coverage, and assessment
-records against the current schema. The descriptions below retain the legacy
-workflows; they do not describe the current Course workspace.
+uses `TermWorkspacePage` instead. Live server behavior supports the legacy
+pages alongside retired routes and mock service code.
+
+### Retired Routes
+
+Each route below returns `410 legacy_route_retired` through
+`src/app/api/redesign-stub.ts`:
+
+| Methods | Route |
+|---|---|
+| GET, POST | `/api/modules` |
+| GET, PATCH, DELETE | `/api/modules/[id]` |
+| GET, POST | `/api/skills` |
+| GET, PATCH, DELETE | `/api/skills/[id]` |
+| GET, POST | `/api/sessions` |
+| GET, POST | `/api/coverages` |
+| GET, POST | `/api/assessments` |
+| POST | `/api/terms/[id]/import-calendar` |
+| POST | `/api/terms/[id]/import-structure` |
+| POST | `/api/terms/[id]/import-skills-csv` |
+| POST | `/api/ai/suggest-redistribution` |
+| GET | `/api/artifacts/export/[id]` |
 
 ### Service Interfaces
 
@@ -268,11 +334,17 @@ workflows; they do not describe the current Course workspace.
 - `generateNotebookSkeleton()` — Jupyter notebook for assessments
 - `exportSkillsList()` — Skills by category
 
-Both interfaces have mock implementations for development/testing and are registered in `src/services/index.ts`.
+`AiPlanner` and `ArtifactExporter` exist as interfaces with mock implementations
+in `src/services/`. `src/services/index.ts` registers the mocks. No live route
+calls either service.
 
 ### Domain Rules (Invariants)
 
-Implemented as pure functions in `src/domain/coverage-rules.ts` and `src/domain/whatif.ts`:
+Pure functions live in `src/domain/coverage-rules.ts`, `src/domain/whatif.ts`,
+and `src/domain/coverage-matrix.ts`. Legacy coverage and flow pages,
+`flow-utils.ts`, and `FlowGrid` use this directory.
+`src/services/redesign/planning-service.ts` also imports coverage rules and
+what-if functions for live server behavior.
 
 #### Coverage Rules (`coverage-rules.ts`)
 1. **Coverage ordering**: Introduced before Practiced before Assessed
@@ -287,32 +359,24 @@ Implemented as pure functions in `src/domain/coverage-rules.ts` and `src/domain/
 3. **validateRedistribution**: Check that redistributed coverages maintain I→P→A ordering
 4. **computeCoverageHealth**: Summary of coverage state (introduced/practiced/assessed/fully covered counts)
 
-### Import Subsystem
+### Live Planning Routes
 
-API routes for importing course data:
-- `POST /api/terms/[id]/import-calendar` — Upsert CalendarSlots with date range validation
-- `POST /api/terms/[id]/import-structure` — Transactional import of modules, sessions, skills, coverages, assessments
-- `POST /api/terms/[id]/import-skills-csv` — CSV upload for skills (code, category, description)
-- `GET /api/terms/[id]/calendar-slots` — Fetch calendar slots ordered by date
+These routes remain live and serve only the legacy pages. Their handlers
+call functions in `src/services/redesign/planning-service.ts`:
 
-Seed script: `scripts/generate-ds100-exemplar.ts` generates `ds100-calendar.json` and `ds100-structure.json` from the exemplar files.
+- `POST /api/sessions/[id]/cancel` cancels a Session with optional
+  redistribution. `dryRun: true` validates without persistence.
+- `POST /api/sessions/[id]/move` moves a Session.
+- `GET /api/sessions/[id]/whatif` simulates cancellation impact.
+- `GET /api/terms/[id]/impact` reports Term coverage health and violations.
+- `GET /api/terms/[id]/whatif-compare` compares two cancellation scenarios.
 
-### Cancellation Workflow
+`GET /api/terms/[id]/calendar-slots` also remains live. Its handler checks
+Term ownership and reads Calendar Slots directly through Prisma in date order.
 
-- `POST /api/sessions/[id]/cancel` — Cancel session with optional redistribution; supports `dryRun: true` for validation without persistence
-- `GET /api/sessions/[id]/whatif` — Simulate cancellation impact (read-only)
-- `GET /api/terms/[id]/whatif-compare` — Compare two cancellation scenarios
-- `POST /api/ai/suggest-redistribution` — Mock AI suggestions for skill redistribution targets
-
-#### Redistribution Flow (Phase 2A.3)
-
-The what-if panel (`WhatIfPanel.tsx`) now supports a multi-step cancellation workflow:
-1. **Impact** — See coverage health diff, at-risk skills, ordering violations
-2. **Redistribute** — Assign at-risk skills to other sessions via dropdowns; optionally use AI suggestions
-3. **Validate** — Dry-run validation against coverage ordering rules
-4. **Confirm** — Apply cancellation with redistributions, or skip redistribution
-
-The panel is shared between the calendar view and the term detail page.
+`src/components/WhatIfPanel.tsx` connects the legacy calendar and Session
+pages to simulation, comparison, dry-run validation, and cancellation.
+The panel still offers AI suggestions, but that request returns 410.
 
 ### Content Views (Phase 2B.1)
 
