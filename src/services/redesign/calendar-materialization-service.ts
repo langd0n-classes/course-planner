@@ -1,4 +1,3 @@
-import { validateTermDates } from "./term-validation";
 import { DomainInvariantError } from "./errors";
 import type { RedesignTx } from "./types";
 
@@ -444,7 +443,9 @@ export async function previewCalendarMaterialization(
   tx: RedesignTx,
   input: PreviewInput,
 ): Promise<CalendarMaterializationPreview> {
-  validateTermDates(input.startDate, input.endDate);
+  const limitEnd = new Date(input.startDate.getTime() + 399 * 86_400_000);
+  const limited = input.endDate > limitEnd;
+  if (limited) input = { ...input, endDate: limitEnd };
   const meetingRoles = normalizeMeetingRolePatterns(input.meetingPattern);
 
   const [events, boundaries, overrides] = await Promise.all([
@@ -476,7 +477,7 @@ export async function previewCalendarMaterialization(
   assertCalendarFit(boundaries, input.startDate, input.endDate);
 
   const eventsById = new Map(events.map((event) => [event.id, event]));
-  const warnings: string[] = [];
+  const warnings: string[] = limited ? ["Term exceeds the 400-day calendar limit; only the first 400 days are included."] : [];
   const conflicts: CalendarMaterializationConflict[] = [];
   const dayMap = new Map<string, DayCandidate>();
 

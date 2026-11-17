@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
-import { ConcurrencyConflictError, DomainInvariantError } from "@/services/redesign";
+import { ConcurrencyConflictError, DomainInvariantError, NotFoundError } from "@/services/redesign";
 
 const prismaMock = {
   $transaction: vi.fn(),
@@ -76,7 +76,7 @@ describe("term calendar and academic calendar routes", () => {
   });
 
   it("returns 404 for cross-instructor term calendar preview", async () => {
-    serviceMocks.previewTermCalendar.mockRejectedValue(new DomainInvariantError("Term not found"));
+    serviceMocks.previewTermCalendar.mockRejectedValue(new NotFoundError("Term not found"));
     const { POST } = await import("./terms/[id]/calendar/preview/route");
     const response = await POST(
       new NextRequest("http://localhost/api/terms/term-1/calendar/preview", {
@@ -255,5 +255,21 @@ describe("term calendar and academic calendar routes", () => {
       { params: Promise.resolve({ id: "calendar-1" }) },
     );
     expect(createResponse.status).toBe(201);
+  });
+});
+
+describe.each(["preview", "apply"] as const)("calendar %s error classes", (mode) => {
+  it.each([
+    [new NotFoundError("Term not found"), 404],
+    [new NotFoundError("Missing resource"), 404],
+    [new DomainInvariantError("Invalid meeting pattern"), 404],
+  ])("preserves status for %s", async (error, status) => {
+    authMock.mockResolvedValue(instructor());
+    serviceMocks[mode === "apply" ? "applyTermCalendar" : "previewTermCalendar"].mockRejectedValue(error);
+    const { POST } = mode === "apply" ? await import("./terms/[id]/calendar/apply/route") : await import("./terms/[id]/calendar/preview/route");
+    const response = await POST(new NextRequest("http://localhost/api/calendar", {
+      method: "POST", body: JSON.stringify({ meetingPatterns: [], previewToken: "token", expectedCurrentCalendarSlotCount: 0 }),
+    }), { params: Promise.resolve({ id: "term" }) });
+    expect(response.status).toBe(status);
   });
 });

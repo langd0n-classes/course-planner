@@ -4,7 +4,7 @@ import { applyTermCreation, previewTermCreation, updateTerm } from "./term-servi
 import { applyTermClone, previewTermClone } from "./clone-service";
 import { previewCalendarMaterialization } from "./calendar-materialization-service";
 import { applyTermCalendar, previewTermCalendar } from "./academic-calendar-service";
-import { previewTermLearningModuleRemoval, removeTermLearningModule } from "./offering-service";
+import { removeTermLearningModule } from "./offering-service";
 import { ConcurrencyConflictError, DomainInvariantError } from "./errors";
 
 const input = { instructorId: "i", courseId: "c", institutionId: "inst", academicCalendarId: "cal", sourceTermId: "source", code: "F26", name: "Fall", startDate: new Date("2026-01-01"), endDate: new Date("2026-05-01"), meetingPattern: { days: ["Monday"] } };
@@ -34,7 +34,6 @@ describe.each(operations)("%s hardening", (_name, operation) => {
     ["invalid start", { startDate: new Date("2026-13-45") }, /real calendar date/],
     ["invalid end", { endDate: new Date("2026-13-45") }, /real calendar date/],
     ["normalized impossible day", { startDate: "2026-02-30" }, /real calendar date/],
-    ["equal dates", { endDate: input.startDate }, /after/],
     ["reversed dates", { endDate: new Date("2025-01-01") }, /after/],
     ["over 400 days", { endDate: new Date("2027-02-06") }, /400 days/],
   ])("rejects %s", async (_label, change, message) => {
@@ -54,8 +53,8 @@ describe.each(operations)("%s hardening", (_name, operation) => {
 });
 it.each(operations.filter(([name]) => !name.includes("preview")))("%s maps a racing Prisma P2002 to a code conflict", async (_name, operation) => {
   const { db, tx } = fixture();
-  tx.term.create.mockRejectedValue({ code: "P2002" });
-  tx.term.update.mockRejectedValue({ code: "P2002" });
+  tx.term.create.mockRejectedValue({ code: "P2002", meta: { target: ["courseId", "code"] } });
+  tx.term.update.mockRejectedValue({ code: "P2002", meta: { target: ["courseId", "code"] } });
   await expect(operation(db, input)).rejects.toThrow(ConcurrencyConflictError);
   await expect(operation(db, input)).rejects.toThrow(/F26/);
 });
@@ -69,15 +68,51 @@ it("allows exactly 400 elapsed days", async () => {
   const { db } = fixture();
   await expect(applyTermCreation(db, { ...input, endDate: new Date("2027-02-05") })).resolves.toMatchObject({ kind: "applied" });
 });
-it("bounds calendar materialization before reading events", async () => {
+it("bounds legacy calendar materialization and reports the limit", async () => {
   const { tx } = fixture();
-  await expect(previewCalendarMaterialization(tx, { ...input, endDate: new Date("2030-01-01") })).rejects.toThrow(/400 days/);
-  expect(tx.academicCalendarEvent.findMany).not.toHaveBeenCalled();
+  const preview = await previewCalendarMaterialization(tx, { ...input, endDate: new Date("2027-05-16") });
+  expect(preview.warnings.join(" ")).toMatch(/400/);
+  expect(preview.candidates.length).toBeLessThanOrEqual(400);
 });
-it("bounds adopted calendar preview before building dates", async () => {
+function calendarFixture() {
+  const value = fixture();
+  Object.assign(value.term, { academicCalendarVersionId: "v", endDate: new Date("2027-05-16") });
+  Object.assign(value.tx, {
+    academicCalendarVersion: { findUnique: vi.fn(async () => ({ id: "v" })) },
+    academicCalendarPeriod: { findMany: vi.fn(async () => []) },
+    termCalendarException: { findMany: vi.fn(async () => []) },
+    termMeetingPattern: { deleteMany: vi.fn() },
+  });
+  value.tx.academicCalendarEvent.findMany.mockResolvedValue([{ id: "e", eventType: "holiday", startsOn: value.term.startDate, endsOn: value.term.endDate, label: "Break" }]);
+  Object.assign(value.tx.calendarSlot, { findMany: vi.fn(async () => []), deleteMany: vi.fn(), createMany: vi.fn() });
+  return value;
+}
+it("previews and applies the first 400 days of a stored 500-day Term", async () => {
+  const { db, tx } = calendarFixture();
+  const preview = await previewTermCalendar(db, { instructorId: "i", termId: "source", meetingPatterns: [] });
+  expect(preview.warnings.join(" ")).toMatch(/400/);
+  expect(preview.calendarSlotCandidates).toHaveLength(400);
+  expect(preview.calendarSlotCandidates.at(-1)?.date).toBe("2027-02-04");
+  await expect(applyTermCalendar(db, { instructorId: "i", termId: "source", meetingPatterns: [], previewToken: preview.previewToken, expectedCurrentCalendarSlotCount: 0 })).resolves.toBeDefined();
+  expect(tx.calendarSlot.createMany.mock.calls[0][0].data).toHaveLength(400);
+});
+it("allows a name-only edit on a stored 500-day Term", async () => {
   const { db, term } = fixture();
-  term.endDate = new Date("2030-01-01");
-  await expect(previewTermCalendar(db, { instructorId: "i", termId: "source", meetingPatterns: [] })).rejects.toThrow(/400 days/);
+  term.endDate = new Date("2027-05-16");
+  await expect(updateTerm(db, "source", { instructorId: "i", name: "Renamed" })).resolves.toMatchObject({ name: "Renamed" });
+});
+it.each(operations)("%s allows a one-day Term", async (_name, operation) => {
+  const { db } = fixture();
+  await expect(operation(db, { ...input, endDate: input.startDate })).resolves.toBeDefined();
+});
+it.each(operations.filter(([name]) => !name.includes("preview")))("%s preserves unrelated unique errors", async (_name, operation) => {
+  const { db, tx } = fixture();
+  for (const target of [["id"], ["courseId", "name"], undefined]) {
+    const error = { code: "P2002", meta: { target } };
+    tx.term.create.mockRejectedValue(error);
+    tx.term.update.mockRejectedValue(error);
+    await expect(operation(db, input)).rejects.toBe(error);
+  }
 });
 it("refuses calendar apply on a closed Term before any calendar writes", async () => {
   const { db, term } = fixture();
@@ -91,9 +126,7 @@ function offeringFixture(count: number) {
 }
 it("reports Term Activities as counted removal blockers and refuses removal", async () => {
   const { db, tx } = offeringFixture(2);
-  const preview = await previewTermLearningModuleRemoval(db, "i", "offering");
-  expect(preview).toMatchObject({ canRemove: false, blockers: [{ code: "term_activities", count: 2, message: expect.stringContaining("Term Activities") }] });
-  await expect(removeTermLearningModule(db, "i", "offering")).rejects.toThrow(preview.blockers[0].message);
+  await expect(removeTermLearningModule(db, "i", "offering")).rejects.toThrow(/2 Term Activities.*including archived/);
   await expect(removeTermLearningModule(db, "i", "offering")).rejects.toThrow(ConcurrencyConflictError);
   expect(tx.termActivity.count).toHaveBeenCalledWith({ where: { termLearningModuleId: "offering" } });
   expect(tx.termLearningModule.delete).not.toHaveBeenCalled();
@@ -106,7 +139,6 @@ it("removes an adoption without Term Activities or Sessions", async () => {
 it("retains the Session removal blocker", async () => {
   const { db, tx } = offeringFixture(0);
   tx.session.count.mockResolvedValue(3);
-  await expect(previewTermLearningModuleRemoval(db, "i", "offering")).resolves.toMatchObject({ canRemove: false, blockers: [{ code: "sessions", count: 3 }] });
   await expect(removeTermLearningModule(db, "i", "offering")).rejects.toThrow(/Sessions/);
 });
 it("propagates unrelated database errors", async () => {
@@ -120,4 +152,16 @@ it("does not rewrite stored dates on a name-only update", async () => {
   await updateTerm(db, "source", { instructorId: "i", name: "Renamed" });
   expect(tx.term.update.mock.calls[0][0].data.startDate).toBeUndefined();
   expect(tx.term.update.mock.calls[0][0].data.endDate).toBeUndefined();
+});
+
+it("maps a removal foreign-key race to a conflict", async () => {
+  const { db, tx } = offeringFixture(0);
+  tx.termLearningModule.delete.mockRejectedValue({ code: "P2003" });
+  await expect(removeTermLearningModule(db, "i", "offering")).rejects.toThrow(ConcurrencyConflictError);
+});
+it("preserves unrelated removal database errors", async () => {
+  const { db, tx } = offeringFixture(0);
+  const error = { code: "P2025" };
+  tx.termLearningModule.delete.mockRejectedValue(error);
+  await expect(removeTermLearningModule(db, "i", "offering")).rejects.toBe(error);
 });

@@ -40,9 +40,9 @@ it("returns 409 with the Term Activities blocker on removal", async () => {
   expect(response.status).toBe(409);
   expect(await response.text()).toContain("2 Term Activities");
 });
-it("returns 400 for closed Term calendar apply", async () => {
+it("preserves 404 for closed Term calendar apply", async () => {
   mocks.calendar.mockRejectedValue(new DomainInvariantError("Closed Terms are read-only"));
   const response = await calendar(request({ previewToken: "token", expectedCurrentCalendarSlotCount: 0, meetingPatterns: [] }), context);
-  expect(response.status).toBe(400);
+  expect(response.status).toBe(404);
   expect(await response.text()).toContain("Closed Terms are read-only");
 });

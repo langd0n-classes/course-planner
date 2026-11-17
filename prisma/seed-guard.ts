@@ -8,6 +8,7 @@ export function assertSeedForceAllowed(databaseUrl: string | undefined, confirma
   } catch {
     throw new Error("Force seed requires a valid PostgreSQL DATABASE_URL with a database name");
   }
-  if (["localhost", "127.0.0.1", "[::1]", "::1"].includes(url.hostname) || confirmation === database) return;
+  const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
+  if (confirmation === database || (!url.searchParams.has("host") && ["localhost", "127.0.0.1", "[::1]", "::1"].includes(hostname))) return;
   throw new Error(`Refusing force seed on host "${url.hostname}", database "${database}". Set SEED_FORCE_DATABASE to "${database}" to allow deletion.`);
 }

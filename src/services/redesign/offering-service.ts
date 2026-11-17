@@ -128,16 +128,9 @@ async function termLearningModuleRemovalPreview(tx: RedesignTx, termLearningModu
   ]);
   const blockers = [
     { code: "sessions", count: sessions, message: `Cannot remove this Term Learning Module while ${sessions} Sessions are attached. Detach the Sessions first.` },
-    { code: "term_activities", count: activities, message: `Cannot remove this Term Learning Module while ${activities} Term Activities are attached. Detach the Term Activities first.` },
+    { code: "term_activities", count: activities, message: `Cannot remove this Term Learning Module while ${activities} Term Activities (including archived) are attached. Detach the Term Activities first.` },
   ].filter((blocker) => blocker.count > 0);
   return { termLearningModuleId, canRemove: blockers.length === 0, blockers };
-}
-
-export async function previewTermLearningModuleRemoval(db: RedesignDb, instructorId: string, termLearningModuleId: string) {
-  return db.$transaction(async (tx) => {
-    await getOwnedTermLearningModuleForInstructor(tx, instructorId, termLearningModuleId);
-    return termLearningModuleRemovalPreview(tx, termLearningModuleId);
-  });
 }
 
 export async function removeTermLearningModule(
@@ -152,7 +145,14 @@ export async function removeTermLearningModule(
     if (!preview.canRemove) {
       throw new ConcurrencyConflictError(preview.blockers.map((blocker) => blocker.message).join(" "));
     }
-    await tx.termLearningModule.delete({ where: { id: termLearningModuleId } });
+    try {
+      await tx.termLearningModule.delete({ where: { id: termLearningModuleId } });
+    } catch (error) {
+      if (typeof error === "object" && error !== null && "code" in error && error.code === "P2003") {
+        throw new ConcurrencyConflictError("Cannot remove this Term Learning Module while references remain attached, including archived Term Activities. Refresh and detach the references first.");
+      }
+      throw error;
+    }
     return offering;
   });
 }

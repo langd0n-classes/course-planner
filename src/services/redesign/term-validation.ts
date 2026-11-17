@@ -14,7 +14,7 @@ export function validateTermDates(start: Date | string, end: Date | string) {
   const startDate = termDate(start, "startDate");
   const endDate = termDate(end, "endDate");
   const days = (endDate.getTime() - startDate.getTime()) / 86_400_000;
-  if (days <= 0) throw new DomainInvariantError("Term end date must be after the start date");
+  if (days < 0) throw new DomainInvariantError("Term end date must be on or after the start date");
   if (days > 400) throw new DomainInvariantError("A Term cannot be longer than 400 days");
   return { startDate, endDate };
 }
@@ -30,7 +30,12 @@ function termCodeConflict(code: string) {
 
 export function rethrowTermWriteError(error: unknown, code: string): never {
   if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
-    throw termCodeConflict(code);
+    const target = "meta" in error && typeof error.meta === "object" && error.meta !== null && "target" in error.meta
+      ? error.meta.target : undefined;
+    if ((Array.isArray(target) && target.length === 2 && target.includes("courseId") && target.includes("code")) ||
+        target === "Term_courseId_code_key") {
+      throw termCodeConflict(code);
+    }
   }
   throw error;
 }

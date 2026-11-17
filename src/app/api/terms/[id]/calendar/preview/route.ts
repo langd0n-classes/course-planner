@@ -7,7 +7,7 @@ import {
   toCalendarSlotCandidateDto,
 } from "@/lib/redesign-serializers";
 import { termCalendarPreviewRequestSchema } from "@/lib/redesign-schemas";
-import { DomainInvariantError, previewTermCalendar } from "@/services/redesign";
+import { DomainInvariantError, NotFoundError, previewTermCalendar } from "@/services/redesign";
 import type { TermCalendarPreviewRequest, TermCalendarPreviewResponse } from "@/lib/redesign-contract";
 
 export type { TermCalendarPreviewRequest, TermCalendarPreviewResponse };
@@ -37,9 +37,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       warnings: preview.warnings,
     } satisfies TermCalendarPreviewResponse);
   } catch (error) {
-    if (error instanceof DomainInvariantError) {
-      return error.message.endsWith("not found") ? notFound(error.message) : badRequest(error.message);
-    }
+    if (error instanceof NotFoundError) return notFound(error.message);
+    if (error instanceof DomainInvariantError) return notFound(error.message);
     throw error;
   }
 }

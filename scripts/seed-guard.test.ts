@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { assertSeedForceAllowed } from "../prisma/seed-guard";
 describe("force seed guard", () => {
-  it.each(["localhost", "127.0.0.1", "[::1]"])("allows local host %s", (host) => {
+  it.each(["localhost", "LOCALHOST", "localhost.", "127.0.0.1", "[::1]"])("allows local host %s", (host) => {
     expect(() => assertSeedForceAllowed(`postgresql://user:secret@${host}/demo`)).not.toThrow();
   });
   it("allows a remote database only with an exact name confirmation", () => {
@@ -22,4 +22,11 @@ describe("force seed guard", () => {
   it.each([undefined, "invalid", "postgresql://remote/"])("rejects missing or invalid database URL %s", (url) => {
     expect(() => assertSeedForceAllowed(url)).toThrow();
   });
+});
+
+it.each(["?host=remote", "?host="])("requires confirmation for a host query override %s", (query) => {
+  const url = `postgresql://user:secret@localhost/demo${query}`;
+  expect(() => assertSeedForceAllowed(url)).toThrow(/SEED_FORCE_DATABASE/);
+  expect(() => assertSeedForceAllowed(url, "other")).toThrow();
+  expect(() => assertSeedForceAllowed(url, "demo")).not.toThrow();
 });

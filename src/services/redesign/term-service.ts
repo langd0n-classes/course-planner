@@ -213,7 +213,9 @@ export async function updateTerm(db: RedesignDb, termId: string, input: UpdateTe
       throw new DomainInvariantError("Closed Terms are read-only");
     }
 
-    const dates = validateTermDates(input.startDate ?? term.startDate, input.endDate ?? term.endDate);
+    const dates = input.startDate !== undefined || input.endDate !== undefined
+      ? validateTermDates(input.startDate ?? term.startDate, input.endDate ?? term.endDate)
+      : undefined;
     code = input.code ?? term.code;
     await assertTermCodeAvailable(tx, term.courseId, code, term.id);
 
@@ -227,8 +229,8 @@ export async function updateTerm(db: RedesignDb, termId: string, input: UpdateTe
         academicCalendarId: input.academicCalendarId,
         code: input.code,
         name: input.name,
-        startDate: input.startDate === undefined ? undefined : dates.startDate,
-        endDate: input.endDate === undefined ? undefined : dates.endDate,
+        startDate: input.startDate === undefined ? undefined : dates!.startDate,
+        endDate: input.endDate === undefined ? undefined : dates!.endDate,
         meetingPattern: input.meetingPattern,
       },
     });
