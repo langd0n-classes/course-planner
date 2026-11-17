@@ -49,9 +49,10 @@ async function main() {
     const milestones = await db.termActivityMilestone.findMany({
       where: { termActivityRevision: { termActivity: { termId: currentTerm.id } } },
     });
-    assert.equal(milestones.length, 5);
+    assert.equal(milestones.length, 4);
     assert.equal(milestones.filter((row) => row.anchorPolicy === "follow_activity" && row.linkedTermActivityId).length, 4);
-    assert.equal(milestones.filter((row) => row.anchorPolicy === "standalone" && row.linkedTermActivityId === null).length, 1);
+    // The unlinked demo template has nothing to follow, so adoption creates no milestone for it.
+    assert.equal(milestones.filter((row) => row.anchorPolicy === "standalone").length, 0);
     assert.ok(milestones.every((row) => row.occursAt === null && row.sourceTemplateId && row.timeZone === "UTC"));
     const nextTerm = termFor(next.code);
     assert.equal(nextTerm.learningModules.length, 0);
