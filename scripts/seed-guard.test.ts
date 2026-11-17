@@ -31,12 +31,12 @@ it.each(["?host=remote", "?host="])("requires confirmation for a host query over
   expect(() => assertSeedForceAllowed(url, "demo")).not.toThrow();
 });
 
-it.each(["production", "demo", "postgres"])("rejects arbitrary local database %s", database => {
+it.each(["production", "demo", "postgres", "cprod", "cpanel", "course_planner_prod", "cp_prod", "cp15production"])("rejects arbitrary local database %s", database => {
   const url = `postgresql://user:secret@localhost/${database}`;
   expect(() => assertSeedForceAllowed(url)).toThrow();
   expect(() => assertSeedForceAllowed(url, database)).not.toThrow();
 });
-it.each(["cp_hardening", "cp15", "cp_119_fix", "cp15_119", "course_planner"])("allows development database %s", database => {
+it.each(["cp_hardening", "cp15", "cp_119_fix", "cp15_119", "course_planner", "courseplanner"])("allows development database %s", database => {
   expect(() => assertSeedForceAllowed(`postgresql://user:secret@localhost/${database}`)).not.toThrow();
 });
 
@@ -47,7 +47,11 @@ it("accepts the CI database names and the configured local example", async () =>
   expect(urls.length).toBeGreaterThan(0);
   for (const url of urls) expect(() => assertSeedForceAllowed(url)).not.toThrow();
   const env = Object.fromEntries(readFileSync(".env.example", "utf8").split("\n").filter(line => line && !line.startsWith("#")).map(line => { const index = line.indexOf("="); return [line.slice(0, index), line.slice(index + 1)]; }));
-  expect(() => assertSeedForceAllowed(env.DATABASE_URL, env.SEED_FORCE_DATABASE)).not.toThrow();
+  expect(env.SEED_FORCE_DATABASE).toBeUndefined();
+  expect(() => assertSeedForceAllowed(env.DATABASE_URL)).toThrow();
+  const compose = readFileSync("docker-compose.yml", "utf8");
+  expect(compose).toContain("courseplanner");
+  expect(() => assertSeedForceAllowed("postgresql://user:secret@localhost/courseplanner")).not.toThrow();
   const scripts = JSON.parse(readFileSync("package.json", "utf8")).scripts;
   expect(scripts["db:reset"]).toMatch(/^tsx scripts\/guard-db-reset.ts && .*prisma migrate reset/);
 });

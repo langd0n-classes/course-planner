@@ -164,7 +164,7 @@ describe("ActiveTermDailyDriver", () => {
           meeting: { planned: revision("meeting"), delivered: null },
         }}
         calendarSlots={[]}
-      today="2026-02-09"
+        today="2026-02-09"
         learningModuleLabels={new Map()}
         topicLabels={new Map()}
         editable
@@ -223,7 +223,7 @@ describe("ActiveTermDailyDriver", () => {
         termActivities={[activity("next-meeting")]}
         revisionsByTermActivityId={{ "next-meeting": { planned: revision("next-meeting", "2026-02-11T14:00:00Z"), delivered: null } }}
         calendarSlots={[]}
-      today="2026-02-09"
+        today="2026-02-09"
         learningModuleLabels={new Map()}
         topicLabels={new Map()}
         editable

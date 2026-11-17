@@ -172,12 +172,45 @@ async function main() {
         const removal = await previewTermCalendar(testDb, removeRequest);
         assert.equal(removal.affectedMeetingCount, 1);
         const beforeRefusal = await state();
-        await assert.rejects(applyTermCalendar(testDb, { ...removeRequest, previewToken: removal.previewToken, expectedCurrentCalendarSlotCount: removal.expectedCurrentCalendarSlotCount }), { name: "ConcurrencyConflictError" });
+        await assert.rejects(applyTermCalendar(testDb, { ...removeRequest, previewToken: removal.previewToken, expectedCurrentCalendarSlotCount: removal.expectedCurrentCalendarSlotCount }), { name: "CalendarSlotRemovalError", message: /2027-03-01/ });
         assert.deepEqual(await state(), beforeRefusal);
+        const lectureActivity = await tx.termActivity.findFirstOrThrow({ where: { termId: testTerm.id, adoptedLabel: "Lecture" } });
+        const original = await tx.termActivityRevision.findUniqueOrThrow({ where: { id: lectureActivity.plannedRevisionId! }, include: { meetingDetail: true } });
+        // A superseded planned revision must release its old calendar date.
+        const moved = await tx.termActivityRevision.create({ data: {
+          termActivityId: lectureActivity.id, baseActivityVersionId: original.baseActivityVersionId,
+          revision: 2, title: "Moved lecture",
+          meetingDetail: { create: { calendarSlotId: slots[1].id, startsAt: new Date("2027-03-03T14:00:00Z"), status: "scheduled" } },
+        } });
+        await tx.termActivity.update({ where: { id: lectureActivity.id }, data: { plannedRevisionId: moved.id } });
+        const historicalRemoval = await previewTermCalendar(testDb, removeRequest);
+        assert.equal(historicalRemoval.affectedMeetingCount, 0);
+        await applyTermCalendar(testDb, { ...removeRequest, previewToken: historicalRemoval.previewToken, expectedCurrentCalendarSlotCount: historicalRemoval.expectedCurrentCalendarSlotCount });
+        assert.equal(await tx.calendarSlot.findUnique({ where: { id: slots[0].id } }), null);
+        const historicalDetail = await tx.termMeetingActivityRevision.findUniqueOrThrow({ where: { termActivityRevisionId: original.id } });
+        assert.equal(historicalDetail.calendarSlotId, null);
+        assert.deepEqual(historicalDetail.startsAt, original.meetingDetail!.startsAt);
+        // Delivered cancellation overrides a still-scheduled plan on the next date.
+        const canceled = await tx.termActivityRevision.create({ data: {
+          termActivityId: lectureActivity.id, baseActivityVersionId: original.baseActivityVersionId,
+          revision: 3, title: "Canceled lecture",
+          meetingDetail: { create: { calendarSlotId: slots[1].id, startsAt: new Date("2027-03-03T14:00:00Z"), status: "canceled" } },
+        } });
+        await tx.termActivity.update({ where: { id: lectureActivity.id }, data: { deliveredRevisionId: canceled.id } });
+        const cancelRequest = { ...request, meetingPatterns: [{ ...lecturePattern, startsOn: "2027-03-04", daysOfWeek: ["wednesday"] }] };
+        const cancelRemoval = await previewTermCalendar(testDb, cancelRequest);
+        assert.equal(cancelRemoval.affectedMeetingCount, 0);
+        await applyTermCalendar(testDb, { ...cancelRequest, previewToken: cancelRemoval.previewToken, expectedCurrentCalendarSlotCount: cancelRemoval.expectedCurrentCalendarSlotCount });
+        assert.equal(await tx.calendarSlot.findUnique({ where: { id: slots[1].id } }), null);
+        for (const revision of [moved, canceled]) {
+          const detail = await tx.termMeetingActivityRevision.findUniqueOrThrow({ where: { termActivityRevisionId: revision.id } });
+          assert.equal(detail.calendarSlotId, null);
+          assert.deepEqual(detail.startsAt, new Date("2027-03-03T14:00:00Z"));
+        }
         throw calendarRegressionDone;
       }, { timeout: 30_000 });
     } catch (error) { if (error !== calendarRegressionDone) throw error; }
-    console.log("Postgres calendar regression: Lab-only reapply preserves Lecture slots and both meeting links; referenced-date removal conflicts (HTTP 409) without writes passed");
+    console.log("Postgres calendar regression: Lab-only reapply preserves Lecture slots and both meeting links; referenced-date removal conflicts (HTTP 409) without writes; superseded and delivered-canceled references release slots and preserve startsAt passed");
 
     const dating = await previewMilestoneDating(db, datingInput);
     assert.equal(dating.dates.length, 4);

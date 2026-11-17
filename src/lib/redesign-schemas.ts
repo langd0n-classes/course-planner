@@ -691,6 +691,7 @@ export const termActivityRevisionDetailSchema = z.discriminatedUnion("behaviorFa
 ]);
 
 export const upsertTermActivityMilestoneSchema = z.object({
+  id: z.string().uuid().optional(),
   sourceTemplateId: z.string().uuid().nullable().optional(),
   role: z.enum(["release", "work", "phase_release", "review", "due"]),
   label: z.string().min(1),

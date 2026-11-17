@@ -81,7 +81,7 @@ function calendarFixture() {
     academicCalendarVersion: { findUnique: vi.fn(async () => ({ id: "v" })) },
     academicCalendarPeriod: { findMany: vi.fn(async () => []) },
     termCalendarException: { findMany: vi.fn(async () => []) },
-    termMeetingPattern: { deleteMany: vi.fn() },
+    termMeetingPattern: { findMany: vi.fn(async () => []), deleteMany: vi.fn() },
   });
   value.tx.academicCalendarEvent.findMany.mockResolvedValue([{ id: "e", eventType: "holiday", startsOn: value.term.startDate, endsOn: value.term.endDate, label: "Break" }]);
   Object.assign(value.tx.calendarSlot, { findMany: vi.fn(async () => []), deleteMany: vi.fn(), createMany: vi.fn() });

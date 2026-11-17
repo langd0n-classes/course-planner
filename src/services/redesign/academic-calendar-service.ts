@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { ConcurrencyConflictError, DomainInvariantError, NotFoundError } from "./errors";
+import { effectiveRevision } from "../../lib/term-revision-rules";
+import { CalendarSlotRemovalError, ConcurrencyConflictError, DomainInvariantError, NotFoundError } from "./errors";
 import { assertInstructorInstitution } from "./course-service";
 import { getOwnedCalendarSlotForInstructor, getOwnedTermForInstructor } from "./ownership-service";
 import type { RedesignDb, RedesignTx } from "./types";
@@ -254,7 +255,7 @@ async function computeTermCalendarPreview(tx: RedesignTx, input: PreviewTermCale
     throw new NotFoundError("Academic Calendar version not found");
   }
 
-  const storedPatterns = await tx.termMeetingPattern?.findMany?.({ where: { termId: input.termId } }) ?? [];
+  const storedPatterns = await tx.termMeetingPattern.findMany({ where: { termId: input.termId } });
   const replacedTypes = new Set(input.meetingPatterns.map(pattern => pattern.activityTypeVersionId));
   const normalizedPatterns = normalizeMeetingPatterns([
     ...storedPatterns.filter((pattern: { activityTypeVersionId: string }) => !replacedTypes.has(pattern.activityTypeVersionId))
@@ -493,19 +494,31 @@ async function computeTermCalendarPreview(tx: RedesignTx, input: PreviewTermCale
   const candidateDates = new Set(calendarSlotCandidates.map(candidate => candidate.date));
   const removedIds = existingSlots.filter((slot: { date: Date }) => !candidateDates.has(toIsoDate(slot.date)))
     .map((slot: { id: string }) => slot.id);
-  const [meetingReferences, sessionCount] = removedIds.length ? await Promise.all([
-    tx.termMeetingActivityRevision.findMany({
-      where: { calendarSlotId: { in: removedIds } },
-      select: { termActivityRevision: { select: { termActivityId: true } } },
+  type MeetingDetail = { calendarSlotId: string | null; status: string | null };
+  type MeetingReference = { archivedAt: Date | null; plannedRevision: { meetingDetail: MeetingDetail | null } | null; deliveredRevision: { meetingDetail: MeetingDetail | null } | null };
+  const [activities, sessions]: [MeetingReference[], { calendarSlotId: string | null }[]] = removedIds.length ? await Promise.all([
+    tx.termActivity.findMany({
+      where: { termId: input.termId, archivedAt: null },
+      select: { id: true, archivedAt: true, plannedRevision: { select: { meetingDetail: true } }, deliveredRevision: { select: { meetingDetail: true } } },
     }),
-    tx.session.count({ where: { calendarSlotId: { in: removedIds } } }),
-  ]) : [[], 0];
-  const affectedMeetingCount = new Set(meetingReferences.map((detail: { termActivityRevision: { termActivityId: string } }) => detail.termActivityRevision.termActivityId)).size;
-  const exceptionCount = exceptions.filter((exception: { calendarSlotId: string | null }) => exception.calendarSlotId && removedIds.includes(exception.calendarSlotId)).length;
-  if (affectedMeetingCount || exceptionCount || sessionCount) conflicts.push({
-    code: "referenced_slots_removed", date: null, meetingRoleKey: null,
-    message: `Cannot remove referenced calendar slots: ${affectedMeetingCount} affected meetings, ${exceptionCount} calendar exceptions, ${sessionCount} Sessions.`,
-  });
+    tx.session.findMany({ where: { calendarSlotId: { in: removedIds } }, select: { calendarSlotId: true } }),
+  ]) : [[], []];
+  const meetingSlots = activities.filter(activity => !activity.archivedAt).map(activity =>
+    effectiveRevision({ planned: activity.plannedRevision, delivered: activity.deliveredRevision })?.meetingDetail,
+  ).filter(detail => detail && detail.status !== "canceled" && detail.calendarSlotId && removedIds.includes(detail.calendarSlotId));
+  const affectedMeetingCount = meetingSlots.length;
+  for (const slot of existingSlots.filter((slot: { id: string }) => removedIds.includes(slot.id))) {
+    const meetingCount = meetingSlots.filter(detail => detail?.calendarSlotId === slot.id).length;
+    const exceptionCount = exceptions.filter((exception: { calendarSlotId: string | null }) => exception.calendarSlotId === slot.id).length;
+    const sessionCount = sessions.filter(session => session.calendarSlotId === slot.id).length;
+    if (meetingCount || exceptionCount || sessionCount) {
+      const date = toIsoDate(slot.date);
+      conflicts.push({
+        code: "referenced_slots_removed", date, meetingRoleKey: null,
+        message: `Cannot remove calendar date ${date}: ${meetingCount} affected meetings, ${exceptionCount} calendar exceptions, ${sessionCount} Sessions.`,
+      });
+    }
+  }
   const sortedConflicts = sortConflicts(conflicts);
   const sortedWarnings = sortWarnings(warnings);
   return {
@@ -776,8 +789,8 @@ export async function applyTermCalendar(
       throw new ConcurrencyConflictError("Calendar slot count changed during preview");
     }
 
-    const referenceConflict = preview.conflicts.find(conflict => conflict.code === "referenced_slots_removed");
-    if (referenceConflict) throw new ConcurrencyConflictError(referenceConflict.message);
+    const referenceConflicts = preview.conflicts.filter(conflict => conflict.code === "referenced_slots_removed");
+    if (referenceConflicts.length) throw new CalendarSlotRemovalError(referenceConflicts.map(conflict => conflict.message).join(" "));
 
     await tx.termMeetingPattern.deleteMany({ where: { termId: input.termId, activityTypeVersionId: { in: input.meetingPatterns.map(pattern => pattern.activityTypeVersionId) } } });
     if (input.meetingPatterns.length > 0) {

@@ -585,7 +585,7 @@ export default function TermWorkspacePage({ termId }: Props) {
         <button type="button" className="mt-2 text-sm font-medium text-sky-800 underline" onClick={() => { setDatingAnnouncement(""); setShowDateMilestones(true); }}>Date milestones</button>
         {showDateMilestones ? <>
           <button type="button" className="ml-4 text-sm text-slate-600 underline" onClick={() => setShowDateMilestones(false)}>Close milestone dating</button>
-          <DateMilestonesPanel termId={termId} timeZone={termTimeZone} onApplied={async (count) => { setShowDateMilestones(false); await loadWorkspace(); setDatingAnnouncement(`${count} milestone(s) dated or created.`); }} />
+          <DateMilestonesPanel termId={termId} timeZone={term?.meetingPatterns?.[0]?.timeZone ?? null} onApplied={async (count) => { setShowDateMilestones(false); await loadWorkspace(); setDatingAnnouncement(`${count} milestone(s) dated or created.`); }} />
         </> : null}
       </section> : null}
       {datingFailed ? <p role="status" className="text-sm text-amber-800">Milestone dates could not be checked. <button type="button" className="underline" onClick={() => void loadWorkspace()}>Retry</button></p> : null}
@@ -598,7 +598,7 @@ export default function TermWorkspacePage({ termId }: Props) {
       <ActiveTermDailyDriver
         termActivities={termActivities}
         revisionsByTermActivityId={activityRevisions}
-        today={termTimeZone ? localDate(new Date(), termTimeZone)! : todayIso}
+        today={localDate(new Date(), termTimeZone)!}
         timeZone={termTimeZone}
         calendarSlots={calendarSlots}
         learningModuleLabels={learningModuleLabels}

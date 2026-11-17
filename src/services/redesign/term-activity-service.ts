@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { effectiveRevision, localDate } from "@/lib/term-revision-rules";
 import { keepEffortOverride } from "@/lib/effort";
 import { assertEffort } from "./effort-service";
@@ -307,12 +308,23 @@ async function buildAdoptionCandidates(
   };
 }
 
+function milestoneFields(milestone: TermActivityMilestoneInput) {
+  return [milestone.role, milestone.label, milestone.anchorPolicy, milestone.linkedTermActivityId ?? null,
+    milestone.sourceTemplateId ?? null, milestone.timeZone ?? null,
+    milestone.occursAt ? new Date(milestone.occursAt).toISOString() : null, milestone.notes ?? null, milestone.provenance ?? null];
+}
+
 async function validateSnapshotMilestones(
   tx: RedesignTx,
   input: { termActivityId: string; baseActivityVersionId: string; milestones: TermActivityMilestoneInput[]; inheritedMilestones?: TermActivityMilestoneInput[] },
 ) {
   for (const milestone of input.milestones) {
-    const inherited = input.inheritedMilestones?.some(source => JSON.stringify(source) === JSON.stringify(milestone));
+    const inherited = input.inheritedMilestones?.some(source =>
+      source.linkedTermActivityId === input.termActivityId && (
+        (source.id != null && source.id === milestone.id) ||
+        isDeepStrictEqual(milestoneFields(source), milestoneFields(milestone))
+      ),
+    );
     if (milestone.linkedTermActivityId === input.termActivityId && !inherited) {
       throw new DomainInvariantError("A milestone cannot link to its own Term Activity");
     }
@@ -528,13 +540,13 @@ async function buildRevisionPreview(
   if (draft.detail.behaviorFamily === "meeting" && draft.detail.startsAt &&
       new Date(draft.detail.startsAt).getTime() !== current?.meetingDetail?.startsAt?.getTime()) {
     const patterns = await tx.termMeetingPattern.findMany({ where: { termId: hydrated.termId }, orderBy: [{ startsOn: "asc" }, { id: "asc" }] });
-    const zone = patterns[0]?.timeZone;
+    const zone = patterns.find((pattern: { activityTypeVersionId: string; timeZone: string }) => pattern.activityTypeVersionId === hydrated.activityTypeVersionId)?.timeZone ?? patterns[0]?.timeZone ?? "UTC";
     const date = localDate(draft.detail.startsAt, zone)!;
     const slot = await tx.calendarSlot.findFirst({ where: { termId: hydrated.termId, date: new Date(`${date}T00:00:00Z`) } });
     draft.detail = { ...draft.detail, calendarSlotId: slot?.id ?? null };
   }
   await validateTermActivityDraft(tx, input.instructorId, hydrated, draft);
-  await validateSnapshotMilestones(tx, { termActivityId: hydrated.id, baseActivityVersionId: hydrated.plannedActivityVersionId, milestones: draft.milestones, inheritedMilestones: input.draft.milestones === undefined ? current?.milestones : [] });
+  await validateSnapshotMilestones(tx, { termActivityId: hydrated.id, baseActivityVersionId: hydrated.plannedActivityVersionId, milestones: draft.milestones, inheritedMilestones: current?.milestones ?? [] });
 
   const nextRevision = (hydrated.revisions[0]?.revision ?? 0) + 1;
   const expectedCurrentRevisionId =
@@ -611,7 +623,7 @@ async function buildRevisionPreview(
     termActivity,
     nextRevision,
     draft,
-    inheritedMilestones: input.draft.milestones === undefined ? current?.milestones : [],
+    inheritedMilestones: current?.milestones ?? [],
     expectedCurrentRevisionId,
     proposedRevision,
   };

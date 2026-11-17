@@ -9,7 +9,7 @@ export function assertSeedForceAllowed(databaseUrl: string | undefined, confirma
     throw new Error("Force seed requires a valid PostgreSQL DATABASE_URL with a database name");
   }
   const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
-  if (confirmation === database || (/^(course_planner|cp)/.test(database) && !url.searchParams.has("host") && ["localhost", "127.0.0.1", "[::1]", "::1"].includes(hostname))) return;
+  if (confirmation === database || (!database.includes("prod") && (database === "courseplanner" || /^(course_planner|cp)(_[a-z0-9]+)*$/.test(database) || /^cp[0-9]+(_[a-z0-9]+)*$/.test(database)) && !url.searchParams.has("host") && ["localhost", "127.0.0.1", "[::1]", "::1"].includes(hostname))) return;
   throw new Error(`Refusing force seed on host "${url.hostname}", database "${database}". Set SEED_FORCE_DATABASE to "${database}" to allow deletion.`);
 }
 

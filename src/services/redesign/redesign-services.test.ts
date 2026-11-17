@@ -943,6 +943,7 @@ describe("versioned academic calendar services", () => {
           return [];
         },
       },
+      termMeetingPattern: { findMany: async () => [] },
       calendarSlot: {
         findMany: async () => [],
       },
@@ -1028,8 +1029,8 @@ describe("versioned academic calendar services", () => {
           activityType: { instructorId: "instructor-1" },
         }),
       },
-      termMeetingActivityRevision: { findMany: async () => [] },
-      session: { count: async () => 0 },
+      termActivity: { findMany: async () => [] },
+      session: { findMany: async () => [] },
       calendarSlot: {
         findMany: async () => [
           { id: "existing-slot", termId: "term-1", date: new Date("2027-03-01") },
@@ -1047,6 +1048,7 @@ describe("versioned academic calendar services", () => {
         },
       },
       termMeetingPattern: {
+        findMany: async () => [],
         deleteMany: async () => ({ count: 2 }),
         createMany: async ({ data }: any) => {
           meetingPatternCreates.push(...data);

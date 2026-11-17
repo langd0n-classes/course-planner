@@ -107,7 +107,7 @@ it("can cancel a revision with an inherited legacy self-link but rejects one sup
   const p = await previewTermActivityRevision(f.db, f.input);
   await applyTermActivityRevision(f.db, { ...f.input, previewToken: p.previewToken, expectedCurrentRevisionId: "p" });
   expect(f.tx.termActivityMilestone.create).toHaveBeenCalled();
-  await expect(previewTermActivityRevision(f.db, { ...f.input, draft: { ...f.input.draft, milestones: [f.milestone as any] } })).rejects.toThrow("own Term Activity");
+  await expect(previewTermActivityRevision(f.db, { ...f.input, draft: { ...f.input.draft, milestones: [{ ...f.milestone, label: "New self link" } as any] } })).rejects.toThrow("own Term Activity");
 });
 it("uses the browser zone without a Term pattern", () => {
   const spy = vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockReturnValue({ timeZone: "America/New_York" } as any);
@@ -128,4 +128,25 @@ it.each([true, false])("updates slot identity at the server revision boundary: %
 it("keeps advisory daily-driver fallback for an invalid legacy milestone zone", () => {
   const result = buildTermDailyDriver({ today: "2026-11-17", timeZone: "America/New_York", termActivities: [{ id: "a" }], revisionsByTermActivityId: { a: { planned: { detail: { behaviorFamily: "coursework" }, topicActions: [], milestones: [{ label: "Due", occursAt: "2026-11-17T23:00Z", timeZone: "Invalid/Zone" }] } } } } as any);
   expect(result.nextMilestone?.label).toBe("Due");
+});
+
+it.each(["id", "fields"])("accepts a supplied inherited legacy self-link by %s through preview and apply", async match => {
+  const f = fixture();
+  Object.assign(f.milestone, { id: "legacy", linkedTermActivityId: "a", anchorPolicy: "follow_activity" });
+  const supplied = match === "id" ? { ...f.milestone, label: "Updated existing milestone" } : { role: "due", label: "Due", anchorPolicy: "follow_activity", linkedTermActivityId: "a", occursAt: "2026-11-20T12:00:00.000Z" };
+  const input = { ...f.input, draft: { ...f.input.draft, milestones: [supplied as any] } };
+  const preview = await previewTermActivityRevision(f.db, input);
+  await applyTermActivityRevision(f.db, { ...input, previewToken: preview.previewToken, expectedCurrentRevisionId: "p" });
+  expect(f.tx.termActivityMilestone.create).toHaveBeenCalledOnce();
+});
+it.each(["own", "fallback", "UTC"])("normalizes slots using the %s pattern zone", async mode => {
+  const f = fixture();
+  Object.assign(f.row, { activityTypeVersionId: "lab" });
+  f.tx.termMeetingPattern = { findMany: async () => mode === "UTC" ? [] : [
+    { activityTypeVersionId: "lecture", timeZone: "America/New_York" },
+    ...(mode === "own" ? [{ activityTypeVersionId: "lab", timeZone: "Asia/Tokyo" }] : []),
+  ] };
+  f.tx.calendarSlot = { findFirst: vi.fn(async () => null) };
+  await previewTermActivityRevision(f.db, { ...f.input, draft: { title: "Move", detail: { behaviorFamily: "meeting", startsAt: new Date("2026-11-19T01:00Z") } } });
+  expect(f.tx.calendarSlot.findFirst).toHaveBeenCalledWith({ where: { termId: "t", date: new Date(mode === "fallback" ? "2026-11-18T00:00Z" : "2026-11-19T00:00Z") } });
 });

@@ -1008,6 +1008,7 @@ export type GetTermActivityResponse = { termActivity: TermActivityDto };
 // milestone history is never patched in place.
 
 export type UpsertTermActivityMilestoneRequest = {
+  id?: string;
   sourceTemplateId?: Id | null;
   role: MilestoneRole;
   label: string;

@@ -21,3 +21,11 @@ export class ConcurrencyConflictError extends Error {
 
 export class NotFoundError extends DomainInvariantError {}
 export class DuplicateLabelError extends DomainInvariantError {}
+
+/** Calendar dates still used by effective meetings, exceptions, or Sessions. */
+export class CalendarSlotRemovalError extends DomainInvariantError {
+  constructor(message: string) {
+    super(message);
+    this.name = "CalendarSlotRemovalError";
+  }
+}
