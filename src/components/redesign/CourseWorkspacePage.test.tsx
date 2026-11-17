@@ -149,7 +149,6 @@ function buildCourseWorkspaceBackend(options?: {
       const topic: TopicDto = {
         id: `topic-${topics.length + 1}`,
         courseId: course.id,
-        learningModuleId: null,
         stableCode,
         currentVersionId: `topic-version-${topics.length + 1}`,
         archivedAt: null,
@@ -179,7 +178,6 @@ function buildCourseWorkspaceBackend(options?: {
       entry.topic = {
         ...entry.topic,
         stableCode: input.stableCode ?? entry.topic.stableCode,
-        learningModuleId: entry.topic.learningModuleId,
       };
       return { topic: entry.topic, currentVersion: entry.currentVersion };
     },
@@ -326,7 +324,7 @@ describe("CourseWorkspacePage", () => {
   it("opens the secondary browser when returning from a Topic page", async () => {
     window.history.replaceState(null, "", "/courses/course-1#topics");
     const { backend } = buildCourseWorkspaceBackend({ topics: [{
-      topic: { id: "t1", courseId: "course-1", learningModuleId: "lm-legacy", stableCode: "T1", currentVersionId: "tv1", archivedAt: null },
+      topic: { id: "t1", courseId: "course-1", stableCode: "T1", currentVersionId: "tv1", archivedAt: null },
       currentVersion: { id: "tv1", topicId: "t1", revision: 1, title: "Probability", category: "Concept", description: null, changeSummary: null, publishedAt: null },
     }] });
     setMockBackend(backend);
@@ -492,7 +490,6 @@ describe("CourseWorkspacePage", () => {
           topic: {
             id: "topic-1",
             courseId: "course-1",
-            learningModuleId: null,
             stableCode: "topic-selecting",
             currentVersionId: "topic-version-1",
             archivedAt: null,
@@ -730,10 +727,10 @@ describe("workspace version editors", () => {
   it("keeps the selected Topic open after a description-only revision", async () => {
     const original: TopicVersionDto = { id: "tv1", topicId: "t1", revision: 1, title: "Original topic", category: "Concept", description: "Old description", changeSummary: null, publishedAt: "2026-01-01T00:00:00Z" };
     const { backend, createTopicVersion, updateTopic } = buildCourseWorkspaceBackend({ topics: [{
-      topic: { id: "t0", courseId: "course-1", learningModuleId: null, stableCode: "T0", currentVersionId: "tv0", archivedAt: null },
+      topic: { id: "t0", courseId: "course-1", stableCode: "T0", currentVersionId: "tv0", archivedAt: null },
       currentVersion: { ...original, id: "tv0", topicId: "t0", title: "First topic", description: "First description" },
     }, {
-      topic: { id: "t1", courseId: "course-1", learningModuleId: null, stableCode: "T1", currentVersionId: "tv1", archivedAt: null }, currentVersion: original,
+      topic: { id: "t1", courseId: "course-1", stableCode: "T1", currentVersionId: "tv1", archivedAt: null }, currentVersion: original,
     }] });
     setMockBackend(backend);
     render(<TopicWorkspacePage courseId="course-1" topicId="t1" />);

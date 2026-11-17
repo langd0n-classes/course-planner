@@ -22,7 +22,7 @@ type ExemplarSnapshot = {
   }>;
   topics: Array<{
     stableCode: string;
-    learningModuleCode: string;
+    learningModuleCode?: string | null;
     title: string;
     category?: string | null;
     description?: string | null;
@@ -681,7 +681,6 @@ async function applyBatched(
       data: newTopics.map(({ id, topic }) => ({
         id,
         courseId: input.courseId,
-        learningModuleId: null,
         stableCode: topic.stableCode,
       })),
     });

@@ -144,6 +144,18 @@ describe("ExemplarImportService", () => {
     );
   });
 
+  it("imports and saves Topics with no learningModuleCode", async () => {
+    const snapshot = { ...structuredClone(genericDemoExemplarSnapshot),
+      topics: genericDemoExemplarSnapshot.topics.map(({ stableCode, title }) => ({ stableCode, title })),
+    };
+    const tx = createMemoryTx();
+    await new ExemplarImportService().apply(transactionalDb(tx), {
+      instructorId: "instructor-1", courseId: "course-1", snapshot,
+    });
+    expect(tx.__state.topics).toHaveLength(snapshot.topics.length);
+    expect(tx.__state.topics.every((row: any) => !("learningModuleId" in row))).toBe(true);
+  });
+
   it("excludes grading fields before preview or persistence", async () => {
     const service = new ExemplarImportService();
     const snapshot: any = structuredClone(genericDemoExemplarSnapshot);
@@ -348,7 +360,7 @@ describe("ExemplarImportService", () => {
       }
       expect(tx.__state.learningModuleVersionActivities).toHaveLength(size * 3);
       expect(
-        tx.__state.topics.every((row: any) => row.learningModuleId === null),
+        tx.__state.topics.every((row: any) => !("learningModuleId" in row)),
       ).toBe(true);
       callCounts.push(calls);
     }

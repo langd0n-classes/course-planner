@@ -229,7 +229,6 @@ type LearningModuleVersionRow = {
 type TopicRow = {
   id: string;
   courseId: string;
-  learningModuleId: string | null;
   stableCode: string;
   currentVersionId: string | null;
   archivedAt: Date | null;
@@ -720,7 +719,6 @@ export function toTopicDto(topic: TopicRow): TopicDto {
   return {
     id: topic.id,
     courseId: topic.courseId,
-    learningModuleId: topic.learningModuleId,
     stableCode: topic.stableCode,
     currentVersionId: topic.currentVersionId,
     archivedAt: toIsoDateTimeNullable(topic.archivedAt),

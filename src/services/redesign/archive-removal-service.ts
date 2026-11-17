@@ -162,19 +162,24 @@ async function previewLearningModuleHardRemoval(
   const learningModule = await tx.learningModule.findUnique({ where: { id: learningModuleId } });
   if (!learningModule) throw new DomainInvariantError("Learning Module not found");
 
-  const [topicCount, termOfferingCount, versionArtifactCount] = await Promise.all([
-    tx.topic.count({ where: { learningModuleId } }),
+  const [topicLinks, termOfferingCount, versionArtifactCount] = await Promise.all([
+    tx.learningModuleVersionTopic.findMany({
+      where: { learningModuleVersion: { learningModuleId } },
+      select: { topicVersion: { select: { topicId: true } } },
+    }),
     tx.termLearningModule.count({ where: { learningModuleId } }),
     tx.artifact.count({
       where: { learningModuleVersion: { learningModuleId } },
     }),
   ]);
 
+  const topicCount = new Set(topicLinks.map((link: { topicVersion: { topicId: string } }) => link.topicVersion.topicId)).size;
+
   return finalizePreview("learning_module", learningModuleId, [
     blocker(
       "topics_assigned",
       topicCount,
-      "Assigned Topics must be detached or removed explicitly before hard removal.",
+      `${topicCount} Topic${topicCount === 1 ? "" : "s"} linked in Learning Module versions; remove those links before hard removal.`,
     ),
     blocker(
       "term_adoptions_exist",

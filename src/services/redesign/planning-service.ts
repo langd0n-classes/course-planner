@@ -59,7 +59,6 @@ type TopicVersionWithTopic = {
   topic: {
     id: string;
     courseId: string;
-    learningModuleId: string | null;
   };
 };
 
@@ -260,7 +259,7 @@ async function loadTopicVersionForCourse(
     select: {
       id: true,
       topicId: true,
-      topic: { select: { id: true, courseId: true, learningModuleId: true } },
+      topic: { select: { id: true, courseId: true } },
     },
   });
   if (!topicVersion) throw new DomainInvariantError("Topic version not found");
@@ -388,7 +387,7 @@ async function loadPlanningSnapshot(tx: RedesignTx, termId: string) {
                     select: {
                       id: true,
                       topicId: true,
-                      topic: { select: { learningModuleId: true, courseId: true } },
+                      topic: { select: { courseId: true } },
                     },
                   },
                 },
@@ -404,7 +403,7 @@ async function loadPlanningSnapshot(tx: RedesignTx, termId: string) {
                     select: {
                       id: true,
                       topicId: true,
-                      topic: { select: { learningModuleId: true, courseId: true } },
+                      topic: { select: { courseId: true } },
                     },
                   },
                 },
@@ -429,7 +428,7 @@ async function loadPlanningSnapshot(tx: RedesignTx, termId: string) {
                 select: {
                   id: true,
                   topicId: true,
-                  topic: { select: { learningModuleId: true, courseId: true } },
+                  topic: { select: { courseId: true } },
                 },
               },
             },
@@ -445,7 +444,7 @@ async function loadPlanningSnapshot(tx: RedesignTx, termId: string) {
                 select: {
                   id: true,
                   topicId: true,
-                  topic: { select: { learningModuleId: true, courseId: true } },
+                  topic: { select: { courseId: true } },
                 },
               },
             },
@@ -575,30 +574,6 @@ function findPlanningGaps(snapshot: PlanningSnapshot): PlanningIssueDto[] {
         { calendarSlotId: slot.id },
       ),
     );
-}
-
-function findOutOfOfferingWarnings(snapshot: PlanningSnapshot): PlanningIssueDto[] {
-  const warnings: PlanningIssueDto[] = [];
-  for (const session of snapshot.term.sessions as any[]) {
-    if (session.archivedAt || !session.termLearningModule) continue;
-    for (const coverage of session.coverages as any[]) {
-      const topicLearningModuleId = coverage.topicVersion.topic.learningModuleId;
-      if (topicLearningModuleId && topicLearningModuleId !== session.termLearningModule.learningModuleId) {
-        warnings.push(
-          buildCoverageIssue(
-            "coverage_out_of_offering",
-            "warning",
-            "Coverage is scheduled in a different Learning Module than the Topic belongs to",
-            {
-              topicVersionId: coverage.topicVersionId,
-              sessionId: session.id,
-            },
-          ),
-        );
-      }
-    }
-  }
-  return warnings;
 }
 
 function simulateWhatIfResponse(snapshot: PlanningSnapshot, sessionId: string): SessionWhatIfResponse {
@@ -1133,7 +1108,6 @@ export async function computeTermImpact(db: RedesignDb, instructorId: string, te
         );
       }
     }
-    issues.push(...findOutOfOfferingWarnings(snapshot));
     issues.push(...findPlanningGaps(snapshot));
 
     return {

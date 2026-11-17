@@ -5,7 +5,6 @@ import {
   buildTopicFlow,
   buildTermCalendarTimeline,
   buildTermDailyDriver,
-  buildTopicBrowserBuckets,
   compareLearningModuleVersions,
   deriveTermPlanningGaps,
   suggestTopicStableCode,
@@ -90,84 +89,6 @@ describe("activity board placement", () => {
     const columns = buildActivityBoardColumns({ learningModules: [{ id: "lm-1", courseId: "c", stableCode: "F", currentVersionId: "lmv-1", archivedAt: null }], currentVersionsByLearningModuleId: new Map([["lm-1", { id: "lmv-1", learningModuleId: "lm-1", revision: 1, title: "Foundations", description: null, studentDescription: null, learningObjectives: [], notes: null, defaultSequence: 1, changeSummary: null, publishedAt: null, topics: [], activities: [{ activityVersionId: "av-1", sequence: 1, notes: null }] }]]), activities: [{ id: "a-1", courseId: "c", stableCode: "A1", currentVersionId: "av-1", archivedAt: null }], currentVersionsByActivityId: new Map([["a-1", version]]) });
     expect(columns.find((column) => column.key === "lm-1")?.activityVersionIds).toEqual(["av-1"]);
     expect(buildTopicFlow({ columns, activities: [{ id: "a-1", courseId: "c", stableCode: "A1", currentVersionId: "av-1", archivedAt: null }], versionsByActivityId: new Map([["a-1", version]]), actionsByActivityVersionId: new Map([["av-1", [{ id: "action-1", activityVersionId: "av-1", topicVersionId: "tv-1", action: "introduced", notes: null, provenance: null, siblings: [] }]]]) }).get("tv-1")?.[0]?.columnKey).toBe("lm-1");
-  });
-});
-
-describe("buildTopicBrowserBuckets", () => {
-  it("keeps an explicit Unassigned bucket and preserves empty modules", () => {
-    const buckets = buildTopicBrowserBuckets({
-      learningModules: [
-        { id: "lm-1", courseId: "course-1", stableCode: "PROB", currentVersionId: "lmv-1", archivedAt: null },
-        { id: "lm-2", courseId: "course-1", stableCode: "WRAN", currentVersionId: "lmv-2", archivedAt: null },
-      ],
-      currentVersionsByLearningModuleId: new Map([
-        [
-          "lm-1",
-          {
-            id: "lmv-1",
-            learningModuleId: "lm-1",
-            revision: 1,
-            title: "Probability Foundations",
-            description: null,
-            studentDescription: null,
-            learningObjectives: [],
-            notes: null,
-            defaultSequence: 1,
-            changeSummary: null,
-            publishedAt: null,
-            topics: [],
-          },
-        ],
-        [
-          "lm-2",
-          {
-            id: "lmv-2",
-            learningModuleId: "lm-2",
-            revision: 1,
-            title: "Data Wrangling",
-            description: null,
-            studentDescription: null,
-            learningObjectives: [],
-            notes: null,
-            defaultSequence: 2,
-            changeSummary: null,
-            publishedAt: null,
-            topics: [],
-          },
-        ],
-      ]),
-      topics: [
-        {
-          id: "topic-1",
-          courseId: "course-1",
-          learningModuleId: null,
-          stableCode: "SQL1",
-          currentVersionId: "tv-1",
-          archivedAt: null,
-        },
-      ],
-      currentVersionsByTopicId: new Map([
-        [
-          "topic-1",
-          {
-            id: "tv-1",
-            topicId: "topic-1",
-            revision: 1,
-            title: "Selecting and filtering",
-            category: "SQL",
-            description: null,
-            changeSummary: null,
-            publishedAt: null,
-          },
-        ],
-      ]),
-      prerequisites: [],
-    });
-
-    expect(buckets[0].label).toBe("Unassigned Topics");
-    expect(buckets[0].topics).toHaveLength(1);
-    expect(buckets[2].label).toBe("Data Wrangling");
-    expect(buckets[2].topics).toHaveLength(0);
   });
 });
 

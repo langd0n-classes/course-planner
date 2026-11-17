@@ -388,7 +388,6 @@ export type PublishLearningModuleVersionResponse = { version: LearningModuleVers
 export type TopicDto = {
   id: Id;
   courseId: Id;
-  learningModuleId: Id | null;
   stableCode: string;
   currentVersionId: Id | null;
   archivedAt: IsoDateTime | null;
@@ -413,7 +412,6 @@ export type UpsertTopicVersionRequest = {
 };
 export type CreateTopicRequest = {
   stableCode: string;
-  learningModuleId?: Id | null;
   createdByInstructorId: Id;
   version: UpsertTopicVersionRequest;
 };
@@ -422,7 +420,6 @@ export type CreateTopicResponse = { topic: TopicDto; currentVersion: TopicVersio
 export type GetTopicResponse = { topic: TopicDto; currentVersion: TopicVersionDto | null };
 export type UpdateTopicRequest = {
   stableCode?: string;
-  learningModuleId?: Id | null;
   archivedAt?: IsoDateTime | null;
 };
 export type UpdateTopicResponse = {
