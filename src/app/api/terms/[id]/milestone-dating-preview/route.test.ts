@@ -1,3 +1,4 @@
+import { NotFoundError } from "@/services/redesign/errors";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
@@ -82,7 +83,7 @@ describe("milestone dating preview route", () => {
     ["Term not found", 404],
     ["Closed Terms are read-only", 400],
   ])("maps %s", async (message, status) => {
-    service.mockRejectedValue(new DomainInvariantError(message as string));
+    service.mockRejectedValue((status === 404 ? new NotFoundError(message as string) : new DomainInvariantError(message as string)));
     expect((await call()).status).toBe(status);
   });
 });

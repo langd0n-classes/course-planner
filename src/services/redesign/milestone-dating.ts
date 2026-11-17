@@ -1,4 +1,5 @@
-import { localDate, localInstant } from "./meeting-placement";
+import { localInstant } from "./meeting-placement";
+import { localDate } from "@/lib/term-revision-rules";
 import type {
   MilestoneTemplateDraft,
   TermActivityMilestoneInput,

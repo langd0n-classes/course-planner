@@ -580,6 +580,7 @@ const samplePromotionApply: PromoteDeliveryApplyRequest = {
 };
 
 const sampleCalendarPreview: TermCalendarPreviewResponse = {
+  affectedMeetingCount: 0,
   kind: "preview",
   previewToken: "preview-token-4",
   expectedCurrentCalendarSlotCount: 0,

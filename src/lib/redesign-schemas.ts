@@ -691,6 +691,7 @@ export const termActivityRevisionDetailSchema = z.discriminatedUnion("behaviorFa
 ]);
 
 export const upsertTermActivityMilestoneSchema = z.object({
+  id: z.string().uuid().optional(),
   sourceTemplateId: z.string().uuid().nullable().optional(),
   role: z.enum(["release", "work", "phase_release", "review", "due"]),
   label: z.string().min(1),
@@ -715,7 +716,7 @@ export const upsertTermActivityMilestoneSchema = z.object({
     }
     return true;
   },
-  { message: "follow_activity anchors require a linkedTermActivityId" }
+  { message: "A milestone that follows an Activity needs a linked Term Activity in the same Term" }
 ).refine(
   (data) => {
     if (data.anchorPolicy === "standalone") {
@@ -723,7 +724,7 @@ export const upsertTermActivityMilestoneSchema = z.object({
     }
     return true;
   },
-  { message: "standalone anchors require an occursAt instant" }
+  { message: "A standalone milestone needs a date" }
 ).refine(
   (data) => {
     if (data.anchorPolicy === "fixed_instant") {
@@ -731,7 +732,7 @@ export const upsertTermActivityMilestoneSchema = z.object({
     }
     return true;
   },
-  { message: "fixed_instant anchors require an occursAt instant" }
+  { message: "A fixed milestone needs a date" }
 );
 
 export const termActivityRevisionPreviewRequestSchema = z.object({

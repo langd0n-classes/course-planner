@@ -1,3 +1,4 @@
+import { dateOnly, isUndatedMeeting, localDate } from "@/lib/term-revision-rules";
 import { DomainInvariantError } from "./errors";
 
 export type DefaultMeetingTime = {
@@ -12,12 +13,14 @@ type Meeting = {
   ordinal: number | null;
   createdAt: Date | string;
   plannedRevisionId: string | null;
+  deliveredRevisionId?: string | null;
   calendarSlotId: string | null;
   startsAt: Date | string | null;
   status: string | null;
   defaultDurationMinutes: number | null;
 };
 export type MeetingPlacementInput = {
+  now?: () => Date;
   meetings: Meeting[];
   slots: { id: string; date: string; slotType: string }[];
   patterns: (DefaultMeetingTime & {
@@ -38,11 +41,6 @@ const DAYS = [
   "friday",
   "saturday",
 ];
-const dateOnly = (date: Date | string) =>
-  typeof date === "string"
-    ? date.slice(0, 10)
-    : date.toISOString().slice(0, 10);
-
 const formatters = new Map<string, Intl.DateTimeFormat>();
 function formatter(timeZone: string) {
   const cached = formatters.get(timeZone);
@@ -70,10 +68,6 @@ function localParts(instant: Date, timeZone: string) {
       .formatToParts(instant)
       .map((p) => [p.type, p.value]),
   );
-}
-export function localDate(instant: Date | string, timeZone: string) {
-  const p = localParts(new Date(instant), timeZone);
-  return `${p.year}-${p.month}-${p.day}`;
 }
 function validateTime(time: DefaultMeetingTime) {
   formatter(time.timeZone);
@@ -117,6 +111,7 @@ export function localInstant(date: string, time: string, timeZone: string) {
 }
 
 export function planMeetingPlacement(input: MeetingPlacementInput) {
+  const now = (input.now ?? (() => new Date()))();
   input.patterns.forEach(validateTime);
   if (input.defaultMeetingTime) validateTime(input.defaultMeetingTime);
   const placements: {
@@ -160,12 +155,13 @@ export function planMeetingPlacement(input: MeetingPlacementInput) {
       : input.defaultMeetingTime;
   };
   const holds = (meeting: Meeting, slot: (typeof slots)[number]) => {
-    if (meeting.calendarSlotId === slot.id) return true;
     const time = timeFor(meeting.activityTypeVersionId, slot.date);
     // A dated meeting outside its current pattern still occupies its local date.
     const zones = time
       ? [time.timeZone]
       : patternsFor(meeting.activityTypeVersionId).map((p) => p.timeZone);
+    if (meeting.calendarSlotId === slot.id && (!meeting.startsAt ||
+      localDate(meeting.startsAt, zones[0]) === slot.date)) return true;
     return Boolean(
       meeting.startsAt &&
       zones.some((zone) => localDate(meeting.startsAt!, zone) === slot.date),
@@ -176,7 +172,7 @@ export function planMeetingPlacement(input: MeetingPlacementInput) {
   );
   const groups = new Map<string, Meeting[]>();
   for (const meeting of meetings.filter(
-    (m) => !m.startsAt && !m.calendarSlotId,
+    (m) => isUndatedMeeting({ delivered: m.deliveredRevisionId, planned: m }),
   )) {
     if (meeting.termLearningModuleSequence === null) {
       unplacedMeetings.push({
@@ -207,6 +203,7 @@ export function planMeetingPlacement(input: MeetingPlacementInput) {
     const eligible = slots.filter(
       (s) =>
         timeFor(type, s.date) &&
+        s.date >= localDate(now, timeFor(type, s.date)!.timeZone)! &&
         !canceled(s.date, type) &&
         !dated.some((m) => m.activityTypeVersionId === type && holds(m, s)),
     );

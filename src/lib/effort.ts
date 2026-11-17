@@ -25,7 +25,7 @@ export function validateEffort(
   return { minMinutes: low, maxMinutes: high };
 }
 
-export function formatMinutes(minutes: number): string {
+function formatMinutes(minutes: number): string {
   if (!Number.isInteger(minutes) || minutes < 0)
     throw new Error("Minutes must be a nonnegative integer.");
   const hours = Math.floor(minutes / 60);

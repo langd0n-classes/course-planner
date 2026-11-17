@@ -1,4 +1,5 @@
 "use client";
+import { effectiveRevision } from "@/lib/term-revision-rules";
 import { useEffect, useState } from "react";
 import type {
   CourseEffortSizeDto,
@@ -52,7 +53,7 @@ export default function TermActivityEffortList({
       ) : null}
       {activities.map((activity) => {
         const pins = revisions[activity.id];
-        const revision = pins?.delivered ?? pins?.planned;
+        const revision = effectiveRevision(pins);
         if (!revision || revision.detail.behaviorFamily === "meeting")
           return null;
         const range =

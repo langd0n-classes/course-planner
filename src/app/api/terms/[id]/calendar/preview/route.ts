@@ -1,13 +1,13 @@
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
-import { badRequest, notFound, ok, unauthorized } from "@/lib/api-helpers";
+import { badRequest, conflict, notFound, ok, unauthorized } from "@/lib/api-helpers";
 import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 import {
   toCalendarMaterializationConflictDto,
   toCalendarSlotCandidateDto,
 } from "@/lib/redesign-serializers";
 import { termCalendarPreviewRequestSchema } from "@/lib/redesign-schemas";
-import { DomainInvariantError, NotFoundError, previewTermCalendar } from "@/services/redesign";
+import { CalendarSlotRemovalError, DomainInvariantError, NotFoundError, previewTermCalendar } from "@/services/redesign";
 import type { TermCalendarPreviewRequest, TermCalendarPreviewResponse } from "@/lib/redesign-contract";
 
 export type { TermCalendarPreviewRequest, TermCalendarPreviewResponse };
@@ -30,6 +30,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
     return ok({
       kind: "preview",
+      affectedMeetingCount: preview.affectedMeetingCount,
       previewToken: preview.previewToken,
       expectedCurrentCalendarSlotCount: preview.expectedCurrentCalendarSlotCount,
       calendarSlotCandidates: preview.calendarSlotCandidates.map(toCalendarSlotCandidateDto),
@@ -37,6 +38,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       warnings: preview.warnings,
     } satisfies TermCalendarPreviewResponse);
   } catch (error) {
+    if (error instanceof CalendarSlotRemovalError) return conflict(error.message);
     if (error instanceof NotFoundError) return notFound(error.message);
     if (error instanceof DomainInvariantError) return notFound(error.message);
     throw error;

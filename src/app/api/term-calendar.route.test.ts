@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
-import { ConcurrencyConflictError, DomainInvariantError, NotFoundError } from "@/services/redesign";
+import { CalendarSlotRemovalError, ConcurrencyConflictError, DomainInvariantError, NotFoundError } from "@/services/redesign";
 
 const prismaMock = {
   $transaction: vi.fn(),
@@ -263,6 +263,7 @@ describe.each(["preview", "apply"] as const)("calendar %s error classes", (mode)
     [new NotFoundError("Term not found"), 404],
     [new NotFoundError("Missing resource"), 404],
     [new DomainInvariantError("Invalid meeting pattern"), 404],
+    [new CalendarSlotRemovalError("Cannot remove calendar date 2027-03-01: 1 affected meetings"), 409],
   ])("preserves status for %s", async (error, status) => {
     authMock.mockResolvedValue(instructor());
     serviceMocks[mode === "apply" ? "applyTermCalendar" : "previewTermCalendar"].mockRejectedValue(error);
@@ -271,5 +272,6 @@ describe.each(["preview", "apply"] as const)("calendar %s error classes", (mode)
       method: "POST", body: JSON.stringify({ meetingPatterns: [], previewToken: "token", expectedCurrentCalendarSlotCount: 0 }),
     }), { params: Promise.resolve({ id: "term" }) });
     expect(response.status).toBe(status);
+    if (error instanceof CalendarSlotRemovalError) expect(JSON.stringify(await response.json())).toContain("2027-03-01");
   });
 });

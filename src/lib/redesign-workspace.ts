@@ -1,3 +1,4 @@
+import { effectiveRevision, localDate } from "./term-revision-rules";
 import type {
   ActivityDto,
   ActivityVersionDto,
@@ -61,17 +62,6 @@ export type TermDailyDriver = {
   totalMeetings: number;
 };
 
-function calendarDate(value: string) {
-  // today arrives as a local date; a value near UTC midnight can fall on a different UTC date.
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-  const instant = new Date(value);
-  if (Number.isNaN(instant.getTime())) return value.slice(0, 10);
-  const year = instant.getFullYear();
-  const month = String(instant.getMonth() + 1).padStart(2, "0");
-  const day = String(instant.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 /** Builds the small, time-oriented active-Term view from immutable revisions. */
 export function buildTermDailyDriver(args: {
   termActivities: TermActivityDto[];
@@ -83,16 +73,25 @@ export function buildTermDailyDriver(args: {
     }
   >;
   today: string;
+  timeZone?: string | null;
 }): TermDailyDriver {
+  const timeZone = args.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const milestoneDate = (value: string, zone: string | null) => {
+    try { return localDate(value, zone ?? timeZone); }
+    catch (error) {
+      if (!(error instanceof RangeError)) throw error;
+      return localDate(value, timeZone);
+    }
+  };
   const effective = args.termActivities.flatMap((activity) => {
     const revisions = args.revisionsByTermActivityId[activity.id];
-    const revision = revisions?.delivered ?? revisions?.planned;
-    return revision
+    const revision = effectiveRevision(revisions);
+    return revision && !activity.archivedAt
       ? [{ activity, revision, planned: revisions?.planned ?? null }]
       : [];
   });
   const meetings = effective
-    .filter(({ revision }) => revision.detail.behaviorFamily === "meeting")
+    .filter(({ activity, revision }) => revision.detail.behaviorFamily === "meeting" && !/^(canceled|cancelled)$/i.test(revision.detail.status ?? "") && !/^(canceled|cancelled)$/i.test(activity.lifecycleState ?? ""))
     .sort((left, right) => {
       if (
         left.revision.detail.behaviorFamily !== "meeting" ||
@@ -108,7 +107,7 @@ export function buildTermDailyDriver(args: {
       if (revision.detail.behaviorFamily !== "meeting") return false;
       return (
         Boolean(revision.detail.startsAt) &&
-        calendarDate(revision.detail.startsAt!) >= calendarDate(args.today) &&
+        localDate(revision.detail.startsAt!, timeZone)! >= localDate(args.today, timeZone)! &&
         revision.detail.status !== "canceled"
       );
     })
@@ -122,7 +121,7 @@ export function buildTermDailyDriver(args: {
         .map((milestone, milestoneIndex) => ({ milestone, milestoneIndex }))
         .filter(
           ({ milestone }) =>
-            milestone.occursAt && milestone.occursAt.slice(0, 10) >= args.today,
+            milestone.occursAt && milestoneDate(milestone.occursAt, milestone.timeZone)! >= localDate(args.today, timeZone)!,
         )
         .map(({ milestone, milestoneIndex }) => ({
           activity,

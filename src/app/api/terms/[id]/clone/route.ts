@@ -1,3 +1,4 @@
+import { NotFoundError } from "@/services/redesign/errors";
 import { ConcurrencyConflictError } from "@/services/redesign/errors";
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   } catch (error) {
     if (error instanceof ConcurrencyConflictError) return conflict(error.message);
     if (error instanceof DomainInvariantError) {
-      return error.message === "Source Term not found" ? notFound(error.message) : badRequest(error.message);
+      return error instanceof NotFoundError ? notFound(error.message) : badRequest(error.message);
     }
     throw error;
   }

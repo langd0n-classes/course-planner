@@ -8,8 +8,8 @@ const { applyTermActivityAdoptionMock } = vi.hoisted(() => ({
 
 vi.mock("@/lib/prisma", () => ({ __esModule: true, default: {} }));
 vi.mock("@/lib/redesign-auth", () => ({ getAuthenticatedInstructor: vi.fn() }));
-vi.mock("@/services/redesign", () => ({
-  DomainInvariantError: class DomainInvariantError extends Error {},
+vi.mock("@/services/redesign", async () => ({
+  ...await vi.importActual<typeof import("@/services/redesign/errors")>("@/services/redesign/errors"),
   ConcurrencyConflictError: class ConcurrencyConflictError extends Error {},
   applyTermActivityAdoption: applyTermActivityAdoptionMock,
 }));

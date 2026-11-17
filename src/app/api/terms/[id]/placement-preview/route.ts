@@ -1,3 +1,4 @@
+import { NotFoundError } from "@/services/redesign/errors";
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import {
@@ -50,9 +51,7 @@ export async function POST(
     if (error instanceof ConcurrencyConflictError)
       return conflict(error.message);
     if (error instanceof DomainInvariantError)
-      return error.message.endsWith("not found")
-        ? notFound(error.message)
-        : badRequest(error.message);
+      return error instanceof NotFoundError ? notFound(error.message) : badRequest(error.message);
     throw error;
   }
 }

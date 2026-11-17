@@ -1,6 +1,7 @@
+import { ConcurrencyConflictError, NotFoundError } from "@/services/redesign/errors";
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
-import { badRequest, created, notFound, ok, unauthorized } from "@/lib/api-helpers";
+import { conflict, badRequest, created, notFound, ok, unauthorized } from "@/lib/api-helpers";
 import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 import { createSessionSchema } from "@/lib/redesign-schemas";
 import { toSessionDto } from "@/lib/redesign-serializers";
@@ -22,8 +23,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     const sessions = await listSessionsForTerm(prisma, instructor.id, id);
     return ok({ sessions: sessions.map(toSessionDto) } satisfies ListTermSessionsResponse);
   } catch (error) {
+    if (error instanceof ConcurrencyConflictError) return conflict(error.message);
     if (error instanceof DomainInvariantError) {
-      return error.message === "Term not found" ? notFound(error.message) : badRequest(error.message);
+      return error instanceof NotFoundError ? notFound(error.message) : badRequest(error.message);
     }
     throw error;
   }
@@ -50,10 +52,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
     return created({ session: toSessionDto(session) } satisfies CreateTermSessionResponse);
   } catch (error) {
+    if (error instanceof ConcurrencyConflictError) return conflict(error.message);
     if (error instanceof DomainInvariantError) {
-      return error.message === "Term not found" || error.message === "Term Learning Module not found"
-        ? notFound(error.message)
-        : badRequest(error.message);
+      return error instanceof NotFoundError ? notFound(error.message) : badRequest(error.message);
     }
     throw error;
   }

@@ -1,5 +1,6 @@
 "use client";
 
+import { effectiveRevision, isUndatedMeeting, localDate } from "@/lib/term-revision-rules";
 import Link from "next/link";
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type FormEvent } from "react";
 import { countMilestoneDatingChanges } from "@/lib/milestone-dating-count";
@@ -156,10 +157,10 @@ export default function TermWorkspacePage({ termId }: Props) {
   const transitionButtonRef = useRef<HTMLButtonElement | null>(null);
   const undatedMeetings = termActivities.filter(activity => {
     const revision = activityRevisions[activity.id]?.planned;
-    return !activity.archivedAt && revision?.detail.behaviorFamily === "meeting" && revision.detail.status !== "canceled" && !revision.detail.startsAt && !revision.detail.calendarSlotId;
+    return !activity.archivedAt && revision?.detail.behaviorFamily === "meeting" && revision.detail.status !== "canceled" && isUndatedMeeting({ delivered: activityRevisions[activity.id]?.delivered, planned: revision.detail });
   });
   const todayIso = useMemo(() => getTodayIsoDate(), []);
-  const termTimeZone = term?.meetingPatterns?.[0]?.timeZone ?? null;
+  const termTimeZone = term?.meetingPatterns?.[0]?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   const orderResult = useMemo(() => checkTermOrder({
     termActivities, revisionsByTermActivityId: activityRevisions, calendarSlots,
     topicVersions: [...topicVersionsById.values()], prerequisites,
@@ -168,7 +169,7 @@ export default function TermWorkspacePage({ termId }: Props) {
   }), [termActivities, activityRevisions, calendarSlots, topicVersionsById, prerequisites, termTimeZone]);
   const hasDatedMeetings = termActivities.some(activity => {
     const revisions = activityRevisions[activity.id];
-    const revision = revisions?.delivered ?? revisions?.planned;
+    const revision = effectiveRevision(revisions);
     return !activity.archivedAt && revision?.detail.behaviorFamily === "meeting" && Boolean(revision.detail.startsAt || revision.detail.calendarSlotId);
   });
   const datingCount = datingPreview ? countMilestoneDatingChanges(datingPreview) : 0;
@@ -584,7 +585,7 @@ export default function TermWorkspacePage({ termId }: Props) {
         <button type="button" className="mt-2 text-sm font-medium text-sky-800 underline" onClick={() => { setDatingAnnouncement(""); setShowDateMilestones(true); }}>Date milestones</button>
         {showDateMilestones ? <>
           <button type="button" className="ml-4 text-sm text-slate-600 underline" onClick={() => setShowDateMilestones(false)}>Close milestone dating</button>
-          <DateMilestonesPanel termId={termId} timeZone={termTimeZone} onApplied={async (count) => { setShowDateMilestones(false); await loadWorkspace(); setDatingAnnouncement(`${count} milestone(s) dated or created.`); }} />
+          <DateMilestonesPanel termId={termId} timeZone={term?.meetingPatterns?.[0]?.timeZone ?? null} onApplied={async (count) => { setShowDateMilestones(false); await loadWorkspace(); setDatingAnnouncement(`${count} milestone(s) dated or created.`); }} />
         </> : null}
       </section> : null}
       {datingFailed ? <p role="status" className="text-sm text-amber-800">Milestone dates could not be checked. <button type="button" className="underline" onClick={() => void loadWorkspace()}>Retry</button></p> : null}
@@ -597,7 +598,9 @@ export default function TermWorkspacePage({ termId }: Props) {
       <ActiveTermDailyDriver
         termActivities={termActivities}
         revisionsByTermActivityId={activityRevisions}
-        today={todayIso}
+        today={localDate(new Date(), termTimeZone)!}
+        timeZone={termTimeZone}
+        calendarSlots={calendarSlots}
         learningModuleLabels={learningModuleLabels}
         topicLabels={topicLabels}
         editable={term.status === "active"}

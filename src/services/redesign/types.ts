@@ -142,6 +142,7 @@ export type TermActivityRevisionTopicActionInput = {
 export type TermMilestoneAnchorPolicy = "follow_activity" | "fixed_instant" | "standalone";
 
 export type TermActivityMilestoneInput = {
+  id?: string | null;
   sourceTemplateId?: string | null;
   role: MilestoneRole;
   label: string;

@@ -5,6 +5,14 @@ export class DomainInvariantError extends Error {
   }
 }
 
+/** Calendar dates still used by effective meetings, exceptions, or Sessions. */
+export class CalendarSlotRemovalError extends DomainInvariantError {
+  constructor(message: string) {
+    super(message);
+    this.name = "CalendarSlotRemovalError";
+  }
+}
+
 export class ImmutablePublishedVersionError extends Error {
   constructor(message = "Published versions are immutable") {
     super(message);

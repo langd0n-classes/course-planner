@@ -63,7 +63,7 @@ export async function getOwnedTermLearningModuleForInstructor(
     },
   });
   if (!termLearningModule) {
-    throw new DomainInvariantError("Term Learning Module not found");
+    throw new NotFoundError("Term Learning Module not found");
   }
   assertOwnedByInstructor(
     instructorId,
@@ -91,7 +91,7 @@ export async function getOwnedTermActivityForInstructor(
     },
   });
   if (!termActivity) {
-    throw new DomainInvariantError("Term Activity not found");
+    throw new NotFoundError("Term Activity not found");
   }
   assertOwnedByInstructor(
     instructorId,
@@ -122,7 +122,7 @@ export async function getOwnedSessionForInstructor(
     },
   });
   if (!session) {
-    throw new DomainInvariantError("Session not found");
+    throw new NotFoundError("Session not found");
   }
   assertOwnedByInstructor(instructorId, session.term?.course?.instructorId, "Session not found");
   return session;
@@ -207,7 +207,7 @@ export async function getOwnedCalendarSlotForInstructor(
     },
   });
   if (!calendarSlot) {
-    throw new DomainInvariantError("Calendar slot not found");
+    throw new NotFoundError("Calendar slot not found");
   }
   assertOwnedByInstructor(
     instructorId,

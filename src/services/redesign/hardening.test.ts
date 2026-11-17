@@ -81,7 +81,7 @@ function calendarFixture() {
     academicCalendarVersion: { findUnique: vi.fn(async () => ({ id: "v" })) },
     academicCalendarPeriod: { findMany: vi.fn(async () => []) },
     termCalendarException: { findMany: vi.fn(async () => []) },
-    termMeetingPattern: { deleteMany: vi.fn() },
+    termMeetingPattern: { findMany: vi.fn(async () => []), deleteMany: vi.fn() },
   });
   value.tx.academicCalendarEvent.findMany.mockResolvedValue([{ id: "e", eventType: "holiday", startsOn: value.term.startDate, endsOn: value.term.endDate, label: "Break" }]);
   Object.assign(value.tx.calendarSlot, { findMany: vi.fn(async () => []), deleteMany: vi.fn(), createMany: vi.fn() });
@@ -164,4 +164,17 @@ it("preserves unrelated removal database errors", async () => {
   const error = { code: "P2025" };
   tx.termLearningModule.delete.mockRejectedValue(error);
   await expect(removeTermLearningModule(db, "i", "offering")).rejects.toBe(error);
+});
+
+it("calendar apply preserves retained slot identities and unrelated stored patterns", async () => {
+  const { db, tx, term } = calendarFixture();
+  const retained = { id: "retained", termId: "source", date: term.startDate };
+  tx.calendarSlot.findMany.mockResolvedValue([retained]);
+  tx.calendarSlot.update = vi.fn();
+  const preview = await previewTermCalendar(db, { instructorId: "i", termId: "source", meetingPatterns: [] });
+  await applyTermCalendar(db, { instructorId: "i", termId: "source", meetingPatterns: [], previewToken: preview.previewToken, expectedCurrentCalendarSlotCount: 1 });
+  expect(tx.termMeetingPattern.deleteMany).toHaveBeenCalledWith({ where: { termId: "source", activityTypeVersionId: { in: [] } } });
+  expect(tx.calendarSlot.deleteMany.mock.calls[0][0].where).toEqual({ termId: "source", date: { notIn: preview.calendarSlotCandidates.map(c => new Date(`${c.date}T00:00:00.000Z`)) } });
+  expect(tx.calendarSlot.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "retained" } }));
+  expect(tx.calendarSlot.createMany.mock.calls[0][0].data).toHaveLength(399);
 });
