@@ -1,3 +1,4 @@
+import { validateEffort } from "./effort";
 // Zod request validators for the Lane A (domain + REST) redesign handlers.
 // Shapes mirror the frozen types in `redesign-contract.ts`; this file only
 // adds runtime validation, it does not redefine the contract.
@@ -460,6 +461,26 @@ export const updateActivityTypeSchema = z.object({
 
 // ─── B.3 Activities ─────────────────────────────────────
 
+const effortFields = {
+  effortMinMinutes: z.number().int().min(1).max(60000).nullable().optional(),
+  effortMaxMinutes: z.number().int().min(1).max(60000).nullable().optional(),
+};
+function validEffort(data: { effortMinMinutes?: number | null; effortMaxMinutes?: number | null }) {
+  try { validateEffort(data.effortMinMinutes, data.effortMaxMinutes); return true; } catch { return false; }
+}
+const effortError = { message: "Set both bounds; high must be at least low (1 to 60000 minutes).", path: ["effortMaxMinutes"] };
+export const effortPartSchema = z.object({
+  sequence: z.number().int().min(0), label: z.string().trim().min(1),
+  partKindId: z.string().uuid().nullable().optional(),
+  minMinutes: z.number().int().min(1).max(60000), maxMinutes: z.number().int().min(1).max(60000),
+  note: z.string().nullable().optional(),
+}).refine((data) => data.maxMinutes >= data.minMinutes, { message: "High must be at least low", path: ["maxMinutes"] });
+export const courseEffortSizeSchema = z.object({
+  label: z.string().trim().min(1), minMinutes: z.number().int().min(1).max(60000), maxMinutes: z.number().int().min(1).max(60000),
+}).strict().refine((data) => data.maxMinutes >= data.minMinutes, { message: "High must be at least low", path: ["maxMinutes"] });
+export const courseEffortPartKindSchema = z.object({ label: z.string().trim().min(1) }).strict();
+export const reorderCourseEffortSchema = z.object({ ids: z.array(z.string().uuid()) }).refine((data) => new Set(data.ids).size === data.ids.length, { message: "IDs must be unique", path: ["ids"] });
+
 const meetingActivityDetailSchema = z.object({
   behaviorFamily: z.literal("meeting"),
   defaultDurationMinutes: z.number().int().min(0).nullable().optional(),
@@ -469,17 +490,19 @@ const meetingActivityDetailSchema = z.object({
 }).strict();
 
 const courseworkActivityDetailSchema = z.object({
+  ...effortFields,
   behaviorFamily: z.literal("coursework"),
   submissionPolicy: z.string().nullable().optional(),
   releasePolicy: z.string().nullable().optional(),
   authoringNotes: z.string().nullable().optional(),
-}).strict();
+}).strict().refine(validEffort, effortError);
 
 const assessmentActivityDetailSchema = z.object({
+  ...effortFields,
   behaviorFamily: z.literal("assessment"),
   modality: z.string().nullable().optional(),
   authoringNotes: z.string().nullable().optional(),
-}).strict();
+}).strict().refine(validEffort, effortError);
 
 export const activityDetailSchema = z.discriminatedUnion("behaviorFamily", [
   meetingActivityDetailSchema,
@@ -507,8 +530,9 @@ export const upsertActivityVersionSchema = z.object({
   changeSummary: z.string().nullable().optional(),
   publish: z.boolean().optional(),
   detail: activityDetailSchema,
+  effortParts: z.array(effortPartSchema).optional(),
   milestoneTemplates: z.array(upsertMilestoneTemplateSchema).optional(),
-});
+}).refine((data) => !(data.detail.behaviorFamily === "meeting" && data.effortParts?.length), { message: "Meetings do not carry effort parts", path: ["effortParts"] }).refine((data) => !data.effortParts || new Set(data.effortParts.map((part) => part.sequence)).size === data.effortParts.length, { message: "Part sequences must be unique", path: ["effortParts"] });
 
 export const createActivitySchema = z.object({
   stableCode: z.string().min(1),
@@ -609,17 +633,19 @@ const meetingRevisionDetailSchema = z.object({
 }).strict();
 
 const courseworkRevisionDetailSchema = z.object({
+  ...effortFields,
   behaviorFamily: z.literal("coursework"),
   lifecycleState: z.string().nullable().optional(),
   deliveryNotes: z.string().nullable().optional(),
-}).strict();
+}).strict().refine(validEffort, effortError);
 
 const assessmentRevisionDetailSchema = z.object({
+  ...effortFields,
   behaviorFamily: z.literal("assessment"),
   lifecycleState: z.string().nullable().optional(),
   modality: z.string().nullable().optional(),
   deliveryNotes: z.string().nullable().optional(),
-}).strict();
+}).strict().refine(validEffort, effortError);
 
 export const termActivityRevisionDetailSchema = z.discriminatedUnion("behaviorFamily", [
   meetingRevisionDetailSchema,
@@ -672,6 +698,7 @@ export const upsertTermActivityMilestoneSchema = z.object({
 );
 
 export const termActivityRevisionPreviewRequestSchema = z.object({
+  advancePointer: z.enum(["planned", "delivered"]).optional(),
   title: z.string().min(1),
   summary: z.string().nullable().optional(),
   changeReason: z.string().nullable().optional(),
@@ -694,7 +721,7 @@ export const termActivityRevisionPreviewRequestSchema = z.object({
   { message: "duplicate topicVersionId/action pair in topicActions" }
 );
 
-export const termActivityRevisionApplyRequestSchema = termActivityRevisionPreviewRequestSchema.extend({
+export const termActivityRevisionApplyRequestSchema = termActivityRevisionPreviewRequestSchema.safeExtend({
   previewToken: z.string().min(1),
   expectedCurrentRevisionId: z.string().uuid().nullable().optional(),
   advancePointer: z.enum(["planned", "delivered"]),

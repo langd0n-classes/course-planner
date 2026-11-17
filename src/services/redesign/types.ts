@@ -1,3 +1,4 @@
+import type { EffortFields } from "@/lib/effort";
 export type RedesignDb = {
   $transaction<T>(fn: (tx: RedesignTx) => Promise<T>, options?: unknown): Promise<T>;
 };
@@ -60,14 +61,14 @@ export type MeetingActivityDetailDraft = {
   authoringNotes?: string | null;
 };
 
-export type CourseworkActivityDetailDraft = {
+export type CourseworkActivityDetailDraft = EffortFields & {
   behaviorFamily: "coursework";
   submissionPolicy?: string | null;
   releasePolicy?: string | null;
   authoringNotes?: string | null;
 };
 
-export type AssessmentActivityDetailDraft = {
+export type AssessmentActivityDetailDraft = EffortFields & {
   behaviorFamily: "assessment";
   modality?: string | null;
   authoringNotes?: string | null;
@@ -99,6 +100,7 @@ export type ActivityVersionDraft = {
   changeSummary?: string | null;
   detail: ActivityDetailDraft;
   milestoneTemplates?: MilestoneTemplateDraft[];
+  effortParts?: EffortPartDraft[];
 };
 
 export type TermActivityRevisionDetailDraft =
@@ -112,17 +114,17 @@ export type TermActivityRevisionDetailDraft =
       overrideReason?: string | null;
       overrideEvidence?: unknown | null;
     }
-  | {
+  | (EffortFields & {
       behaviorFamily: "coursework";
       lifecycleState?: string | null;
       deliveryNotes?: string | null;
-    }
-  | {
+    })
+  | (EffortFields & {
       behaviorFamily: "assessment";
       lifecycleState?: string | null;
       modality?: string | null;
       deliveryNotes?: string | null;
-    };
+    });
 
 export type TermActivityRevisionTopicActionInput = {
   topicVersionId: string;
@@ -194,3 +196,5 @@ export type TermCalendarExceptionDraft = {
   reason?: string | null;
   provenance?: unknown;
 };
+
+export type EffortPartDraft = { sequence: number; label: string; partKindId?: string | null; minMinutes: number; maxMinutes: number; note?: string | null };

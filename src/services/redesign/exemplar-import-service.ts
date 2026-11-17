@@ -115,6 +115,7 @@ export const genericDemoExemplarSnapshot = {
       label: "Practice Work",
       description: "Independent practice activity.",
     },
+    { key: "check", behaviorFamily: "assessment", label: "Knowledge Check", description: "An independent check of understanding." },
   ],
   learningModules: [
     {
@@ -175,7 +176,7 @@ export const genericDemoExemplarSnapshot = {
     },
     {
       stableCode: "ACT-MODEL-CHECK",
-      typeKey: "practice",
+      typeKey: "check",
       learningModuleCode: "LM-MODEL",
       title: "Model Check",
       summary: "Assess interpretation of simple generic model output.",

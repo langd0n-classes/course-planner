@@ -26,6 +26,7 @@ import {
 import AdoptLearningModulePanel from "./AdoptLearningModulePanel";
 import DeliveredRevisionEditor from "./DeliveredRevisionEditor";
 import GapNotice from "./GapNotice";
+import TermActivityEffortList from "./TermActivityEffortList";
 import ActiveTermDailyDriver from "./ActiveTermDailyDriver";
 import LifecycleBadge from "./LifecycleBadge";
 import LifecycleConfirmPanel from "./LifecycleConfirmPanel";
@@ -519,6 +520,8 @@ export default function TermWorkspacePage({ termId }: Props) {
           </div>
         </div>
       </section>
+
+      <TermActivityEffortList courseId={term.courseId} activities={termActivities} revisions={activityRevisions} status={term.status} onApplied={loadWorkspace} />
 
       <ActiveTermDailyDriver
         termActivities={termActivities}

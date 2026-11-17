@@ -1,3 +1,5 @@
+import { effectiveEffort, type EffortFields } from "./effort";
+import type { CourseEffortSizeDto, CourseEffortPartKindDto, EffortPartInput } from "./redesign-contract";
 // Prisma row -> frozen-contract DTO mappers for the Lane A (domain + REST)
 // redesign handlers. Keeping these in one place means every route produces
 // byte-identical shapes for the same underlying row.
@@ -321,13 +323,13 @@ type MeetingActivityDetailRow = {
   authoringNotes: string | null;
 };
 
-type CourseworkActivityDetailRow = {
+type CourseworkActivityDetailRow = EffortFields & {
   submissionPolicy: string | null;
   releasePolicy: string | null;
   authoringNotes: string | null;
 };
 
-type AssessmentActivityDetailRow = {
+type AssessmentActivityDetailRow = EffortFields & {
   modality: string | null;
   authoringNotes: string | null;
 };
@@ -383,6 +385,7 @@ type ActivityTopicScopeRow = {
 };
 
 type ActivityVersionRow = {
+  effortParts?: EffortPartInput[];
   id: string;
   activityId: string;
   revision: number;
@@ -407,12 +410,12 @@ type TermMeetingRevisionDetailRow = {
   overrideEvidence: unknown | null;
 };
 
-type TermCourseworkRevisionDetailRow = {
+type TermCourseworkRevisionDetailRow = EffortFields & {
   lifecycleState: string | null;
   deliveryNotes: string | null;
 };
 
-type TermAssessmentRevisionDetailRow = {
+type TermAssessmentRevisionDetailRow = EffortFields & {
   lifecycleState: string | null;
   modality: string | null;
   deliveryNotes: string | null;
@@ -443,6 +446,7 @@ type TermActivityMilestoneRow = {
 };
 
 type TermActivityRevisionRow = {
+  baseActivityVersion?: { courseworkDetail?: EffortFields | null; assessmentDetail?: EffortFields | null } | null;
   id: string;
   termActivityId: string;
   revision: number;
@@ -857,6 +861,8 @@ function toActivityDetailDto(version: ActivityVersionRow): ActivityDetailDto {
   if (version.courseworkDetail) {
     return {
       behaviorFamily: "coursework",
+      effortMinMinutes: version.courseworkDetail.effortMinMinutes ?? null,
+      effortMaxMinutes: version.courseworkDetail.effortMaxMinutes ?? null,
       submissionPolicy: version.courseworkDetail.submissionPolicy,
       releasePolicy: version.courseworkDetail.releasePolicy,
       authoringNotes: version.courseworkDetail.authoringNotes,
@@ -865,6 +871,8 @@ function toActivityDetailDto(version: ActivityVersionRow): ActivityDetailDto {
   if (version.assessmentDetail) {
     return {
       behaviorFamily: "assessment",
+      effortMinMinutes: version.assessmentDetail.effortMinMinutes ?? null,
+      effortMaxMinutes: version.assessmentDetail.effortMaxMinutes ?? null,
       modality: version.assessmentDetail.modality,
       authoringNotes: version.assessmentDetail.authoringNotes,
     };
@@ -890,6 +898,8 @@ function toTermActivityRevisionDetailDto(
   if (revision.courseworkDetail) {
     return {
       behaviorFamily: "coursework",
+      effortMinMinutes: revision.courseworkDetail.effortMinMinutes ?? null,
+      effortMaxMinutes: revision.courseworkDetail.effortMaxMinutes ?? null,
       lifecycleState: revision.courseworkDetail.lifecycleState,
       deliveryNotes: revision.courseworkDetail.deliveryNotes,
     };
@@ -897,6 +907,8 @@ function toTermActivityRevisionDetailDto(
   if (revision.assessmentDetail) {
     return {
       behaviorFamily: "assessment",
+      effortMinMinutes: revision.assessmentDetail.effortMinMinutes ?? null,
+      effortMaxMinutes: revision.assessmentDetail.effortMaxMinutes ?? null,
       lifecycleState: revision.assessmentDetail.lifecycleState,
       modality: revision.assessmentDetail.modality,
       deliveryNotes: revision.assessmentDetail.deliveryNotes,
@@ -948,6 +960,11 @@ export function toTermActivityRevisionDto(
     createdByInstructorId: revision.createdByInstructorId,
     createdAt: revision.createdAt.toISOString(),
     detail: toTermActivityRevisionDetailDto(revision),
+    baseEffort: revision.baseActivityVersion ? {
+      effortMinMinutes: (revision.baseActivityVersion.courseworkDetail ?? revision.baseActivityVersion.assessmentDetail)?.effortMinMinutes ?? null,
+      effortMaxMinutes: (revision.baseActivityVersion.courseworkDetail ?? revision.baseActivityVersion.assessmentDetail)?.effortMaxMinutes ?? null,
+    } : null,
+    effectiveEffort: effectiveEffort(revision.baseActivityVersion?.courseworkDetail ?? revision.baseActivityVersion?.assessmentDetail, revision.courseworkDetail ?? revision.assessmentDetail),
     topicActions: [...(revision.topicActions ?? [])]
       .sort((left, right) =>
         `${left.topicVersionId}:${left.action}`.localeCompare(`${right.topicVersionId}:${right.action}`),
@@ -993,6 +1010,7 @@ export function toActivityVersionDto(version: ActivityVersionRow): ActivityVersi
     changeSummary: version.changeSummary,
     publishedAt: toIsoDateTimeNullable(version.publishedAt),
     detail: toActivityDetailDto(version),
+    effortParts: (version.effortParts ?? []).slice().sort((a, b) => a.sequence - b.sequence).map(({ sequence, label, partKindId, minMinutes, maxMinutes, note }) => ({ sequence, label, partKindId: partKindId ?? null, minMinutes, maxMinutes, note: note ?? null })),
     milestoneTemplates: (version.milestoneTemplates ?? [])
       .slice()
       .sort((a, b) => a.sequence - b.sequence)
@@ -1053,4 +1071,12 @@ export function toActivityTopicScopeDto(scope: ActivityTopicScopeRow): ActivityT
     notes: scope.notes,
     provenance: scope.provenance ?? null,
   };
+}
+
+
+export function toCourseEffortSizeDto(row: Omit<CourseEffortSizeDto, "createdAt" | "updatedAt"> & { createdAt: Date; updatedAt: Date }): CourseEffortSizeDto {
+  return { ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
+}
+export function toCourseEffortPartKindDto(row: Omit<CourseEffortPartKindDto, "createdAt"> & { createdAt: Date }): CourseEffortPartKindDto {
+  return { ...row, createdAt: row.createdAt.toISOString() };
 }

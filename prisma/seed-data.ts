@@ -1,3 +1,4 @@
+import { seedDemoEffort } from "../src/services/redesign/demo-effort";
 import { createHash } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import {
@@ -490,6 +491,7 @@ export async function seedDemoRows(
       courseId: exemplarCourse.id,
       snapshot: genericDemoExemplarSnapshot,
     });
+    await db.$transaction((tx) => seedDemoEffort(tx, exemplarCourse.id));
   }
   // The foundation course keeps its fixed Spring 2026 Term as a past-Term
   // example. The exemplar course gets the Terms that are current and next on

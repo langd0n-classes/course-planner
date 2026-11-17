@@ -1,3 +1,4 @@
+import { normalizeActivityEffort } from "./effort-service";
 import { ConcurrencyConflictError, DomainInvariantError } from "./errors";
 import { assertSameCourse, assertSameIdentityVersion } from "./invariants";
 import { getOwnedCourseForInstructor } from "./ownership-service";
@@ -10,6 +11,9 @@ import type {
 } from "./types";
 
 const versionHydration = {
+  topicActions: true,
+  learningModuleScopes: true,
+  effortParts: { orderBy: { sequence: "asc" as const } },
   meetingDetail: true,
   courseworkDetail: true,
   assessmentDetail: true,
@@ -84,8 +88,17 @@ export async function reviseActivity(
         activity,
         instructorId: input.instructorId,
         revision: nextRevision,
+        sourceVersion: activity.currentVersion,
         createdByInstructorId: input.createdByInstructorId,
-        draft: input.draft,
+        draft: {
+          ...input.draft,
+          detail: input.draft.detail.behaviorFamily === "meeting" ? input.draft.detail : {
+            ...(activity.currentVersion.courseworkDetail ?? activity.currentVersion.assessmentDetail ?? {}),
+            ...input.draft.detail,
+          },
+          milestoneTemplates: input.draft.milestoneTemplates ?? activity.currentVersion.milestoneTemplates,
+          effortParts: input.draft.effortParts ?? activity.currentVersion.effortParts ?? [],
+        },
         publishedAt: input.publish ? new Date() : null,
       });
       const advanced = await tx.activity.updateMany({
@@ -251,6 +264,10 @@ async function createActivityVersion(
     activity: { id: string; courseId: string };
     instructorId: string;
     revision: number;
+    sourceVersion?: {
+      topicActions?: { topicVersionId: string; action: string; notes: string | null; provenance: unknown }[];
+      learningModuleScopes?: { learningModuleId: string; emphasis: string | null; notes: string | null }[];
+    };
     createdByInstructorId: string;
     draft: ActivityVersionDraft;
     publishedAt: Date | null;
@@ -272,6 +289,7 @@ async function createActivityVersion(
   assertValidMilestoneSequences(milestoneTemplates);
   await assertMilestoneAnchorsInCourse(tx, input.activity.courseId, milestoneTemplates);
 
+  const effort = await normalizeActivityEffort(tx, input.activity.courseId, input.draft.detail, input.draft.effortParts ?? []);
   return tx.activityVersion.create({
     data: {
       activityId: input.activity.id,
@@ -282,7 +300,10 @@ async function createActivityVersion(
       changeSummary: input.draft.changeSummary ?? null,
       createdByInstructorId: input.createdByInstructorId,
       publishedAt: input.publishedAt,
-      ...detailCreateData(input.draft.detail),
+      ...detailCreateData(effort.detail),
+      effortParts: { create: effort.parts },
+      topicActions: { create: (input.sourceVersion?.topicActions ?? []).map(({ topicVersionId, action, notes, provenance }) => ({ topicVersionId, action, notes, provenance: provenance ?? undefined })) },
+      learningModuleScopes: { create: (input.sourceVersion?.learningModuleScopes ?? []).map(({ learningModuleId, emphasis, notes }) => ({ learningModuleId, emphasis, notes })) },
       milestoneTemplates: {
         create: milestoneTemplates.map((template) => ({
           sequence: template.sequence,
@@ -318,6 +339,8 @@ function detailCreateData(detail: ActivityDetailDraft) {
       return {
         courseworkDetail: {
           create: {
+            effortMinMinutes: detail.effortMinMinutes ?? null,
+            effortMaxMinutes: detail.effortMaxMinutes ?? null,
             submissionPolicy: detail.submissionPolicy ?? null,
             releasePolicy: detail.releasePolicy ?? null,
             authoringNotes: detail.authoringNotes ?? null,
@@ -328,6 +351,8 @@ function detailCreateData(detail: ActivityDetailDraft) {
       return {
         assessmentDetail: {
           create: {
+            effortMinMinutes: detail.effortMinMinutes ?? null,
+            effortMaxMinutes: detail.effortMaxMinutes ?? null,
             modality: detail.modality ?? null,
             authoringNotes: detail.authoringNotes ?? null,
           },

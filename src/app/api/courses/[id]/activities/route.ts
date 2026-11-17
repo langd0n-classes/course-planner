@@ -54,6 +54,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         activityTypeVersionId: parsed.data.version.activityTypeVersionId,
         changeSummary: parsed.data.version.changeSummary,
         detail: parsed.data.version.detail,
+        effortParts: parsed.data.version.effortParts,
         milestoneTemplates: parsed.data.version.milestoneTemplates,
       },
     });

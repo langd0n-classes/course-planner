@@ -1,3 +1,4 @@
+import { assertEffort } from "./effort-service";
 import { createHash } from "node:crypto";
 import { ConcurrencyConflictError, DomainInvariantError } from "./errors";
 import { assertSameCourse } from "./invariants";
@@ -137,7 +138,7 @@ type AdoptionCandidate = {
 
 function snapshotDetailFromVersion(version: {
   meetingDetail?: { modality: string | null } | null;
-  courseworkDetail?: Record<string, never> | null;
+  courseworkDetail?: { effortMinMinutes?: number | null; effortMaxMinutes?: number | null } | null;
   assessmentDetail?: { modality: string | null } | null;
 }) {
   if (version.meetingDetail) {
@@ -339,6 +340,8 @@ async function createRevisionSnapshot(
     await tx.termCourseworkActivityRevision.create({
       data: {
         termActivityRevisionId: revision.id,
+        effortMinMinutes: input.detail.effortMinMinutes ?? null,
+        effortMaxMinutes: input.detail.effortMaxMinutes ?? null,
         lifecycleState: input.detail.lifecycleState ?? null,
         deliveryNotes: input.detail.deliveryNotes ?? null,
       },
@@ -347,6 +350,8 @@ async function createRevisionSnapshot(
     await tx.termAssessmentActivityRevision.create({
       data: {
         termActivityRevisionId: revision.id,
+        effortMinMinutes: input.detail.effortMinMinutes ?? null,
+        effortMaxMinutes: input.detail.effortMaxMinutes ?? null,
         lifecycleState: input.detail.lifecycleState ?? null,
         modality: input.detail.modality ?? null,
         deliveryNotes: input.detail.deliveryNotes ?? null,
@@ -390,6 +395,7 @@ async function createRevisionSnapshot(
 }
 
 const revisionInclude = {
+  baseActivityVersion: { include: { courseworkDetail: true, assessmentDetail: true } },
   meetingDetail: true,
   courseworkDetail: true,
   assessmentDetail: true,
@@ -403,6 +409,11 @@ async function validateTermActivityDraft(
   termActivity: { termId: string; term: { courseId: string; status: "planned" | "active" | "closed" } },
   draft: TermActivityRevisionDraft,
 ) {
+  if (draft.detail.behaviorFamily !== "meeting") {
+    assertEffort(draft.detail.effortMinMinutes, draft.detail.effortMaxMinutes);
+  } else if ("effortMinMinutes" in draft.detail || "effortMaxMinutes" in draft.detail) {
+    throw new DomainInvariantError("Meetings do not carry student effort");
+  }
   if (draft.detail.behaviorFamily === "meeting" && draft.detail.calendarSlotId) {
     const slot = await getOwnedCalendarSlotForInstructor(tx, instructorId, draft.detail.calendarSlotId);
     if (slot.termId !== termActivity.termId) {
@@ -445,6 +456,7 @@ async function buildRevisionPreview(
     where: { id: input.termActivityId },
     include: {
       term: true,
+      plannedActivityVersion: { include: { courseworkDetail: true, assessmentDetail: true, meetingDetail: true } },
       plannedRevision: { include: revisionInclude },
       deliveredRevision: { include: revisionInclude },
       revisions: { orderBy: { revision: "desc" }, take: 1 },
@@ -463,6 +475,7 @@ async function buildRevisionPreview(
       : hydrated.deliveredRevisionId;
   const proposedRevision = {
     id: `preview-${hydrated.id}-${nextRevision}`,
+    baseActivityVersion: hydrated.plannedActivityVersion,
     termActivityId: hydrated.id,
     revision: nextRevision,
     baseActivityVersionId: hydrated.plannedActivityVersionId,
@@ -486,6 +499,8 @@ async function buildRevisionPreview(
     courseworkDetail:
       input.draft.detail.behaviorFamily === "coursework"
         ? {
+            effortMinMinutes: input.draft.detail.effortMinMinutes ?? null,
+            effortMaxMinutes: input.draft.detail.effortMaxMinutes ?? null,
             lifecycleState: input.draft.detail.lifecycleState ?? null,
             deliveryNotes: input.draft.detail.deliveryNotes ?? null,
           }
@@ -493,6 +508,8 @@ async function buildRevisionPreview(
     assessmentDetail:
       input.draft.detail.behaviorFamily === "assessment"
         ? {
+            effortMinMinutes: input.draft.detail.effortMinMinutes ?? null,
+            effortMaxMinutes: input.draft.detail.effortMaxMinutes ?? null,
             lifecycleState: input.draft.detail.lifecycleState ?? null,
             modality: input.draft.detail.modality ?? null,
             deliveryNotes: input.draft.detail.deliveryNotes ?? null,
@@ -744,6 +761,7 @@ export async function previewTermActivityRevision(
     instructorId: string;
     termActivityId: string;
     draft: TermActivityRevisionDraft;
+    advancePointer?: "planned" | "delivered";
   },
 ) {
   return db.$transaction(async (tx) => {

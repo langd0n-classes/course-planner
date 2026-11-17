@@ -1,12 +1,17 @@
 "use client";
 
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from "react";
+import ActivityEffortEditor from "./ActivityEffortEditor";
+import EffortSummary from "./EffortSummary";
+import { effectiveEffort } from "@/lib/effort";
+import type { CourseEffortSizeDto } from "@/lib/redesign-contract";
 import { redesignApi } from "@/lib/redesign-api-client";
 import type { ActivityDto, ActivityVersionDto, ActivityVersionLearningModuleScopeDto, Id, TopicDto, TopicVersionDto } from "@/lib/redesign-contract";
 import { buildActivityBoardColumns, buildTopicFlow, moveActivityBoardCard, type ActivityBoardColumn } from "@/lib/redesign-workspace";
 
 type Props = {
   courseId: Id;
+  effortSettingsRevision?: number;
   learningModules: Parameters<typeof buildActivityBoardColumns>[0]["learningModules"];
   currentVersionsByLearningModuleId: Parameters<typeof buildActivityBoardColumns>[0]["currentVersionsByLearningModuleId"];
   topics: TopicDto[];
@@ -15,6 +20,7 @@ type Props = {
 };
 
 export default function ActivityBoard(props: Props) {
+  const [effortSizes, setEffortSizes] = useState<CourseEffortSizeDto[]>([]);
   const [activities, setActivities] = useState<ActivityDto[]>([]);
   const [versions, setVersions] = useState(new Map<Id, ActivityVersionDto | null>());
   const [actions, setActions] = useState(new Map<Id, Awaited<ReturnType<typeof redesignApi.listActivityTopicActions>>>());
@@ -30,6 +36,8 @@ export default function ActivityBoard(props: Props) {
 
   async function load() {
     try {
+      const sizes = await redesignApi.listCourseEffortSizes(props.courseId).catch(() => []);
+      setEffortSizes(sizes);
       const loadedActivities = await redesignApi.listCourseActivities(props.courseId);
       const details = await Promise.all(loadedActivities.map((activity) => redesignApi.getActivity(activity.id)));
       const nextVersions = new Map(details.map((detail) => [detail.activity.id, detail.currentVersion]));
@@ -52,7 +60,7 @@ export default function ActivityBoard(props: Props) {
     }
   }
   const loadFromEffect = useEffectEvent(load);
-  useEffect(() => { void loadFromEffect(); }, [props.courseId]);
+  useEffect(() => { void loadFromEffect(); }, [props.courseId, props.effortSettingsRevision]);
 
   const columns = useMemo(() => {
     const built = buildActivityBoardColumns({
@@ -163,6 +171,7 @@ export default function ActivityBoard(props: Props) {
           if (!version) return null;
           return <article key={versionId} draggable onDragStart={() => setDraggedVersionId(versionId)} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm focus-within:ring-2 focus-within:ring-sky-500">
             <button type="button" onClick={() => setSelectedVersionId(versionId)} className="w-full text-left"><span className="block text-sm font-medium text-slate-900">{version.title}</span><span className="block text-xs text-slate-500">{version.detail.behaviorFamily}</span></button>
+            {version.detail.behaviorFamily !== "meeting" ? <EffortSummary range={effectiveEffort(version.detail, null)} sizes={effortSizes} /> : null}
             <label className="mt-2 block text-xs text-slate-600">Move to<select ref={(element) => { if (element) moveControlRefs.current.set(versionId, element); else moveControlRefs.current.delete(versionId); }} aria-label={`Move ${version.title} to`} className="ml-1 rounded border border-slate-300" value={column.key} onChange={(event) => { moveControlToRestoreRef.current = versionId; void move(versionId, event.target.value as ActivityBoardColumn["key"]); }}>{displayColumns.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}</select></label>
           </article>;
         })}</div>
@@ -171,6 +180,7 @@ export default function ActivityBoard(props: Props) {
     {selected ? <aside className="mt-5 rounded-xl border border-sky-200 bg-sky-50 p-4" aria-label="Activity detail">
       <h3 ref={detailHeadingRef} tabIndex={-1} className="font-semibold text-slate-900">{selected.title}</h3><p className="text-sm text-slate-600">Topic actions — select I, P, or A. Repetition is warned, never blocked.</p>
       <div className="mt-3 space-y-2">{props.topics.map((topic) => { const topicVersionId = topic.currentVersionId; if (!topicVersionId) return null; const occurrences = actions.get(selected.id)?.filter((entry) => entry.topicVersionId === topicVersionId) ?? []; return <div key={topic.id} className="flex flex-wrap items-center gap-2 text-sm"><span className="min-w-40 text-slate-800">{topicTitles.get(topicVersionId)}</span>{(["introduced", "practiced", "assessed"] as const).map((action) => <button key={action} type="button" aria-pressed={occurrences.some((entry) => entry.action === action)} onClick={() => void saveTopicAction(topicVersionId, action)} className="rounded border border-slate-300 px-2 py-1 text-xs aria-pressed:bg-slate-900 aria-pressed:text-white">{action[0]!.toUpperCase()}</button>)}{occurrences.flatMap((entry) => entry.siblings).map((sibling) => <button key={`${sibling.activityVersionId}-${sibling.action}`} type="button" onClick={() => { focusDetailOnSelectRef.current = true; setSelectedVersionId(sibling.activityVersionId); }} className="text-xs text-amber-700 underline">Also {sibling.action}: {sibling.activityStableCode}</button>)}</div>; })}</div>
+      <ActivityEffortEditor effortSettingsRevision={props.effortSettingsRevision} key={selected.id} courseId={props.courseId} version={selected} onSaved={(saved) => { setVersions((current) => new Map(current).set(saved.activityId, saved)); setSelectedVersionId(saved.id); setAnnouncement("Effort saved in a new Activity version."); }} />
       <section className="mt-5 border-t border-sky-200 pt-4" aria-labelledby="learning-module-scope-heading">
         <h4 id="learning-module-scope-heading" className="font-semibold text-slate-900">Learning-module scope</h4>
         <p className="mt-1 text-sm text-slate-600">Scopes make an activity cross-cutting across learning modules.</p>

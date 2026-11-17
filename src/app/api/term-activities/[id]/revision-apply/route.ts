@@ -35,12 +35,16 @@ function toDraftDetail(
   if (detail.behaviorFamily === "coursework") {
     return {
       behaviorFamily: "coursework" as const,
+      effortMinMinutes: (detail.effortMinMinutes as number | null | undefined) ?? null,
+      effortMaxMinutes: (detail.effortMaxMinutes as number | null | undefined) ?? null,
       lifecycleState: (detail.lifecycleState as string | null | undefined) ?? null,
       deliveryNotes: (detail.deliveryNotes as string | null | undefined) ?? null,
     };
   }
   return {
     behaviorFamily: "assessment" as const,
+      effortMinMinutes: (detail.effortMinMinutes as number | null | undefined) ?? null,
+      effortMaxMinutes: (detail.effortMaxMinutes as number | null | undefined) ?? null,
     lifecycleState: (detail.lifecycleState as string | null | undefined) ?? null,
     modality: (detail.modality as string | null | undefined) ?? null,
     deliveryNotes: (detail.deliveryNotes as string | null | undefined) ?? null,
