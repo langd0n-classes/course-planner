@@ -7,10 +7,18 @@
 ## What a visitor gets
 
 A visitor opens a link in any browser. There is no sign-in. The visitor lands
-in a workspace that already holds the generic demo Course, with a Term in
-progress and the next Term planned. The visitor can edit anything. A banner
-says that this is a demo, that the changes belong to this browser only, and
-that they are deleted each day.
+in the **showcase**: one workspace that holds the generic demo Course, with a
+Term in progress and the next Term planned. Every visitor sees the same
+showcase, and no visitor can change it.
+
+From the showcase the visitor can do two things:
+
+- **Start a demo of their own.** The app generates a new demo workspace for
+  that browser. The visitor can edit anything in it. It is deleted each day.
+- **Share their demo.** A share link opens the visitor's demo, read-only, in
+  another person's browser.
+
+A banner says which workspace is open and what can be done in it.
 
 ## Decisions
 
@@ -47,64 +55,138 @@ selects behavior for whoever holds the artifact); the flag alone (one wrong
 variable on the production project would give every visitor a workspace
 with no sign-in).
 
-### 2. Shared workspace or one for each visitor
+### 2. The workspaces
 
-**One workspace for each visitor.** This differs from the research comment
-on #78, which recommended one shared workspace.
+**A shared showcase that only the admin can edit, a generated demo for each
+visitor who asks for one, and a read-only share link.** Operator decision,
+2026-11-16.
 
-- A shared workspace on a public link shows each visitor what the last
-  visitor typed. The demo is public and carries the project's name. One
-  visitor can fill it with anything, and it stays until the next reset.
-- The cost that argued for sharing was overstated. The comment cited a
-  300-second load for each visitor. 300 seconds is the transaction's timeout.
-  The measured demo load on a local Postgres is about one second. The time
-  on the hosted database is not yet measured; see "Open items".
-- The app already scopes every read and write by Instructor. A visitor
-  workspace is one more Instructor row. No new isolation code is needed.
+| Workspace | Who can read it | Who can edit it | Lifetime |
+|---|---|---|---|
+| Showcase | Everyone | The admin | Kept across resets |
+| Visitor demo | The visitor, and anyone with its share link | The visitor | Until the next reset |
 
-How it works:
+Reasons:
 
-- On the first request, the proxy sets a cookie that holds a random UUID.
-  The cookie is `HttpOnly`, `Secure`, `SameSite=Lax`.
-- In demo mode, `getAuthenticatedInstructor` maps that UUID to an Instructor
-  with the email `visitor-<uuid>@demo.invalid`, and creates the row on first
-  use. Auth.js is not called.
-- The Course index loads the demo Course on the visitor's first visit. The
-  existing "Load demo course" action does this work today.
+- The operator must be able to show a person a specific thing. A stable,
+  shared workspace gives every page of it a link that stays valid.
+- A shared workspace that visitors can edit shows each visitor what the last
+  one typed, on a public page that carries the project's name. So the shared
+  workspace is read-only for visitors.
+- A visitor still needs to try the editing. A demo of their own gives that
+  without exposing their changes to other visitors.
+- This differs from the research comment on #78, which recommended one
+  shared, editable workspace. The cost it cited for separate workspaces was
+  overstated: 300 seconds is the transaction's timeout, and the measured demo
+  load on a local Postgres is about one second.
+
+#### The showcase
+
+- The showcase belongs to one fixed Instructor, `showcase@demo.invalid`. The
+  bootstrap script creates it and runs the demo load for it.
+- The reset keeps the showcase. After each reset, the reset job runs the
+  repeat demo load on the showcase. That load adds the current and next Term
+  when they are missing and changes nothing else (#70), so the showcase does
+  not go stale at a semester boundary.
+- The showcase's record ids do not change, so a link to a showcase page
+  stays valid.
+
+#### The admin
+
+- The demo has no sign-in, so the admin is identified by a secret. The
+  server variable `COURSE_PLANNER_DEMO_ADMIN_TOKEN` holds it.
+- An admin page takes the secret in a form and sets an `HttpOnly`, `Secure`,
+  `SameSite=Strict` cookie. The secret is never in a URL. The comparison is
+  constant-time, and the form is rate-limited.
+- A request with a valid admin cookie can write to the showcase. The admin's
+  edits persist, because the reset keeps the showcase.
+- If the variable is unset, there is no admin, and the showcase changes only
+  through the bootstrap script.
+- `COURSE_PLANNER_DEMO_ADMIN_TOKEN` is not a sign-in variable. It does not
+  conflict with the demo flag. In normal mode it is ignored.
+
+#### A visitor's demo
+
+- The visitor chooses "Start your own demo". The app does not create a demo
+  on the first visit, so a crawler or a visitor who only looks creates
+  nothing.
+- The app then sets a cookie that holds a random UUID. The cookie is
+  `HttpOnly`, `Secure`, `SameSite=Lax`. The UUID maps to an Instructor with
+  the email `visitor-<uuid>@demo.invalid`.
+- The app generates the demo with the existing demo load, with Terms computed
+  from that day's date. It is not a copy of the showcase, so the admin's
+  edits to the showcase are not in it.
 - The UUID is the visitor's only credential. It is unguessable, and it
   protects nothing of value.
+- The visitor can switch between their demo and the showcase.
 
-Limits:
+#### The share link
 
-- A cap on visitor workspaces between resets. At the cap, a new visitor gets
-  a page that says the demo is full and gives the reset time.
-- A rate limit on demo-load and on write routes, keyed by client address.
-- A row cap for each visitor workspace. At the cap, a write returns an error
-  that says the demo workspace is full. One visitor cannot fill the database
-  between resets.
-- An age limit for each visitor workspace. A workspace with no request for 24
-  hours is deleted by the next reset even if a reset is skipped or fails
-  part-way.
+- Each visitor demo has a share token: a second random UUID, different from
+  the cookie UUID. The share link is `/demo/shared/<share token>`.
+- The link opens that demo read-only. The person who opens it cannot edit
+  it, and does not receive the owner's cookie.
+- The link stops working when the reset deletes the demo. The banner on a
+  shared demo says so.
+- To show something that must stay, the admin puts it in the showcase.
 
-### 3. Reset
+#### How a request finds its workspace
+
+- In demo mode, each request has one **open workspace**: the showcase, the
+  visitor's own demo, or a shared demo. `getAuthenticatedInstructor` returns
+  the Instructor of the open workspace. Auth.js is not called.
+- The existing ownership checks then work without change. The app already
+  scopes every read and write by Instructor.
+- **Write rule.** In demo mode, the proxy refuses each request that is not
+  `GET` or `HEAD` unless the open workspace is the visitor's own demo, or it
+  is the showcase and the request has a valid admin cookie. The refusal is
+  made in one place, before any route runs.
+- A `DemoWorkspace` row for each visitor demo holds the Instructor id, the
+  share token, the creation time, and the time of the last request. The
+  table is empty outside demo mode.
+
+### 3. Limits against abuse
+
+Creating a demo is the costly request, so the limits are there.
+
+- A rate limit on "Start your own demo", keyed by client address.
+- A cap on visitor demos between resets. At the cap, a visitor gets the
+  showcase only, with a message that gives the reset time.
+- A rate limit on write routes, keyed by client address.
+- A row cap for each visitor demo. At the cap, a write returns an error that
+  says the demo is full. One visitor cannot fill the database between resets.
+- An age limit for each visitor demo. A demo with no request for 24 hours is
+  deleted by the next reset even if a reset is skipped or fails part-way.
+- The showcase and shared demos are read-only, so a flood of readers writes
+  nothing.
+- The host's firewall and bot filtering are on for the demo project.
+- Every demo response carries `X-Robots-Tag: noindex`.
+- Not built first: a bot challenge before "Start your own demo". Add it if
+  the rate limit and the cap are not enough.
+
+### 4. Reset
 
 **Once a day, by a Vercel Cron request to a reset route.**
 
-- With one workspace for each visitor, the reset is cleanup. It no longer
-  protects visitors from each other, so a daily interval is enough.
+- The reset is cleanup. No visitor can change what another visitor sees, so
+  a daily interval is enough.
 - The route requires all of: demo mode, the marker, and the `CRON_SECRET`
   bearer token. It checks the marker in the same database connection that
-  runs the truncate, before the truncate.
-- The reset truncates every application table and keeps `_prisma_migrations`
-  and `_demo_marker`. It does not reseed. Each visitor's workspace is built
-  on that visitor's first request, with Terms computed from that day's date.
-- A script runs the same reset by hand.
+  runs the delete, before the delete.
+- The reset deletes every visitor Instructor and everything each one owns,
+  and every `DemoWorkspace` row. It keeps the showcase, `_prisma_migrations`,
+  and `_demo_marker`. It then runs the repeat demo load on the showcase.
+- The reset does not truncate, because a truncate would remove the showcase
+  and the admin's edits. Build step 6 must prove with a database test that
+  deleting a visitor Instructor leaves no row of that visitor in any table.
+- A script runs the same reset by hand. A second script rebuilds the
+  showcase from nothing.
 
 This replaces the issue's `npm run db:seed -- --force`. A route in a
 serverless function cannot run that command, and the default seed builds a
 workspace for a seeded instructor that no visitor can reach.
 
-### 4. AI features
+### 5. AI features
 
 **There is no live AI feature to simulate. The demo adds none.**
 
@@ -123,17 +205,17 @@ workspace for a seeded instructor that no visitor can reach.
 Not chosen: a separate `DemoAiPlanner`. `MockAiPlanner` is already the
 simulated implementation, and OPS.md keeps it as the active one.
 
-### 5. What the demo deployment is
+### 6. What the demo deployment is
 
 - A separate Vercel project that deploys `main` from this repository.
 - Its own Neon database. It has no connection string in common with
   production.
 - No deployment protection.
 - Environment: `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `COURSE_PLANNER_DEMO`,
-  `CRON_SECRET`, `AUTH_SECRET`. No Google, allowlist, or preview variables.
+  `COURSE_PLANNER_DEMO_ADMIN_TOKEN`, `CRON_SECRET`, `AUTH_SECRET`. No Google,
+  allowlist, or preview variables.
 - `scripts/vercel-build.sh` needs no change. It migrates on a production
   build, and the demo project's production build migrates the demo database.
-- Every demo response carries `X-Robots-Tag: noindex`.
 
 ## Risks and the control for each
 
@@ -142,10 +224,13 @@ simulated implementation, and OPS.md keeps it as the active one.
 | The demo flag is set on production | The sign-in variables conflict with the flag; the app fails closed. The marker is absent. |
 | The demo project points at the production database | No marker in that database: no demo traffic is served and the reset refuses. |
 | The reset route is called by a stranger | `CRON_SECRET`, demo mode, and the marker are all required. |
-| A visitor floods the database | Workspace cap, row cap for each workspace, rate limits, daily reset. |
+| A visitor changes the showcase | The write rule in the proxy; a test sends each write method to the showcase with no admin cookie. |
+| The admin secret is guessed or leaked | Rate limit on the admin form; the secret is never in a URL; the operator replaces the variable. The secret gives write access to demo data only. |
+| A visitor floods the database | Demo created only on request; rate limit and cap on creation; row cap for each demo; daily reset. |
 | A visitor uploads a large file | The exemplar-import route has no size limit today. Demo mode disables that route. |
 | A model API is called | No SDK in the build; a test fails if one is added. |
-| A visitor sees another visitor's content | One Instructor for each visitor; existing ownership checks. |
+| A visitor sees another visitor's content | One Instructor for each visitor; existing ownership checks. Another visitor's demo opens only with its share link. |
+| A shared demo holds offensive content | It is reachable only by its link, it carries a banner that it is a visitor's demo, and it is deleted at the next reset. |
 
 ## Build order
 
@@ -154,36 +239,47 @@ simulated implementation, and OPS.md keeps it as the active one.
 | 1 | #70: current and next Term | Done in its own pull request |
 | 2 | `demoModeConfig` with the conflict rule; marker check; tests | S |
 | 3 | The no-model-SDK and mock-only test | S |
-| 4 | Visitor cookie in the proxy; demo branch in `getAuthenticatedInstructor`; layout without sign-out | M |
-| 5 | Load the demo Course on first visit; banner; `noindex` header | S |
-| 6 | Reset route, cron entry, hand-run script, bootstrap script | M |
-| 7 | Workspace cap, row cap and age limit for each workspace, rate limits, exemplar-import disabled | M |
-| 8 | Operator: Vercel project, Neon database, variables, bootstrap, smoke test | Manual |
+| 4 | Open-workspace resolution in the proxy and in `getAuthenticatedInstructor`; the write rule; marker check on first request; layout without sign-out | M |
+| 5 | Showcase Instructor and bootstrap script; banner for each workspace; `noindex` header | M |
+| 6 | "Start your own demo"; `DemoWorkspace` table; switch between demo and showcase; reset route, cron entry, hand-run scripts; the delete test | M |
+| 7 | Share link | S |
+| 8 | Admin secret, admin page, and admin writes to the showcase | S |
+| 9 | Creation cap, row cap and age limit for each demo, rate limits, exemplar-import disabled | M |
+| 10 | Operator: Vercel project, Neon database, variables, bootstrap, smoke test | Manual |
 
-Steps 2 and 3 change no behavior of the running app. Steps 4 to 7 are inert
-unless both keys are present.
+Steps 2 and 3 change no behavior of the running app. Steps 4 to 9 are inert
+unless both keys are present. The demo is usable after step 6 with a
+showcase that changes only through the bootstrap script.
 
 ## Open items
 
-- **Load time on the hosted database.** The first visit runs the demo load.
-  Measure it on Neon at step 8. If it is over about five seconds, show a
-  "building your workspace" state, or build a small pool of workspaces ahead
-  of visitors.
-- **The cap on workspaces.** Start at 200 between resets. Change it after the
-  first week of use.
+- **Load time on the hosted database.** "Start your own demo" runs the demo
+  load. Measure it on Neon at step 10. If it is over about five seconds, show
+  a "building your demo" state.
+- **The cap on visitor demos.** Start at 200 between resets. Change it after
+  the first week of use.
 - **Reset time.** 08:00 UTC, which is the low point of a North American day.
-- **The Vercel plan's cron limit.** Confirm at step 8 that the plan allows a
+- **The Vercel plan's cron limit.** Confirm at step 10 that the plan allows a
   daily cron job.
+- **Deleting a visitor's rows.** The schema's delete rules decide whether one
+  delete of an Instructor removes everything. Step 6 finds this out and adds
+  explicit deletes where a rule is `Restrict`.
 
 ## Done when
 
 The conditions in #78, restated against these decisions:
 
-- A link opens a populated workspace in a private browser window, with no
+- A link opens the populated showcase in a private browser window, with no
   sign-in.
-- A second private window gets a different workspace, and sees none of the
-  first window's changes.
+- A write to the showcase with no admin cookie is refused. With the admin
+  cookie it succeeds, and the change is still there after a reset.
+- "Start your own demo" gives an editable demo. A second private window that
+  starts a demo gets a different one, and sees none of the first window's
+  changes.
+- A share link opens the first window's demo in the second window, and a
+  write through it is refused.
 - No model SDK is in the build, and the test that enforces it passes.
 - The demo project holds no production variable, and the app refuses to
   start in demo mode when one is present.
-- The reset refuses to run against a database with no marker.
+- The reset refuses to run against a database with no marker, removes each
+  visitor demo, and keeps the showcase.
