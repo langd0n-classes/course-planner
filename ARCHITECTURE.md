@@ -308,19 +308,3 @@ versions. The secondary `TopicBrowser` links to
 `/courses/[courseId]/topics/[topicId]`, where `TopicWorkspacePage` loads Course
 Topics and prerequisites and `TopicEditor` edits the selected Topic. Identity,
 prerequisite, and content revision calls retain their existing contracts.
-
-## Term date-order checks
-
-- `src/lib/term-order-checks.ts` exports the pure advisory `checkTermOrder`
-  function and input/result types. It uses the daily driver's Term Activity and
-  planned/delivered revision DTOs, stable Topic-version identity mappings,
-  Calendar Slots, and prerequisite pairs. Optional `timeZone` supplies the Term's
-  local date zone; optional `topicLabels` supplies names for finding sentences.
-  It reports five order findings and counts undated Activities/milestones and
-  unmapped Topic actions without mutating data. The existing
-  `redesignApi.listTopicPrerequisites(courseId)` call supplies prerequisite data;
-  no new service route is needed.
-- `src/components/redesign/TermOrderFindingsPanel.tsx` renders a labelled section
-  and list with finding sentences, Activity labels, dates, finding count, and
-  undated count. Its result and labels are props; loading and Term workspace
-  integration belong to a later step.
