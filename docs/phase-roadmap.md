@@ -226,47 +226,30 @@ don't block the workspace experience. Deferred to keep
 
 ## Redesign track: Course/LearningModule/Topic (supersedes Phases 3-5 planning)
 
-`main` keeps shipping the Module/Skill product above. In parallel, the
-`redesign` branch lineage replaces that data model per
-`docs/plans/course-lm-topic-redesign-v2.md`. See that document for the full
-chunked implementation plan (§5) and amendments (§9, §10).
+`main` is the product branch. It runs the Course, Learning Module, Topic, and
+Activity model from `docs/plans/course-lm-topic-redesign-v2.md`. The Module and
+Skill pages from the earlier tracks are legacy.
 
-- **Phase A** (issue #18): schema + revision subsystem + REST contract
-  freeze. Landed, but Gate 0 review found the seed failed, the frozen
-  contract was missing collection/operational surfaces, several routes
-  still compiled against the removed Module/Skill schema, and
-  `AssessmentType` violated the generic-app rule.
-- **Phase A.1 refreeze gate** (this build): fixes the seed (Path A: create
-  `Term` then `TermLearningModule` as a second write), makes
-  `assessmentType` a generic string, adds explicit Term lifecycle and
-  advisory-only calendar capacity/Session instructional-mode fields,
-  expands the frozen contract to the full Plan/Run surface, and quarantines
-  every schema-incompatible legacy route as either a typed 501 stub or an
-  explicit `410 legacy_route_retired` response. See v2.2 in the plan doc
-  (§10) for details. Phase B (UI, handler logic, calendar heuristics,
-  import codecs, AI) does not start until this gate passes review.
-- **Phase B fan-out:** domain/REST, import/export/material, and workspace UI
-  components integrated successfully at the code-quality level, but the first
-  combined product/academic gate rejected them as an end-to-end instructor
-  workflow.
-- **Phase B.1 recovery gate (accepted 2026-07-13):** the real HTTP vertical seam,
-  authenticated ownership, calendar preview/apply, historically correct cloning,
-  evidence-preserving artifact/package behavior, and daily-driver correction
-  workflows passed product/UX and academic-practice review. Clean migration and
-  seed, 137 tests, typecheck, changed-surface lint, and production build all pass.
-  The accepted lineage promotes to `redesign`, while `main` remains unchanged.
-- **Phase B.2R activity/interaction refreeze (accepted 2026-07-14):** operator review of
-  the high-fidelity UX synthesis corrected the domain graph: Learning Modules
-  organize meetings and coursework, while Topics attach to activities through
-  I/P/A actions. The DS100 evidence map, corrected activity/calendar contract,
-  migration-impact report, dense working prototype, and validation passed the
-  operator gate.
-- **Phase B.3 (starting):** implement schema/REST/domain changes and the
-  one-way DS100 importer; B.4 builds the Course design studio and active-Term daily
-  driver on real handlers after the B.3 gate; Phase D integrates, validates, and presents the separate
-  `redesign` → `main` cutover decision. Blackboard remains a non-blocking follow-on
-  pending sandbox evidence. The canonical live status is in
-  `docs/plans/course-lm-topic-redesign-execution.md`.
+- **Phase A / A.1:** foundation and transitional contract complete.
+- **Phase B / B.1:** recovery gate accepted 2026-07-13.
+- **Phase B.2R:** activity/interaction refreeze accepted 2026-07-14. See
+  `docs/plans/course-planner-b2r-checkpoint-2026-07-14.md`.
+- **Phase B.3:** schema, REST, domain changes, and one-way DS100 importer
+  accepted 2026-07-15. See
+  `docs/plans/course-planner-b3-checkpoint-2026-07-15.md`.
+- **Phase B.4:** packets B.4.1–B.4.5 merged by 2026-08-07: Course shell (#47),
+  Activity board and Topic flow (#50), Term/calendar setup (#53), active-Term
+  daily driver and delivery correction (#56), and interaction hardening (#57).
+- **Phase B.4 acceptance:** accepted with follow-ups on 2026-11-16 (#34 closed).
+  The follow-ups are #83 (run the eight acceptance tasks in a browser), #84
+  (this document refresh), and #90 (the product/UX review and the
+  academic-practice review).
+- **Phase D:** cutover complete. Integrating `redesign` into `main` was the
+  Phase D cutover; `origin/redesign` is an ancestor of `main`.
+- **Blackboard:** parked pending Ultra sandbox evidence; it does not gate cutover.
+
+The canonical stage table is in
+`docs/plans/course-lm-topic-redesign-execution.md`.
 
 ---
 
