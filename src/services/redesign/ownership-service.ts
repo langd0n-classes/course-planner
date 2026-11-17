@@ -7,7 +7,7 @@ export function assertOwnedByInstructor(
   notFoundMessage: string,
 ) {
   if (!ownerInstructorId || ownerInstructorId !== instructorId) {
-    throw new DomainInvariantError(notFoundMessage);
+    throw new NotFoundError(notFoundMessage);
   }
 }
 
@@ -39,7 +39,7 @@ export async function getOwnedTermForInstructor(
     },
   });
   if (!term) {
-    throw new DomainInvariantError("Term not found");
+    throw new NotFoundError("Term not found");
   }
   assertOwnedByInstructor(instructorId, term.course?.instructorId, "Term not found");
   return term;

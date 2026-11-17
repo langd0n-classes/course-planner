@@ -120,10 +120,19 @@ export async function updateTermLearningModule(
   });
 }
 
-// Removing an adopted Learning Module while Sessions still reference it would
-// silently orphan those Sessions' delivery record; the design's guarded
-// "detach Sessions, then remove adoption" two-step flow is Lane B/Chunk 5
-// scope, so for now removal simply fails while Sessions remain attached.
+// Count every referencing row, including archived Activities that retain history.
+async function termLearningModuleRemovalPreview(tx: RedesignTx, termLearningModuleId: string) {
+  const [sessions, activities] = await Promise.all([
+    tx.session.count({ where: { termLearningModuleId } }),
+    tx.termActivity.count({ where: { termLearningModuleId } }),
+  ]);
+  const blockers = [
+    { code: "sessions", count: sessions, message: `Cannot remove this Term Learning Module while ${sessions} Sessions are attached. Detach the Sessions first.` },
+    { code: "term_activities", count: activities, message: `Cannot remove this Term Learning Module while ${activities} Term Activities (including archived) are attached. Detach the Term Activities first.` },
+  ].filter((blocker) => blocker.count > 0);
+  return { termLearningModuleId, canRemove: blockers.length === 0, blockers };
+}
+
 export async function removeTermLearningModule(
   db: RedesignDb,
   instructorId: string,
@@ -132,17 +141,18 @@ export async function removeTermLearningModule(
   return db.$transaction(async (tx) => {
     const offering = await getOwnedTermLearningModuleForInstructor(tx, instructorId, termLearningModuleId);
     assertWritableTerm(offering.term.status);
-    const attachedSessions = await tx.session.findMany({
-      where: { termLearningModuleId },
-      select: { id: true },
-      take: 1,
-    });
-    if (attachedSessions.length > 0) {
-      throw new DomainInvariantError(
-        "Cannot remove a Term Learning Module while Sessions are attached to it",
-      );
+    const preview = await termLearningModuleRemovalPreview(tx, termLearningModuleId);
+    if (!preview.canRemove) {
+      throw new ConcurrencyConflictError(preview.blockers.map((blocker) => blocker.message).join(" "));
     }
-    await tx.termLearningModule.delete({ where: { id: termLearningModuleId } });
+    try {
+      await tx.termLearningModule.delete({ where: { id: termLearningModuleId } });
+    } catch (error) {
+      if (typeof error === "object" && error !== null && "code" in error && error.code === "P2003") {
+        throw new ConcurrencyConflictError("Cannot remove this Term Learning Module while references remain attached, including archived Term Activities. Refresh and detach the references first.");
+      }
+      throw error;
+    }
     return offering;
   });
 }

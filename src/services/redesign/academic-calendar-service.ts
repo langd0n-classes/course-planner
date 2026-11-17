@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { ConcurrencyConflictError, DomainInvariantError } from "./errors";
+import { ConcurrencyConflictError, DomainInvariantError, NotFoundError } from "./errors";
 import { assertInstructorInstitution } from "./course-service";
 import { getOwnedCalendarSlotForInstructor, getOwnedTermForInstructor } from "./ownership-service";
 import type { RedesignDb, RedesignTx } from "./types";
@@ -167,7 +167,7 @@ async function getOwnedAcademicCalendarForInstructor(
   academicCalendarId: string,
 ) {
   const calendar = await tx.academicCalendar.findUnique({ where: { id: academicCalendarId } });
-  if (!calendar) throw new DomainInvariantError("Academic Calendar not found");
+  if (!calendar) throw new NotFoundError("Academic Calendar not found");
   await assertInstructorInstitution(tx, instructorId, calendar.institutionId);
   return calendar;
 }
@@ -185,7 +185,7 @@ async function assertActivityTypeVersionOwnedByInstructor(
     include: { activityType: { select: { instructorId: true } } },
   });
   if (!version || version.activityType?.instructorId !== instructorId) {
-    throw new DomainInvariantError("Activity Type version not found");
+    throw new NotFoundError("Activity Type version not found");
   }
   return version;
 }
@@ -239,15 +239,18 @@ function sortWarnings(warnings: string[]) {
 
 async function computeTermCalendarPreview(tx: RedesignTx, input: PreviewTermCalendarInput): Promise<PreviewResult> {
   const term = await getOwnedTermForInstructor(tx, input.instructorId, input.termId);
+  const limitEnd = addDays(term.startDate, 399);
+  const limited = term.endDate > limitEnd;
+  const endDate = limited ? limitEnd : term.endDate;
   if (!term.academicCalendarVersionId) {
-    throw new DomainInvariantError("Term adopted Academic Calendar version is missing");
+    throw new NotFoundError("Term adopted Academic Calendar version is missing");
   }
 
   const version = await tx.academicCalendarVersion.findUnique({
     where: { id_academicCalendarId: { id: term.academicCalendarVersionId, academicCalendarId: term.academicCalendarId } },
   });
   if (!version) {
-    throw new DomainInvariantError("Academic Calendar version not found");
+    throw new NotFoundError("Academic Calendar version not found");
   }
 
   const normalizedPatterns = normalizeMeetingPatterns(input.meetingPatterns);
@@ -260,7 +263,7 @@ async function computeTermCalendarPreview(tx: RedesignTx, input: PreviewTermCale
       where: {
         academicCalendarId: term.academicCalendarId,
         academicCalendarVersionId: term.academicCalendarVersionId,
-        startsOn: { lte: term.endDate },
+        startsOn: { lte: endDate },
         endsOn: { gte: term.startDate },
       },
       orderBy: [{ startsOn: "asc" }, { endsOn: "asc" }, { id: "asc" }],
@@ -268,7 +271,7 @@ async function computeTermCalendarPreview(tx: RedesignTx, input: PreviewTermCale
     tx.academicCalendarPeriod.findMany({
       where: {
         academicCalendarVersionId: term.academicCalendarVersionId,
-        startsOn: { lte: term.endDate },
+        startsOn: { lte: endDate },
         endsOn: { gte: term.startDate },
       },
       orderBy: [{ startsOn: "asc" }, { endsOn: "asc" }, { id: "asc" }],
@@ -285,7 +288,7 @@ async function computeTermCalendarPreview(tx: RedesignTx, input: PreviewTermCale
 
   const dayMap = new Map<string, CalendarSlotCandidate>();
   const conflicts: CalendarConflict[] = [];
-  const warnings: string[] = [];
+  const warnings: string[] = limited ? ["Term exceeds the 400-day calendar limit; only the first 400 days are included."] : [];
   const slotIdByDate = new Map<string, string>();
   for (const slot of existingSlots) {
     slotIdByDate.set(toIsoDate(slot.date), slot.id);
@@ -296,7 +299,7 @@ async function computeTermCalendarPreview(tx: RedesignTx, input: PreviewTermCale
     if (!slotType) continue;
     for (const date of eachDateInclusive(
       event.startsOn > term.startDate ? event.startsOn : term.startDate,
-      event.endsOn < term.endDate ? event.endsOn : term.endDate,
+      event.endsOn < endDate ? event.endsOn : endDate,
     )) {
       const key = toIsoDate(date);
       dayMap.set(key, {
@@ -320,7 +323,7 @@ async function computeTermCalendarPreview(tx: RedesignTx, input: PreviewTermCale
     if (!slotType) continue;
     for (const date of eachDateInclusive(
       period.startsOn > term.startDate ? period.startsOn : term.startDate,
-      period.endsOn < term.endDate ? period.endsOn : term.endDate,
+      period.endsOn < endDate ? period.endsOn : endDate,
     )) {
       const key = toIsoDate(date);
       if (!dayMap.has(key)) {
@@ -342,7 +345,7 @@ async function computeTermCalendarPreview(tx: RedesignTx, input: PreviewTermCale
   }
 
   const start = term.startDate;
-  const end = term.endDate;
+  const end = endDate;
   for (const date of eachDateInclusive(start, end)) {
     const key = toIsoDate(date);
     const matchingPatterns = normalizedPatterns.filter((pattern) => {
@@ -394,6 +397,8 @@ async function computeTermCalendarPreview(tx: RedesignTx, input: PreviewTermCale
       warnings.push(`Term calendar exception ${exception.id} has no resolvable target.`);
       continue;
     }
+
+    if (limited && (targetKey < toIsoDate(term.startDate) || targetKey > toIsoDate(endDate))) continue;
 
     if (exception.action === "cancel") {
       dayMap.set(targetKey, {
@@ -607,7 +612,7 @@ export async function getAcademicCalendarVersionForInstructor(
       where: { id: academicCalendarVersionId },
       include: { academicCalendar: true },
     });
-    if (!version) throw new DomainInvariantError("Academic Calendar version not found");
+    if (!version) throw new NotFoundError("Academic Calendar version not found");
     await assertInstructorInstitution(tx, instructorId, version.academicCalendar.institutionId);
     const [events, periods] = await Promise.all([
       tx.academicCalendarEvent.findMany({
@@ -642,7 +647,7 @@ export async function createTermCalendarException(
     await getOwnedTermForInstructor(tx, input.instructorId, termId);
     if (input.calendarSlotId) {
       const slot = await getOwnedCalendarSlotForInstructor(tx, input.instructorId, input.calendarSlotId);
-      if (slot.termId !== termId) throw new DomainInvariantError("Calendar slot not found");
+      if (slot.termId !== termId) throw new NotFoundError("Calendar slot not found");
     }
     if (input.activityTypeVersionId) {
       await assertActivityTypeVersionOwnedByInstructor(tx, input.instructorId, input.activityTypeVersionId);
@@ -676,11 +681,11 @@ export async function updateTermCalendarException(
       include: { term: { include: { course: { select: { instructorId: true } } } } },
     });
     if (!existing || existing.term?.course?.instructorId !== instructorId) {
-      throw new DomainInvariantError("Term calendar exception not found");
+      throw new NotFoundError("Term calendar exception not found");
     }
     if (input.calendarSlotId) {
       const slot = await getOwnedCalendarSlotForInstructor(tx, instructorId, input.calendarSlotId);
-      if (slot.termId !== existing.termId) throw new DomainInvariantError("Calendar slot not found");
+      if (slot.termId !== existing.termId) throw new NotFoundError("Calendar slot not found");
     }
     if (input.activityTypeVersionId) {
       await assertActivityTypeVersionOwnedByInstructor(tx, instructorId, input.activityTypeVersionId);
@@ -713,7 +718,7 @@ export async function deleteTermCalendarException(
       include: { term: { include: { course: { select: { instructorId: true } } } } },
     });
     if (!existing || existing.term?.course?.instructorId !== instructorId) {
-      throw new DomainInvariantError("Term calendar exception not found");
+      throw new NotFoundError("Term calendar exception not found");
     }
     await tx.termCalendarException.delete({ where: { id: exceptionId } });
   });
@@ -731,6 +736,8 @@ export async function applyTermCalendar(
   input: ApplyTermCalendarInput,
 ) {
   return db.$transaction(async (tx) => {
+    const term = await getOwnedTermForInstructor(tx, input.instructorId, input.termId);
+    if (term.status === "closed") throw new DomainInvariantError("Closed Terms are read-only");
     const preview = await computeTermCalendarPreview(tx, input);
     if (preview.previewToken !== input.previewToken) {
       throw new ConcurrencyConflictError("Preview token mismatch");
