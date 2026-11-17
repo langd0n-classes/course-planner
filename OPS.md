@@ -222,7 +222,10 @@ These patterns caused bugs and rework. Follow them:
 
 - Commit messages: imperative mood, concise, explain why
 - Add a file in `docs/assumptions/` when making design decisions
-- Append to `ARCHITECTURE.md` when adding new subsystems
+- Do not change `ARCHITECTURE.md` in a feature pull request. Put the
+  architecture notes for a change under an "Architecture notes" heading
+  in its `docs/assumptions/` file. A separate refresh pull request moves
+  the notes into `ARCHITECTURE.md`
 - Keep `docs/phase-roadmap.md` updated as phases complete
 
 ## Commit attribution (agent commits)

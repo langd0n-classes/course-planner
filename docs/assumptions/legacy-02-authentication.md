@@ -8,4 +8,4 @@
 
 - **JWT sessions only**: Auth.js uses its default stateless JWT session strategy. No Prisma adapter or auth-related schema changes are added.
 
-- **Identity routes are additive, not contract rewrites**: Learning Module and Topic detail routes use small additive update DTOs that only cover identity/archive state (`stableCode`, `learningModuleId` for Topic, and `archivedAt`). Version prose still changes only through `/versions`, which preserves the immutable published-revision rule.
+- **Identity routes are additive, not contract rewrites**: Learning Module and Topic detail routes use small additive update DTOs that only cover identity/archive state (`stableCode` and `archivedAt`; a Topic has no Learning Module owner since #91). Version prose still changes only through `/versions`, which preserves the immutable published-revision rule.
