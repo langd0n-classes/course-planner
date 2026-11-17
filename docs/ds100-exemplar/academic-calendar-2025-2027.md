@@ -3,6 +3,12 @@
 This file provides a consolidated academic calendar reference spanning
 Summer 2025 through Spring 2027.
 Source: https://www.bu.edu/reg/calendars/
+
+> **Dated snapshot. Not maintained.** This file is exemplar reference data. It
+> shows the shape of a real academic calendar. Do not take a date from it.
+> Known error: it gives January 21 for the start of Spring 2027 classes; the
+> registrar gives January 19. For a current date, use the registrar's pages.
+
 Use the human-facing section for quick reading and the machine-facing section
 for parsing and automation.
 

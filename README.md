@@ -23,7 +23,7 @@ npm install
 npx prisma generate
 npx prisma db push
 
-# 4. Add the demo instructor, courses, and sample term
+# 4. Add the demo instructor, courses, and terms (one past, the current, and the next)
 npm run db:seed
 
 # 5. Start the dev server
@@ -96,7 +96,7 @@ variables for `.env.local`.
 | `npm run db:reset` | Reset database |
 | `npm run test:seed` | Check seed behavior against a dedicated test database |
 
-The default seed uses stable demo identifiers. Re-running it preserves existing rows and instructor changes. Set `SEED_INSTRUCTOR_EMAIL` and optionally `SEED_INSTRUCTOR_NAME` before the first run to match the sign-in account. Use `npm run db:seed -- --force` only when you intend to delete **all** application data. To run the database checks, create an empty dedicated database named `cp15`, apply migrations, then set `SEED_TEST_DATABASE_URL` to its connection URL and run `npm run test:seed`. The check wipes that database.
+The default seed uses stable demo identifiers. Re-running it preserves existing rows and instructor changes. It gives the exemplar course the Terms that are current and next on the day it runs, so a run in a later semester adds the Terms that are then missing. Set `SEED_INSTRUCTOR_EMAIL` and optionally `SEED_INSTRUCTOR_NAME` before the first run to match the sign-in account. Use `npm run db:seed -- --force` only when you intend to delete **all** application data. To run the database checks, create an empty dedicated database named `cp15`, apply migrations, then set `SEED_TEST_DATABASE_URL` to its connection URL and run `npm run test:seed`. The check wipes that database.
 
 ## Features (MVP)
 

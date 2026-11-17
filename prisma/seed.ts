@@ -19,9 +19,17 @@ async function main() {
       IF tables IS NOT NULL THEN EXECUTE 'TRUNCATE TABLE ' || tables || ' RESTART IDENTITY CASCADE'; END IF;
     END $$`);
   }
+  // SEED_TEST_TODAY fixes the date that selects the current and next Term.
+  // The seed check sets it so that a run and its assertions use one date.
+  const testToday = process.env.SEED_TEST_TODAY?.trim();
+  const today = testToday ? new Date(testToday) : undefined;
+  if (today && Number.isNaN(today.getTime())) {
+    throw new Error(`SEED_TEST_TODAY is not a date: ${testToday}`);
+  }
   await seedDemoRows(prisma, {
     instructorEmail: process.env.SEED_INSTRUCTOR_EMAIL,
     instructorName: process.env.SEED_INSTRUCTOR_NAME,
+    today,
   });
   console.log("Seeded redesign foundation data.");
 }
