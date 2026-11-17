@@ -24,7 +24,7 @@ Decisions made where the requirements were underspecified. Each can be revisited
 
 - **JWT sessions only**: Auth.js uses its default stateless JWT session strategy. No Prisma adapter or auth-related schema changes are added.
 
-- **Identity routes are additive, not contract rewrites**: Learning Module and Topic detail routes use small additive update DTOs that only cover identity/archive state (`stableCode` and `archivedAt`). Version prose still changes only through `/versions`, which preserves the immutable published-revision rule.
+- **Identity routes are additive, not contract rewrites**: Learning Module and Topic detail routes use small additive update DTOs that only cover identity/archive state (`stableCode`, `learningModuleId` for Topic, and `archivedAt`). Version prose still changes only through `/versions`, which preserves the immutable published-revision rule.
 
 ## Calendar / Schedule
 
@@ -451,28 +451,3 @@ Decisions made where the requirements were underspecified. Each can be revisited
   tests depend on. It now serves as the past-Term example.
 - **The demo calendars carry no holidays or recesses.** Adding rule-based
   events is a possible follow-up; it is outside #70.
-
-## Topic module independence (#91)
-
-- Learning Module Topic snapshots validate Course membership only. The snapshot
-  link itself records module membership; a Topic can serve several modules.
-- Learning Module removal previews count distinct Topics linked across all module
-  revisions. The `topics_assigned` blocker reports that count because snapshot
-  foreign keys restrict deletion and removal does not clear those links.
-- Planning emits no warning for coverage outside a module's Topic snapshots.
-  Topics belong to Courses and can span several Learning Modules.
-- Delete the unused `buildTopicBrowserBuckets` helper and its unused bucket type.
-- Remove the legacy ownership field from Topic DTOs and create/update contract
-  types as well as serializers. It no longer describes an application relation.
-  Other entities' `learningModuleId` fields retain their meaning.
-- Topic `learningModuleCode` is optional and nullable in the exemplar import
-  contract. Topic forms and REST schemas already omit this field and require no
-  new controls or display fallback. The source-specific DS100 extraction script
-  still records the source's module labels; no code snapshot is regenerated.
-- Keep the nullable database column unchanged for the later removal migration.
-  Default seed and demo creation use the corrected Topic creation/import paths.
-- Use a syntax-tree regression guard for Topic Prisma call arguments, nested
-  Topic selects, known property reads and contract types. Scan application
-  sources, `prisma/seed.ts` and `scripts/`. Call boundaries prevent matches
-  against another model's fields. Arbitrary aliases and computed property
-  access remain outside this narrow guard.

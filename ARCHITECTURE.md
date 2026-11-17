@@ -308,21 +308,3 @@ versions. The secondary `TopicBrowser` links to
 `/courses/[courseId]/topics/[topicId]`, where `TopicWorkspacePage` loads Course
 Topics and prerequisites and `TopicEditor` edits the selected Topic. Identity,
 prerequisite, and content revision calls retain their existing contracts.
-
-## Topic module independence (#91)
-
-`revision-service` creates Course-owned Topics without module ownership writes
-and validates module Topic snapshots by Course. `exemplar-import-service` accepts
-Topics without `learningModuleCode` and omits the legacy ownership column on
-insert; the seed and demo services use these same paths. `redesign-mock-backend`
-creates the same Topic shape. Topic contracts and `redesign-serializers` omit
-`learningModuleId`; Topic routes continue to use those serializers.
-
-`archive-removal-service` blocks module removal when version snapshots link
-Topics, counting distinct Topic identities across revisions. Snapshot foreign
-keys restrict deletion, and removal does not delete the links.
-`planning-service` emits no out-of-offering Topic warning.
-The unused `buildTopicBrowserBuckets` helper and its unused bucket type are deleted.
-The Course workspace's secondary `TopicBrowser` remains Course-wide.
-Topic forms and code suggestions retain their existing behavior. The nullable
-Prisma column remains until its separate removal migration.
