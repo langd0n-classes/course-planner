@@ -1,4 +1,4 @@
-import { DomainInvariantError } from "./errors";
+import { DomainInvariantError, NotFoundError } from "./errors";
 import type { RedesignTx } from "./types";
 
 export function assertOwnedByInstructor(
@@ -20,7 +20,7 @@ export async function getOwnedCourseForInstructor(
     where: { id_instructorId: { id: courseId, instructorId } },
   });
   if (!course) {
-    throw new DomainInvariantError("Course not found");
+    throw new NotFoundError("Course not found");
   }
   return course;
 }

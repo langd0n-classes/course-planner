@@ -5,6 +5,9 @@ import {
   previewMeetingPlacement,
 } from "./meeting-placement-service";
 
+import { createRevisionSnapshot } from "./term-activity-service";
+import { toTermActivityRevisionDto } from "@/lib/redesign-serializers";
+
 const request = {
   instructorId: "i",
   termId: "term",
@@ -282,4 +285,35 @@ it("reuses the saved time for a remaining undated meeting without a fallback", a
   expect(saved.missingMeetingTime).toBe(false);
   expect(saved.placements).toEqual(withFallback.placements);
   expect(saved.placements[0]).toMatchObject({ calendarSlotId: first.placements[0].calendarSlotId, startsAt: first.placements[0].startsAt, endsAt: first.placements[0].endsAt });
+});
+
+
+it.each(["coursework", "assessment"] as const)("keeps a %s effort override when placing meetings", async (behaviorFamily) => {
+  const f = fixture();
+  const detailRows: any[] = [];
+  const detailModel = behaviorFamily === "coursework" ? "termCourseworkActivityRevision" : "termAssessmentActivityRevision";
+  f.tx[detailModel] = { create: vi.fn(async ({ data }: any) => { detailRows.push(data); return data; }) };
+  const baseDetail = { effortMinMinutes: 60, effortMaxMinutes: 120 };
+  const revision = {
+    id: "effort-revision", termActivityId: "work", baseActivityVersionId: "work-version",
+    revision: 1, title: "Work", summary: null, changeReason: null,
+    createdByInstructorId: "i", createdAt: new Date(),
+    baseActivityVersion: { [`${behaviorFamily}Detail`]: baseDetail },
+    [`${behaviorFamily}Detail`]: { effortMinMinutes: 30, effortMaxMinutes: 45 },
+  };
+  f.tx.termActivityRevision.findUnique.mockResolvedValue(revision);
+  const saved = await createRevisionSnapshot(f.tx, {
+    termActivityId: "work", baseActivityVersionId: "work-version", revision: 1,
+    title: "Work", summary: null, createdByInstructorId: "i",
+    detail: { behaviorFamily, effortMinMinutes: 30, effortMaxMinutes: 45 },
+    topicActions: [], milestones: [],
+  });
+  expect(toTermActivityRevisionDto(saved).effectiveEffort).toEqual({ minMinutes: 30, maxMinutes: 45 });
+  const preview = await previewMeetingPlacement(f.db, request);
+  await applyMeetingPlacement(f.db, { ...request, previewToken: preview.previewToken });
+  expect(f.tx[detailModel].create).toHaveBeenCalledTimes(1);
+  expect(detailRows).toEqual([expect.objectContaining({ effortMinMinutes: 30, effortMaxMinutes: 45 })]);
+  expect(toTermActivityRevisionDto(saved).effectiveEffort).toEqual({ minMinutes: 30, maxMinutes: 45 });
+  expect(f.tx.termActivity.updateMany).toHaveBeenCalledTimes(1);
+  expect(f.tx.termActivity.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "a", plannedRevisionId: "r" } }));
 });

@@ -70,6 +70,7 @@ describe("Term Activity adoption", () => {
   it.each(["same apply", "already adopted", "missing", "no link", "archived", "self"])("creates template milestones: %s", async (linkCase) => {
     const rows: any[] = ["already adopted", "archived"].includes(linkCase) ? [{ id: "ta-z-meeting", activityId: "z-meeting", adoptedLabel: "Existing meeting", archivedAt: linkCase === "archived" ? new Date() : null }] : [];
     const milestones: any[] = [];
+    const effortDetails: any[] = [];
     const templates = [0, 1].map((sequence) => ({
       id: `template-${sequence}`, sequence, role: sequence ? "due" : "release",
       label: sequence ? "Submit work" : "Begin work", timeZone: "UTC", notes: "Keep this note",
@@ -80,7 +81,8 @@ describe("Term Activity adoption", () => {
       activityVersion: { findUnique: async ({ where, include }: any) => {
         expect(include.milestoneTemplates).toEqual({ orderBy: { sequence: "asc" } });
         return baseActivityVersion({ id: where.id, activityId: where.id,
-          milestoneTemplates: where.id === "a-work" ? templates : [] });
+          milestoneTemplates: where.id === "a-work" ? templates : [],
+          ...(where.id === "a-work" ? { meetingDetail: null, courseworkDetail: { effortMinMinutes: 60, effortMaxMinutes: 120 } } : {}) });
       } },
       courseActivityTypeVersion: { findUnique: async () => ({}) },
       termActivity: {
@@ -91,6 +93,7 @@ describe("Term Activity adoption", () => {
       },
       termActivityRevision: { create: async ({ data }: any) => ({ id: `revision-${data.termActivityId}`, ...data }), findUnique: async () => ({ id: "revision" }) },
       termMeetingActivityRevision: { create: async () => ({}) },
+      termCourseworkActivityRevision: { create: async ({ data }: any) => { effortDetails.push(data); return data; } },
       termActivityRevisionTopicAction: { create: async () => ({}) },
       termActivityMilestone: { create: async ({ data }: any) => { milestones.push(data); return data; } },
     };
@@ -99,10 +102,13 @@ describe("Term Activity adoption", () => {
         .map((id) => ({ activityId: id, activityVersionId: id })) };
     const db = createTransactionalDb(tx);
     const preview = await previewTermActivityAdoption(db, input);
-    expect(preview.candidates[0]).toMatchObject({ milestoneCount: 2,
-      standaloneMilestones: ["missing", "archived", "self"].includes(linkCase) ? templates.map((t) => ({
-        sourceTemplateId: t.id, label: t.label, reason: linkCase === "archived" ? "Linked Activity is archived in this Term" : linkCase === "self" ? "A milestone cannot follow its own Activity" : "Linked Activity is not adopted in this Term",
-      })) : [],
+    // An undated milestone must follow a Term Activity. The database rejects an
+    // undated standalone milestone, so a template with nothing to follow is not created.
+    const followed = ["same apply", "already adopted"].includes(linkCase);
+    expect(preview.candidates[0]).toMatchObject({ milestoneCount: followed ? 2 : 0,
+      standaloneMilestones: followed ? [] : templates.map((t) => ({
+        sourceTemplateId: t.id, label: t.label, reason: linkCase === "archived" ? "Linked Activity is archived in this Term" : linkCase === "self" ? "A milestone cannot follow its own Activity" : linkCase === "no link" ? "The template has no linked Activity to follow" : "Linked Activity is not adopted in this Term",
+      })),
     });
     expect(preview.expectedCurrentActivityCount).toBe(rows.length);
     expect(preview.alreadyAdopted).toEqual(["already adopted", "archived"].includes(linkCase) ? [{ activityId: "z-meeting", adoptedLabel: "Existing meeting" }] : []);
@@ -110,17 +116,20 @@ describe("Term Activity adoption", () => {
     expect((await previewTermActivityAdoption(db, input)).previewToken).not.toBe(preview.previewToken);
     templates[0].label = "Begin work";
     await applyTermActivityAdoption(db, { ...input, previewToken: preview.previewToken, expectedCurrentActivityCount: preview.expectedCurrentActivityCount });
-    expect(milestones).toEqual(templates.map((t) => expect.objectContaining({
+    expect(milestones).toEqual(followed ? templates.map((t) => expect.objectContaining({
       sourceTemplateId: t.id, role: t.role, label: t.label, timeZone: t.timeZone, notes: t.notes, occursAt: null,
-      linkedTermActivityId: ["same apply", "already adopted"].includes(linkCase) ? "ta-z-meeting" : null,
-      anchorPolicy: ["same apply", "already adopted"].includes(linkCase) ? "follow_activity" : "standalone",
-    })));
+      linkedTermActivityId: "ta-z-meeting", anchorPolicy: "follow_activity",
+    })) : []);
+    expect(effortDetails).toEqual([expect.objectContaining({ effortMinMinutes: null, effortMaxMinutes: null })]);
+    // The database check: follow_activity needs a link; fixed_instant and standalone need a date.
+    for (const milestone of milestones)
+      expect(milestone.anchorPolicy === "follow_activity" ? milestone.linkedTermActivityId : milestone.occursAt).toBeTruthy();
     const repeat = await previewTermActivityAdoption(db, input);
     expect(repeat.candidates).toEqual([]);
     const count = rows.length;
     expect(await applyTermActivityAdoption(db, { ...input, previewToken: repeat.previewToken, expectedCurrentActivityCount: repeat.expectedCurrentActivityCount })).toMatchObject({ kind: "applied" });
     expect(rows).toHaveLength(count);
-    expect(milestones).toHaveLength(2);
+    expect(milestones).toHaveLength(followed ? 2 : 0);
   });
 
   it("previews candidates from selected learning-module memberships and cross-cutting selections", async () => {

@@ -25,6 +25,28 @@ async function main() {
       where: { id: first.courseId },
       include: { terms: { include: { activities: true, calendarSlots: true, meetingPatterns: true, learningModules: true } }, activities: true, learningModules: true },
     });
+    const sizes = await db.courseEffortSize.findMany({ where: { courseId: course.id }, orderBy: { sequence: "asc" } });
+    assert.deepEqual(sizes.map(({ label, scale, minMinutes, maxMinutes }) => ({ label, scale, minMinutes, maxMinutes })), [
+      { label: "Small", scale: "student", minMinutes: 30, maxMinutes: 45 },
+      { label: "Medium", scale: "student", minMinutes: 60, maxMinutes: 120 },
+      { label: "Large", scale: "student", minMinutes: 180, maxMinutes: 300 },
+    ]);
+    assert.equal(await db.courseEffortPartKind.count({ where: { courseId: course.id } }), 2);
+    const versions = await db.activityVersion.findMany({ where: { activity: { courseId: course.id } }, include: { courseworkDetail: true, assessmentDetail: true, effortParts: true } });
+    let partsFound = false;
+    for (const version of versions) {
+      const detail = version.courseworkDetail ?? version.assessmentDetail;
+      if (!detail) continue;
+      assert.ok(detail.effortMinMinutes && detail.effortMaxMinutes);
+      assert.ok(detail.effortMaxMinutes >= detail.effortMinMinutes);
+      if (version.effortParts.length) {
+        partsFound = true;
+        assert.equal(detail.effortMinMinutes, version.effortParts.reduce((sum, part) => sum + part.minMinutes, 0));
+        assert.equal(detail.effortMaxMinutes, version.effortParts.reduce((sum, part) => sum + part.maxMinutes, 0));
+      }
+    }
+    assert.ok(partsFound);
+    const effortBefore = { sizes, versions };
     assert.equal(course.terms.length, 2);
     const [current, next] = demoSemesters(today);
     const termFor = (code: string) => {
@@ -49,9 +71,10 @@ async function main() {
     const milestones = await db.termActivityMilestone.findMany({
       where: { termActivityRevision: { termActivity: { termId: currentTerm.id } } },
     });
-    assert.equal(milestones.length, 5);
+    assert.equal(milestones.length, 4);
     assert.equal(milestones.filter((row) => row.anchorPolicy === "follow_activity" && row.linkedTermActivityId).length, 4);
-    assert.equal(milestones.filter((row) => row.anchorPolicy === "standalone" && row.linkedTermActivityId === null).length, 1);
+    // The unlinked demo template has nothing to follow, so adoption creates no milestone for it.
+    assert.equal(milestones.filter((row) => row.anchorPolicy === "standalone").length, 0);
     assert.ok(milestones.every((row) => row.occursAt === null && row.sourceTemplateId && row.timeZone === "UTC"));
     const nextTerm = termFor(next.code);
     assert.equal(nextTerm.learningModules.length, 0);
@@ -70,6 +93,8 @@ async function main() {
       db.calendarSlot.count(), db.termActivity.count(), db.instructorInstitution.count(), db.termActivityMilestone.count(),
     ]);
     assert.deepEqual(countsAfter, countsBefore);
+    assert.deepEqual(await db.courseEffortSize.findMany({ where: { courseId: course.id }, orderBy: { sequence: "asc" } }), effortBefore.sizes);
+    assert.deepEqual(await db.activityVersion.findMany({ where: { activity: { courseId: course.id } }, include: { courseworkDetail: true, assessmentDetail: true, effortParts: true } }), effortBefore.versions);
 
     // A load at a later date adds the Terms that are then current and next,
     // and leaves the earlier Terms in place.

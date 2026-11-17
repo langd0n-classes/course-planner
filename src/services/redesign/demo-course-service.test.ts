@@ -1,3 +1,4 @@
+vi.mock("./demo-effort", () => ({ seedDemoEffort: vi.fn() }));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -11,6 +12,7 @@ vi.mock("./term-service", () => ({ createTerm: mocks.createTerm }));
 vi.mock("./offering-service", () => ({ adoptLearningModuleForTerm: mocks.adoptLearningModuleForTerm }));
 vi.mock("./term-activity-service", () => ({ previewTermActivityAdoption: mocks.previewTermActivityAdoption, applyTermActivityAdoption: mocks.applyTermActivityAdoption }));
 
+import { seedDemoEffort } from "./demo-effort";
 import { demoSemesters, loadDemoCourse } from "./demo-course-service";
 
 beforeEach(() => {
@@ -152,6 +154,8 @@ describe("loadDemoCourse", () => {
     ]);
     expect(mocks.applyTermCalendar).toHaveBeenCalledTimes(2);
     expect(importer.apply).toHaveBeenCalledTimes(1);
+    expect(seedDemoEffort).toHaveBeenCalledTimes(1);
+    expect(seedDemoEffort).toHaveBeenCalledWith(tx, "owner-course");
   });
 
   it("puts both Terms of one academic year on one Academic Calendar", async () => {

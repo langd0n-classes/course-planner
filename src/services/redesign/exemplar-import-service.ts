@@ -116,6 +116,7 @@ export const genericDemoExemplarSnapshot = {
       label: "Practice Work",
       description: "Independent practice activity.",
     },
+    { key: "check", behaviorFamily: "assessment", label: "Knowledge Check", description: "An independent check of understanding." },
   ],
   learningModules: [
     {
@@ -181,7 +182,7 @@ export const genericDemoExemplarSnapshot = {
     },
     {
       stableCode: "ACT-MODEL-CHECK",
-      typeKey: "practice",
+      typeKey: "check",
       learningModuleCode: "LM-MODEL",
       milestoneTemplates: [
         { role: "release", label: "Model check opens", linkedActivityCode: "ACT-MODEL-STUDIO", relativeDays: 0, defaultTime: "10:00", timeZone: "UTC" },

@@ -110,6 +110,14 @@ describe("Term Activity revision apply route", () => {
     );
 
     expect(response.status).toBe(200);
+    expect(
+      applyTermActivityRevisionMock.mock.calls[0][1].draft.detail
+        .effortMinMinutes,
+    ).toBeUndefined();
+    expect(
+      applyTermActivityRevisionMock.mock.calls[0][1].draft.detail
+        .effortMaxMinutes,
+    ).toBeUndefined();
     const body = await response.json();
     expect(body.revision.detail.behaviorFamily).toBe("coursework");
     expect(body.termActivity.deliveredRevisionId).toBe("tar-2");

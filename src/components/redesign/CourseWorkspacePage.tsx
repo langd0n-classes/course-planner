@@ -21,6 +21,7 @@ import GapNotice from "./GapNotice";
 import LifecycleBadge from "./LifecycleBadge";
 import RevisionHistoryPanel from "./RevisionHistoryPanel";
 import TopicBrowser from "./TopicBrowser";
+import CourseEffortSettings from "./CourseEffortSettings";
 import ActivityBoard from "./ActivityBoard";
 import LearningModuleEditor from "./LearningModuleEditor";
 
@@ -84,6 +85,7 @@ type CreateActivityTypeState =
     };
 
 export default function CourseWorkspacePage({ courseId }: Props) {
+  const [effortSettingsRevision, setEffortSettingsRevision] = useState(0);
   const [showTopicBrowser, setShowTopicBrowser] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -528,7 +530,10 @@ export default function CourseWorkspacePage({ courseId }: Props) {
         </div>
       </section>
 
+      <CourseEffortSettings courseId={course.id} onChanged={() => setEffortSettingsRevision((value) => value + 1)} />
+
       <ActivityBoard
+        effortSettingsRevision={effortSettingsRevision}
         courseId={courseId}
         learningModules={learningModules}
         currentVersionsByLearningModuleId={currentVersionsByLearningModuleId}

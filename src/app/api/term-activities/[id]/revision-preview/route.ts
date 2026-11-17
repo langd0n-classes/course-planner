@@ -35,12 +35,16 @@ function toDraftDetail(
   if (detail.behaviorFamily === "coursework") {
     return {
       behaviorFamily: "coursework" as const,
-      lifecycleState: (detail.lifecycleState as string | null | undefined) ?? null,
+      effortMinMinutes: detail.effortMinMinutes as number | null | undefined,
+      effortMaxMinutes: detail.effortMaxMinutes as number | null | undefined,
+    lifecycleState: (detail.lifecycleState as string | null | undefined) ?? null,
       deliveryNotes: (detail.deliveryNotes as string | null | undefined) ?? null,
     };
   }
   return {
     behaviorFamily: "assessment" as const,
+    effortMinMinutes: detail.effortMinMinutes as number | null | undefined,
+    effortMaxMinutes: detail.effortMaxMinutes as number | null | undefined,
     lifecycleState: (detail.lifecycleState as string | null | undefined) ?? null,
     modality: (detail.modality as string | null | undefined) ?? null,
     deliveryNotes: (detail.deliveryNotes as string | null | undefined) ?? null,
@@ -62,6 +66,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const preview = await previewTermActivityRevision(prisma, {
       instructorId: instructor.id,
       termActivityId: id,
+      advancePointer: parsed.data.advancePointer,
       draft: {
         title: parsed.data.title,
         summary: parsed.data.summary,

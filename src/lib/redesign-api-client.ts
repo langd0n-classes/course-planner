@@ -1,3 +1,4 @@
+import type { CourseEffortSizeDto, CourseEffortPartKindDto, CourseEffortSizeRequest, CourseEffortPartKindRequest } from "./redesign-contract";
 // Typed client for the workspace UI. Every method calls a canonical API route
 // so call sites in pages/components stay stable when routes are extended.
 //
@@ -192,6 +193,19 @@ export function setMockBackend(mock: RedesignApiMock | null) {
 // ---------------------------------------------------------------------------
 
 const _api = {
+
+  listCourseEffortSizes: (courseId: Id): Promise<CourseEffortSizeDto[]> => get<{ entries: CourseEffortSizeDto[] }>(`/api/courses/${courseId}/effort-sizes`).then((d) => d.entries),
+  createCourseEffortSize: (courseId: Id, input: CourseEffortSizeRequest): Promise<CourseEffortSizeDto> => post<{ entry: CourseEffortSizeDto }>(`/api/courses/${courseId}/effort-sizes`, input).then((d) => d.entry),
+  updateCourseEffortSize: (courseId: Id, id: Id, input: CourseEffortSizeRequest): Promise<CourseEffortSizeDto> => patch<{ entry: CourseEffortSizeDto }>(`/api/courses/${courseId}/effort-sizes/${id}`, input).then((d) => d.entry),
+  deleteCourseEffortSize: (courseId: Id, id: Id): Promise<void> => del(`/api/courses/${courseId}/effort-sizes/${id}`),
+  reorderCourseEffortSizes: (courseId: Id, ids: Id[]): Promise<CourseEffortSizeDto[]> => put<{ entries: CourseEffortSizeDto[] }>(`/api/courses/${courseId}/effort-sizes`, { ids }).then((d) => d.entries),
+
+  listCourseEffortPartKinds: (courseId: Id): Promise<CourseEffortPartKindDto[]> => get<{ entries: CourseEffortPartKindDto[] }>(`/api/courses/${courseId}/effort-part-kinds`).then((d) => d.entries),
+  createCourseEffortPartKind: (courseId: Id, input: CourseEffortPartKindRequest): Promise<CourseEffortPartKindDto> => post<{ entry: CourseEffortPartKindDto }>(`/api/courses/${courseId}/effort-part-kinds`, input).then((d) => d.entry),
+  updateCourseEffortPartKind: (courseId: Id, id: Id, input: CourseEffortPartKindRequest): Promise<CourseEffortPartKindDto> => patch<{ entry: CourseEffortPartKindDto }>(`/api/courses/${courseId}/effort-part-kinds/${id}`, input).then((d) => d.entry),
+  deleteCourseEffortPartKind: (courseId: Id, id: Id): Promise<void> => del(`/api/courses/${courseId}/effort-part-kinds/${id}`),
+  reorderCourseEffortPartKinds: (courseId: Id, ids: Id[]): Promise<CourseEffortPartKindDto[]> => put<{ entries: CourseEffortPartKindDto[] }>(`/api/courses/${courseId}/effort-part-kinds`, { ids }).then((d) => d.entries),
+
   // Authenticated instructor --------------------------------------------------
   getCurrentInstructor: (): Promise<InstructorDto> =>
     get<{ instructor: InstructorDto }>("/api/instructors/me").then((d) => d.instructor),

@@ -18,3 +18,6 @@ export class ConcurrencyConflictError extends Error {
     this.name = "ConcurrencyConflictError";
   }
 }
+
+export class NotFoundError extends DomainInvariantError {}
+export class DuplicateLabelError extends DomainInvariantError {}
