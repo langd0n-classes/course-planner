@@ -318,15 +318,16 @@ async function validateSnapshotMilestones(
   tx: RedesignTx,
   input: { termActivityId: string; baseActivityVersionId: string; milestones: TermActivityMilestoneInput[]; inheritedMilestones?: TermActivityMilestoneInput[] },
 ) {
+  const unmatchedLegacySelfLinks = (input.inheritedMilestones ?? [])
+    .filter(source => source.linkedTermActivityId === input.termActivityId);
   for (const milestone of input.milestones) {
-    const inherited = input.inheritedMilestones?.some(source =>
-      source.linkedTermActivityId === input.termActivityId && (
-        (source.id != null && source.id === milestone.id) ||
-        isDeepStrictEqual(milestoneFields(source), milestoneFields(milestone))
-      ),
-    );
-    if (milestone.linkedTermActivityId === input.termActivityId && !inherited) {
-      throw new DomainInvariantError("A milestone cannot link to its own Term Activity");
+    if (milestone.linkedTermActivityId === input.termActivityId) {
+      const index = unmatchedLegacySelfLinks.findIndex(source =>
+        (source.id == null || milestone.id == null || source.id === milestone.id) &&
+        isDeepStrictEqual(milestoneFields(source), milestoneFields(milestone)),
+      );
+      if (index === -1) throw new DomainInvariantError("A milestone cannot link to its own Term Activity");
+      unmatchedLegacySelfLinks.splice(index, 1);
     }
     if (milestone.anchorPolicy === "follow_activity" && !milestone.linkedTermActivityId) {
       throw new DomainInvariantError("A milestone that follows an Activity needs a linked Term Activity in the same Term");

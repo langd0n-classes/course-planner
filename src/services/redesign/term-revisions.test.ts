@@ -130,14 +130,20 @@ it("keeps advisory daily-driver fallback for an invalid legacy milestone zone", 
   expect(result.nextMilestone?.label).toBe("Due");
 });
 
-it.each(["id", "fields"])("accepts a supplied inherited legacy self-link by %s through preview and apply", async match => {
+it.each(["id", "fields"])("accepts an unchanged inherited legacy self-link supplied by %s through preview and apply", async match => {
   const f = fixture();
   Object.assign(f.milestone, { id: "legacy", linkedTermActivityId: "a", anchorPolicy: "follow_activity" });
-  const supplied = match === "id" ? { ...f.milestone, label: "Updated existing milestone" } : { role: "due", label: "Due", anchorPolicy: "follow_activity", linkedTermActivityId: "a", occursAt: "2026-11-20T12:00:00.000Z" };
+  const supplied = match === "id" ? { ...f.milestone } : { role: "due", label: "Due", anchorPolicy: "follow_activity", linkedTermActivityId: "a", occursAt: "2026-11-20T12:00:00.000Z" };
   const input = { ...f.input, draft: { ...f.input.draft, milestones: [supplied as any] } };
   const preview = await previewTermActivityRevision(f.db, input);
   await applyTermActivityRevision(f.db, { ...input, previewToken: preview.previewToken, expectedCurrentRevisionId: "p" });
   expect(f.tx.termActivityMilestone.create).toHaveBeenCalledOnce();
+});
+it.each(["edited", "duplicated"])("rejects an inherited legacy self-link that is %s", async mode => {
+  const f = fixture();
+  Object.assign(f.milestone, { id: "legacy", linkedTermActivityId: "a", anchorPolicy: "follow_activity" });
+  const milestones = mode === "edited" ? [{ ...f.milestone, label: "Edited" }] : [{ ...f.milestone }, { ...f.milestone }];
+  await expect(previewTermActivityRevision(f.db, { ...f.input, draft: { ...f.input.draft, milestones: milestones as any } })).rejects.toThrow("own Term Activity");
 });
 it.each(["own", "fallback", "UTC"])("normalizes slots using the %s pattern zone", async mode => {
   const f = fixture();
