@@ -15,7 +15,6 @@ describe("TopicEditor", () => {
             topic: {
               id: "topic-1",
               courseId: "course-1",
-              learningModuleId: null,
               stableCode: "SQL1",
               currentVersionId: "tv-1",
               archivedAt: null,
@@ -36,7 +35,6 @@ describe("TopicEditor", () => {
             topic: {
               id: "topic-2",
               courseId: "course-1",
-              learningModuleId: "lm-1",
               stableCode: "PROB1",
               currentVersionId: "tv-2",
               archivedAt: null,
@@ -98,7 +96,6 @@ describe("TopicEditor", () => {
             topic: {
               id: "topic-1",
               courseId: "course-1",
-              learningModuleId: null,
               stableCode: "SQL1",
               currentVersionId: "tv-1",
               archivedAt: null,

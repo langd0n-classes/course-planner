@@ -336,6 +336,8 @@ export function buildTopicBrowserBuckets(args: {
   topics: TopicDto[];
   currentVersionsByTopicId: Map<Id, TopicVersionDto | null>;
   prerequisites: TopicPrerequisiteDto[];
+  topicVersionsById?: Map<Id, TopicVersionDto>;
+  actionsByActivityVersionId?: Map<Id, ActivityVersionTopicActionWithSiblingsDto[]>;
 }): TopicBrowserBucket[] {
   const prerequisiteMap = new Map<Id, Id[]>();
   for (const prerequisite of args.prerequisites) {
@@ -352,8 +354,19 @@ export function buildTopicBrowserBuckets(args: {
       currentVersion: args.currentVersionsByTopicId.get(topic.id) ?? null,
       prerequisiteTopicIds: prerequisiteMap.get(topic.id) ?? [],
     };
-    const key = topic.learningModuleId;
-    topicsByLearningModuleId.set(key, [...(topicsByLearningModuleId.get(key) ?? []), entry]);
+    const matchesTopic = (topicVersionId: Id) =>
+      topicVersionId === entry.currentVersion?.id ||
+      args.topicVersionsById?.get(topicVersionId)?.topicId === topic.id;
+    const keys = args.learningModules.filter(module => {
+      const version = args.currentVersionsByLearningModuleId.get(module.id);
+      return version?.topics.some(link => matchesTopic(link.topicVersionId)) ||
+        version?.activities?.some(link =>
+          args.actionsByActivityVersionId?.get(link.activityVersionId)?.some(action => matchesTopic(action.topicVersionId)),
+        );
+    }).map(module => module.id);
+    for (const key of keys.length ? keys : [null]) {
+      topicsByLearningModuleId.set(key, [...(topicsByLearningModuleId.get(key) ?? []), entry]);
+    }
   }
 
   const sortEntries = (entries: TopicBrowserEntry[]) =>

@@ -163,7 +163,7 @@ async function previewLearningModuleHardRemoval(
   if (!learningModule) throw new DomainInvariantError("Learning Module not found");
 
   const [topicCount, termOfferingCount, versionArtifactCount] = await Promise.all([
-    tx.topic.count({ where: { learningModuleId } }),
+    tx.learningModuleVersionTopic.count({ where: { learningModuleVersion: { learningModuleId } } }),
     tx.termLearningModule.count({ where: { learningModuleId } }),
     tx.artifact.count({
       where: { learningModuleVersion: { learningModuleId } },
@@ -174,7 +174,7 @@ async function previewLearningModuleHardRemoval(
     blocker(
       "topics_assigned",
       topicCount,
-      "Assigned Topics must be detached or removed explicitly before hard removal.",
+      "Topic links in Learning Module versions must be removed explicitly before hard removal.",
     ),
     blocker(
       "term_adoptions_exist",

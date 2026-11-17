@@ -167,7 +167,6 @@ const sampleUpdateLearningModule: UpdateLearningModuleRequest = {
 };
 const sampleUpdateTopic: UpdateTopicRequest = {
   stableCode: "PROB1",
-  learningModuleId: null,
   archivedAt: null,
 };
 
@@ -220,7 +219,7 @@ describe("redesign-contract Phase A.1 additions", () => {
     expect(sampleCreateTermRequest.meetingPattern.roles[0]?.roleKey).toBe("lecture");
     expect(sampleUpdateTermLearningModule).not.toHaveProperty("deliveredLearningModuleVersionId");
     expect(sampleUpdateLearningModule.archivedAt).toBeNull();
-    expect(sampleUpdateTopic.learningModuleId).toBeNull();
+    expect(sampleUpdateTopic).not.toHaveProperty("learningModuleId");
   });
 });
 

@@ -115,7 +115,7 @@ describe("buildTopicBrowserBuckets", () => {
             defaultSequence: 1,
             changeSummary: null,
             publishedAt: null,
-            topics: [],
+            topics: [{ topicVersionId: "tv-1", sequence: 0 }],
           },
         ],
         [
@@ -140,7 +140,7 @@ describe("buildTopicBrowserBuckets", () => {
         {
           id: "topic-1",
           courseId: "course-1",
-          learningModuleId: null,
+          ...{ learningModuleId: null },
           stableCode: "SQL1",
           currentVersionId: "tv-1",
           archivedAt: null,
@@ -165,7 +165,8 @@ describe("buildTopicBrowserBuckets", () => {
     });
 
     expect(buckets[0].label).toBe("Unassigned Topics");
-    expect(buckets[0].topics).toHaveLength(1);
+    expect(buckets[0].topics).toHaveLength(0);
+    expect(buckets[1].topics.map(entry => entry.topic.id)).toEqual(["topic-1"]);
     expect(buckets[2].label).toBe("Data Wrangling");
     expect(buckets[2].topics).toHaveLength(0);
   });

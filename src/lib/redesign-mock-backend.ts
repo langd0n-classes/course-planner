@@ -590,7 +590,6 @@ function createTopicInternal(
   const topic: TopicDto = {
     id: nextId("topic"),
     courseId,
-    learningModuleId: null,
     stableCode,
     currentVersionId: null,
     archivedAt: null,

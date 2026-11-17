@@ -59,7 +59,6 @@ type TopicVersionWithTopic = {
   topic: {
     id: string;
     courseId: string;
-    learningModuleId: string | null;
   };
 };
 
@@ -260,7 +259,7 @@ async function loadTopicVersionForCourse(
     select: {
       id: true,
       topicId: true,
-      topic: { select: { id: true, courseId: true, learningModuleId: true } },
+      topic: { select: { id: true, courseId: true } },
     },
   });
   if (!topicVersion) throw new DomainInvariantError("Topic version not found");
@@ -381,6 +380,11 @@ async function loadPlanningSnapshot(tx: RedesignTx, termId: string) {
         include: {
           learningModuleVersion: {
             include: {
+              activities: {
+                include: { activityVersion: { include: {
+                  topicActions: { include: { topicVersion: { select: { topicId: true } } } },
+                } } },
+              },
               topics: {
                 orderBy: { sequence: "asc" },
                 include: {
@@ -388,7 +392,7 @@ async function loadPlanningSnapshot(tx: RedesignTx, termId: string) {
                     select: {
                       id: true,
                       topicId: true,
-                      topic: { select: { learningModuleId: true, courseId: true } },
+                      topic: { select: { courseId: true } },
                     },
                   },
                 },
@@ -397,6 +401,11 @@ async function loadPlanningSnapshot(tx: RedesignTx, termId: string) {
           },
           deliveredLearningModuleVersion: {
             include: {
+              activities: {
+                include: { activityVersion: { include: {
+                  topicActions: { include: { topicVersion: { select: { topicId: true } } } },
+                } } },
+              },
               topics: {
                 orderBy: { sequence: "asc" },
                 include: {
@@ -404,7 +413,7 @@ async function loadPlanningSnapshot(tx: RedesignTx, termId: string) {
                     select: {
                       id: true,
                       topicId: true,
-                      topic: { select: { learningModuleId: true, courseId: true } },
+                      topic: { select: { courseId: true } },
                     },
                   },
                 },
@@ -429,7 +438,7 @@ async function loadPlanningSnapshot(tx: RedesignTx, termId: string) {
                 select: {
                   id: true,
                   topicId: true,
-                  topic: { select: { learningModuleId: true, courseId: true } },
+                  topic: { select: { courseId: true } },
                 },
               },
             },
@@ -445,7 +454,7 @@ async function loadPlanningSnapshot(tx: RedesignTx, termId: string) {
                 select: {
                   id: true,
                   topicId: true,
-                  topic: { select: { learningModuleId: true, courseId: true } },
+                  topic: { select: { courseId: true } },
                 },
               },
             },
@@ -582,13 +591,18 @@ function findOutOfOfferingWarnings(snapshot: PlanningSnapshot): PlanningIssueDto
   for (const session of snapshot.term.sessions as any[]) {
     if (session.archivedAt || !session.termLearningModule) continue;
     for (const coverage of session.coverages as any[]) {
-      const topicLearningModuleId = coverage.topicVersion.topic.learningModuleId;
-      if (topicLearningModuleId && topicLearningModuleId !== session.termLearningModule.learningModuleId) {
+      const offering = snapshot.term.learningModules.find((candidate: any) => candidate.id === session.termLearningModule.id);
+      const version = offering?.deliveredLearningModuleVersion ?? offering?.learningModuleVersion;
+      const linked = version?.topics.some((link: any) => link.topicVersion.topicId === coverage.topicVersion.topicId)
+        || version?.activities?.some((link: any) => link.activityVersion.topicActions.some(
+          (action: any) => action.topicVersion.topicId === coverage.topicVersion.topicId,
+        ));
+      if (offering && !linked) {
         warnings.push(
           buildCoverageIssue(
             "coverage_out_of_offering",
             "warning",
-            "Coverage is scheduled in a different Learning Module than the Topic belongs to",
+            "Coverage Topic is not linked in the scheduled Learning Module version",
             {
               topicVersionId: coverage.topicVersionId,
               sessionId: session.id,

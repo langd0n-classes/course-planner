@@ -451,3 +451,33 @@ Decisions made where the requirements were underspecified. Each can be revisited
   tests depend on. It now serves as the past-Term example.
 - **The demo calendars carry no holidays or recesses.** Adding rule-based
   events is a possible follow-up; it is outside #70.
+
+## Topic module independence (#91)
+
+- Learning Module Topic snapshots validate Course membership only. The snapshot
+  link itself records module membership; a Topic can serve several modules.
+- Learning Module removal previews count Topic links across all module revisions
+  instead of Topic ownership rows. Keep the `topics_assigned` blocker code for
+  existing clients, but describe the links in its message. Historical links
+  still prevent removal.
+- Coverage-out-of-offering warnings compare Topic identities against the
+  offering's delivered revision, or its planned revision when none is delivered.
+  Both direct Topic links and module Activities' Topic actions count. Revision
+  changes to the same Topic must not create false mismatches.
+- The retained Topic-browser grouping helper uses module Topic links and supplied
+  Activity actions. Callers can supply a Topic-version lookup for historical
+  links; current Topic versions resolve without it. A Topic may appear in several
+  groups; only Topics with no matching links enter Unassigned.
+- Remove the legacy ownership field from Topic DTOs and create/update contract
+  types as well as serializers. It no longer describes an application relation.
+  Other entities' `learningModuleId` fields retain their meaning.
+- Topic `learningModuleCode` is optional and nullable in the exemplar import
+  contract. Topic forms and REST schemas already omit this field and require no
+  new controls or display fallback. The source-specific DS100 extraction script
+  still records the source's module labels; no code snapshot is regenerated.
+- Keep the nullable database column unchanged for the later removal migration.
+  Default seed and demo creation use the corrected Topic creation/import paths.
+- Use a source-text regression guard for the inventoried Topic ownership access
+  patterns. It scans application files under `src/`, excludes tests, and checks
+  Topic selects, known property reads, creation blocks and contract types. It
+  cannot resolve arbitrary aliases or computed property access.
