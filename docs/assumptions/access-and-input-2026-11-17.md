@@ -85,3 +85,15 @@
   the real Auth.js proxy and a browser run: wrapping `auth` with a handler stops
   page sign-in redirects, and Auth.js rewrites the request host inside that
   handler, which can reject valid preview-host requests.
+
+## Known limits
+
+- Joining an Institution by name sets a membership that is not `active` back
+  to `active`. No code sets a membership to another status today, and there is
+  no way to remove a member. When removal is added, a removed member must not
+  be able to rejoin by typing the name. See #116.
+- The name match collapses runs of spaces in the name that the instructor
+  types. A stored name that holds a run of spaces is matched only by the same
+  run.
+- The tests for `_` and `%` in a name use a stand-in for the database match.
+  No test runs that match on PostgreSQL.
