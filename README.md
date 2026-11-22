@@ -23,7 +23,7 @@ npm install
 npx prisma generate
 npx prisma db push
 
-# 4. Add the demo instructor, courses, and sample term
+# 4. Add the demo instructor, courses, and terms (one past, the current, and the next)
 npm run db:seed
 
 # 5. Start the dev server
@@ -72,9 +72,9 @@ variables for `.env.local`.
 | `GOOGLE_CLIENT_ID` | *(not set)* | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | *(not set)* | Google OAuth client secret |
 | `NEXTAUTH_URL` | `http://localhost:3000` | Public app URL for auth callbacks |
-| `ALLOWED_EMAIL` | *(not set)* | Single allowed sign-in email |
-| `COURSE_PLANNER_PREVIEW_AUTH` | `false` | Enables one-click review login only when `VERCEL_ENV=preview`; scope this to a protected preview branch |
-| `COURSE_PLANNER_PREVIEW_EMAIL` | *(not set)* | Existing seeded Instructor email used by the protected preview login |
+| `ALLOWED_EMAIL` | *(not set)* | Comma-separated allowed sign-in emails; checked at sign-in and on every session read |
+| `COURSE_PLANNER_PREVIEW_AUTH` | `false` | Enables review login when `VERCEL_ENV=preview`; scope this to a protected preview branch |
+| `COURSE_PLANNER_PREVIEW_EMAIL` | *(not set)* | Instructor email used by preview login; provisioned at the first authenticated request |
 | `OPENAI_API_KEY` | *(not set)* | Future: OpenAI API key |
 | `ANTHROPIC_API_KEY` | *(not set)* | Future: Anthropic API key |
 
@@ -96,7 +96,7 @@ variables for `.env.local`.
 | `npm run db:reset` | Reset database |
 | `npm run test:seed` | Check seed behavior against a dedicated test database |
 
-The default seed uses stable demo identifiers. Re-running it preserves existing rows and instructor changes. Set `SEED_INSTRUCTOR_EMAIL` and optionally `SEED_INSTRUCTOR_NAME` before the first run to match the sign-in account. Use `npm run db:seed -- --force` only when you intend to delete **all** application data. To run the database checks, create an empty dedicated database named `cp15`, apply migrations, then set `SEED_TEST_DATABASE_URL` to its connection URL and run `npm run test:seed`. The check wipes that database.
+The default seed uses stable demo identifiers. Re-running it preserves existing rows and instructor changes. It gives the exemplar course the Terms that are current and next on the day it runs, so a run in a later semester adds the Terms that are then missing. Set `SEED_INSTRUCTOR_EMAIL` and optionally `SEED_INSTRUCTOR_NAME` before the first run to match the sign-in account. Use `npm run db:seed -- --force` only when you intend to delete **all** application data. Force seeding is allowed on `localhost`, `127.0.0.1`, and `::1`. For another host, set `SEED_FORCE_DATABASE` to the exact database name in `DATABASE_URL` to confirm the target. To run the database checks, create an empty dedicated database named `cp15`, apply migrations, then set `SEED_TEST_DATABASE_URL` to its connection URL and run `npm run test:seed`. The check wipes that database.
 
 ## Features (MVP)
 
@@ -124,7 +124,7 @@ The default seed uses stable demo identifiers. Re-running it preserves existing 
 
 ## Documentation
 
-- [ASSUMPTIONS.md](ASSUMPTIONS.md) — Design decisions and defaults
+- [docs/assumptions/](docs/assumptions/) — Design decisions and defaults, one file for each change
 - [ARCHITECTURE.md](ARCHITECTURE.md) — System architecture and directory structure
 - [TESTING.md](TESTING.md) — Test organization and commands
 - [ROADMAP.md](ROADMAP.md) — Future features beyond MVP

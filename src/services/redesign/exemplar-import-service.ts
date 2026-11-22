@@ -1,3 +1,4 @@
+import { exemplarSnapshotSchema } from "./exemplar-snapshot-schema";
 import { createHash, randomUUID } from "node:crypto";
 import { DomainInvariantError } from "./errors";
 import type { RedesignDb, RedesignTx } from "./types";
@@ -22,7 +23,7 @@ type ExemplarSnapshot = {
   }>;
   topics: Array<{
     stableCode: string;
-    learningModuleCode: string;
+    learningModuleCode?: string | null;
     title: string;
     category?: string | null;
     description?: string | null;
@@ -33,6 +34,7 @@ type ExemplarSnapshot = {
     learningModuleCode?: string | null;
     title: string;
     summary?: string | null;
+    milestoneTemplates?: Array<{ role: "release" | "due" | "review"; label: string; linkedActivityCode?: string; relativeDays: number; defaultTime: string; timeZone: string }>;
     topicActions?: Array<{
       topicRef: string;
       action: CoverageAction;
@@ -115,6 +117,7 @@ export const genericDemoExemplarSnapshot = {
       label: "Practice Work",
       description: "Independent practice activity.",
     },
+    { key: "check", behaviorFamily: "assessment", label: "Knowledge Check", description: "An independent check of understanding." },
   ],
   learningModules: [
     {
@@ -169,20 +172,34 @@ export const genericDemoExemplarSnapshot = {
       stableCode: "ACT-SUMMARY-PRACTICE",
       typeKey: "practice",
       learningModuleCode: "LM-DATA",
+      milestoneTemplates: [
+        { role: "release", label: "Practice opens", linkedActivityCode: "ACT-INTRO-DATA", relativeDays: 0, defaultTime: "10:00", timeZone: "UTC" },
+        { role: "due", label: "Practice due", linkedActivityCode: "ACT-INTRO-DATA", relativeDays: 7, defaultTime: "17:00", timeZone: "UTC" },
+        { role: "review", label: "Review your work", relativeDays: 10, defaultTime: "10:00", timeZone: "UTC" },
+      ],
       title: "Summary Practice",
       summary: "Practice computing summaries on invented values.",
       topicActions: [{ topicRef: "TOPIC-SUMMARY", action: "practiced" }],
     },
     {
       stableCode: "ACT-MODEL-CHECK",
-      typeKey: "practice",
+      typeKey: "check",
       learningModuleCode: "LM-MODEL",
+      milestoneTemplates: [
+        { role: "release", label: "Model check opens", linkedActivityCode: "ACT-MODEL-STUDIO", relativeDays: 0, defaultTime: "10:00", timeZone: "UTC" },
+        { role: "due", label: "Model check due", linkedActivityCode: "ACT-MODEL-STUDIO", relativeDays: 7, defaultTime: "17:00", timeZone: "UTC" },
+      ],
       title: "Model Check",
       summary: "Assess interpretation of simple generic model output.",
       topicActions: [
         { topicRef: "TOPIC-MODEL", action: "introduced" },
         { topicRef: "TOPIC-MODEL", action: "assessed" },
       ],
+    },
+    {
+      stableCode: "ACT-MODEL-STUDIO", typeKey: "lecture", learningModuleCode: "LM-MODEL",
+      title: "Model Comparison Studio", summary: "Compare predictions using invented examples.",
+      topicActions: [],
     },
   ],
 } satisfies ExemplarSnapshot;
@@ -307,17 +324,13 @@ export class ExemplarImportService {
 }
 
 function validateSnapshot(value: unknown): ExemplarSnapshot {
-  if (!isRecord(value)) throw new DomainInvariantError("Exemplar snapshot must be an object");
-  const snapshot = value as ExemplarSnapshot;
-  if (!snapshot.snapshotId || !snapshot.course?.title || !snapshot.course?.number) {
-    throw new DomainInvariantError("Exemplar snapshot is missing required course identity");
+  const parsed = exemplarSnapshotSchema.safeParse(value);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const path = jsonPath(issue.path.map((part) => typeof part === "number" ? part : String(part)));
+    throw new DomainInvariantError(`Invalid exemplar snapshot at ${path}: ${issue.message}`);
   }
-  for (const collection of ["activityTypes", "learningModules", "topics", "activities"] as const) {
-    if (!Array.isArray(snapshot[collection])) {
-      throw new DomainInvariantError(`Exemplar snapshot ${collection} must be an array`);
-    }
-  }
-  return snapshot;
+  return parsed.data;
 }
 
 function sanitizeGradingFields(
@@ -343,6 +356,12 @@ function sanitizeGradingFields(
 function findAmbiguities(snapshot: ExemplarSnapshot): ExemplarPreview["ambiguities"] {
   const ambiguities: ExemplarPreview["ambiguities"] = [];
   snapshot.activities.forEach((activity, activityIndex) => {
+    activity.milestoneTemplates?.forEach((template, templateIndex) => {
+      if (template.linkedActivityCode && !snapshot.activities.some((row) => row.stableCode === template.linkedActivityCode)) {
+        ambiguities.push({ path: `$.activities[${activityIndex}].milestoneTemplates[${templateIndex}].linkedActivityCode`,
+          reference: template.linkedActivityCode, candidates: [], reason: "no_activity_matches_reference" });
+      }
+    });
     activity.topicActions?.forEach((action, actionIndex) => {
       const resolved = resolveTopicRef(snapshot, action.topicRef);
       if (resolved.kind === "ambiguous") {
@@ -681,7 +700,6 @@ async function applyBatched(
       data: newTopics.map(({ id, topic }) => ({
         id,
         courseId: input.courseId,
-        learningModuleId: null,
         stableCode: topic.stableCode,
       })),
     });
@@ -767,6 +785,16 @@ async function applyBatched(
         createdByInstructorId: input.instructorId,
       })),
     });
+    const templates = newActivities.flatMap(({ versionId, activity }) =>
+      (activity.milestoneTemplates ?? []).map((template, sequence) => {
+        const linkedActivityId = template.linkedActivityCode ? activities.get(template.linkedActivityCode)?.id : null;
+        if (template.linkedActivityCode && !linkedActivityId) throw new DomainInvariantError("Milestone linked Activity not found");
+        return { activityVersionId: versionId, sequence, role: template.role, label: template.label,
+          linkedActivityId: linkedActivityId ?? null, relativeDays: template.relativeDays,
+          defaultTime: template.defaultTime, timeZone: template.timeZone };
+      }),
+    );
+    if (templates.length) await tx.activityVersionMilestoneTemplate.createMany({ data: templates });
     for (const family of ["meeting", "coursework", "assessment"] as const) {
       const rows = newActivities.filter((row) => row.family === family);
       if (!rows.length) continue;

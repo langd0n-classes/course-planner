@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { ConcurrencyConflictError, DomainInvariantError } from "./errors";
+import { effectiveRevision } from "../../lib/term-revision-rules";
+import { CalendarSlotRemovalError, ConcurrencyConflictError, DomainInvariantError, NotFoundError } from "./errors";
 import { assertInstructorInstitution } from "./course-service";
 import { getOwnedCalendarSlotForInstructor, getOwnedTermForInstructor } from "./ownership-service";
 import type { RedesignDb, RedesignTx } from "./types";
@@ -95,6 +96,7 @@ type PreviewResult = {
   kind: "preview";
   previewToken: string;
   expectedCurrentCalendarSlotCount: number;
+  affectedMeetingCount: number;
   calendarSlotCandidates: CalendarSlotCandidate[];
   conflicts: CalendarConflict[];
   warnings: string[];
@@ -167,7 +169,7 @@ async function getOwnedAcademicCalendarForInstructor(
   academicCalendarId: string,
 ) {
   const calendar = await tx.academicCalendar.findUnique({ where: { id: academicCalendarId } });
-  if (!calendar) throw new DomainInvariantError("Academic Calendar not found");
+  if (!calendar) throw new NotFoundError("Academic Calendar not found");
   await assertInstructorInstitution(tx, instructorId, calendar.institutionId);
   return calendar;
 }
@@ -185,7 +187,7 @@ async function assertActivityTypeVersionOwnedByInstructor(
     include: { activityType: { select: { instructorId: true } } },
   });
   if (!version || version.activityType?.instructorId !== instructorId) {
-    throw new DomainInvariantError("Activity Type version not found");
+    throw new NotFoundError("Activity Type version not found");
   }
   return version;
 }
@@ -239,18 +241,32 @@ function sortWarnings(warnings: string[]) {
 
 async function computeTermCalendarPreview(tx: RedesignTx, input: PreviewTermCalendarInput): Promise<PreviewResult> {
   const term = await getOwnedTermForInstructor(tx, input.instructorId, input.termId);
+  const limitEnd = addDays(term.startDate, 399);
+  const limited = term.endDate > limitEnd;
+  const endDate = limited ? limitEnd : term.endDate;
   if (!term.academicCalendarVersionId) {
-    throw new DomainInvariantError("Term adopted Academic Calendar version is missing");
+    throw new NotFoundError("Term adopted Academic Calendar version is missing");
   }
 
   const version = await tx.academicCalendarVersion.findUnique({
     where: { id_academicCalendarId: { id: term.academicCalendarVersionId, academicCalendarId: term.academicCalendarId } },
   });
   if (!version) {
-    throw new DomainInvariantError("Academic Calendar version not found");
+    throw new NotFoundError("Academic Calendar version not found");
   }
 
-  const normalizedPatterns = normalizeMeetingPatterns(input.meetingPatterns);
+  const storedPatterns = await tx.termMeetingPattern.findMany({ where: { termId: input.termId } });
+  const replacedTypes = new Set(input.meetingPatterns.map(pattern => pattern.activityTypeVersionId));
+  const normalizedPatterns = normalizeMeetingPatterns([
+    ...storedPatterns.filter((pattern: { activityTypeVersionId: string }) => !replacedTypes.has(pattern.activityTypeVersionId))
+      .map((pattern: UpsertTermMeetingPatternInput & { startsOn: Date; endsOn: Date }) => ({
+        activityTypeVersionId: pattern.activityTypeVersionId, label: pattern.label,
+        daysOfWeek: pattern.daysOfWeek, startTimeLocal: pattern.startTimeLocal,
+        endTimeLocal: pattern.endTimeLocal, timeZone: pattern.timeZone,
+        startsOn: toIsoDate(pattern.startsOn), endsOn: toIsoDate(pattern.endsOn),
+      })),
+    ...input.meetingPatterns,
+  ]);
   for (const pattern of normalizedPatterns) {
     await assertActivityTypeVersionOwnedByInstructor(tx, input.instructorId, pattern.activityTypeVersionId);
   }
@@ -260,7 +276,7 @@ async function computeTermCalendarPreview(tx: RedesignTx, input: PreviewTermCale
       where: {
         academicCalendarId: term.academicCalendarId,
         academicCalendarVersionId: term.academicCalendarVersionId,
-        startsOn: { lte: term.endDate },
+        startsOn: { lte: endDate },
         endsOn: { gte: term.startDate },
       },
       orderBy: [{ startsOn: "asc" }, { endsOn: "asc" }, { id: "asc" }],
@@ -268,7 +284,7 @@ async function computeTermCalendarPreview(tx: RedesignTx, input: PreviewTermCale
     tx.academicCalendarPeriod.findMany({
       where: {
         academicCalendarVersionId: term.academicCalendarVersionId,
-        startsOn: { lte: term.endDate },
+        startsOn: { lte: endDate },
         endsOn: { gte: term.startDate },
       },
       orderBy: [{ startsOn: "asc" }, { endsOn: "asc" }, { id: "asc" }],
@@ -285,7 +301,7 @@ async function computeTermCalendarPreview(tx: RedesignTx, input: PreviewTermCale
 
   const dayMap = new Map<string, CalendarSlotCandidate>();
   const conflicts: CalendarConflict[] = [];
-  const warnings: string[] = [];
+  const warnings: string[] = limited ? ["Term exceeds the 400-day calendar limit; only the first 400 days are included."] : [];
   const slotIdByDate = new Map<string, string>();
   for (const slot of existingSlots) {
     slotIdByDate.set(toIsoDate(slot.date), slot.id);
@@ -296,7 +312,7 @@ async function computeTermCalendarPreview(tx: RedesignTx, input: PreviewTermCale
     if (!slotType) continue;
     for (const date of eachDateInclusive(
       event.startsOn > term.startDate ? event.startsOn : term.startDate,
-      event.endsOn < term.endDate ? event.endsOn : term.endDate,
+      event.endsOn < endDate ? event.endsOn : endDate,
     )) {
       const key = toIsoDate(date);
       dayMap.set(key, {
@@ -320,7 +336,7 @@ async function computeTermCalendarPreview(tx: RedesignTx, input: PreviewTermCale
     if (!slotType) continue;
     for (const date of eachDateInclusive(
       period.startsOn > term.startDate ? period.startsOn : term.startDate,
-      period.endsOn < term.endDate ? period.endsOn : term.endDate,
+      period.endsOn < endDate ? period.endsOn : endDate,
     )) {
       const key = toIsoDate(date);
       if (!dayMap.has(key)) {
@@ -342,7 +358,7 @@ async function computeTermCalendarPreview(tx: RedesignTx, input: PreviewTermCale
   }
 
   const start = term.startDate;
-  const end = term.endDate;
+  const end = endDate;
   for (const date of eachDateInclusive(start, end)) {
     const key = toIsoDate(date);
     const matchingPatterns = normalizedPatterns.filter((pattern) => {
@@ -394,6 +410,8 @@ async function computeTermCalendarPreview(tx: RedesignTx, input: PreviewTermCale
       warnings.push(`Term calendar exception ${exception.id} has no resolvable target.`);
       continue;
     }
+
+    if (limited && (targetKey < toIsoDate(term.startDate) || targetKey > toIsoDate(endDate))) continue;
 
     if (exception.action === "cancel") {
       dayMap.set(targetKey, {
@@ -473,6 +491,34 @@ async function computeTermCalendarPreview(tx: RedesignTx, input: PreviewTermCale
   }
 
   const calendarSlotCandidates = sortCandidates([...dayMap.values()]);
+  const candidateDates = new Set(calendarSlotCandidates.map(candidate => candidate.date));
+  const removedIds = existingSlots.filter((slot: { date: Date }) => !candidateDates.has(toIsoDate(slot.date)))
+    .map((slot: { id: string }) => slot.id);
+  type MeetingDetail = { calendarSlotId: string | null; status: string | null };
+  type MeetingReference = { archivedAt: Date | null; plannedRevision: { meetingDetail: MeetingDetail | null } | null; deliveredRevision: { meetingDetail: MeetingDetail | null } | null };
+  const [activities, sessions]: [MeetingReference[], { calendarSlotId: string | null }[]] = removedIds.length ? await Promise.all([
+    tx.termActivity.findMany({
+      where: { termId: input.termId, archivedAt: null },
+      select: { id: true, archivedAt: true, plannedRevision: { select: { meetingDetail: true } }, deliveredRevision: { select: { meetingDetail: true } } },
+    }),
+    tx.session.findMany({ where: { calendarSlotId: { in: removedIds } }, select: { calendarSlotId: true } }),
+  ]) : [[], []];
+  const meetingSlots = activities.filter(activity => !activity.archivedAt).map(activity =>
+    effectiveRevision({ planned: activity.plannedRevision, delivered: activity.deliveredRevision })?.meetingDetail,
+  ).filter(detail => detail && detail.status !== "canceled" && detail.calendarSlotId && removedIds.includes(detail.calendarSlotId));
+  const affectedMeetingCount = meetingSlots.length;
+  for (const slot of existingSlots.filter((slot: { id: string }) => removedIds.includes(slot.id))) {
+    const meetingCount = meetingSlots.filter(detail => detail?.calendarSlotId === slot.id).length;
+    const exceptionCount = exceptions.filter((exception: { calendarSlotId: string | null }) => exception.calendarSlotId === slot.id).length;
+    const sessionCount = sessions.filter(session => session.calendarSlotId === slot.id).length;
+    if (meetingCount || exceptionCount || sessionCount) {
+      const date = toIsoDate(slot.date);
+      conflicts.push({
+        code: "referenced_slots_removed", date, meetingRoleKey: null,
+        message: `Cannot remove calendar date ${date}: ${meetingCount} affected meetings, ${exceptionCount} calendar exceptions, ${sessionCount} Sessions.`,
+      });
+    }
+  }
   const sortedConflicts = sortConflicts(conflicts);
   const sortedWarnings = sortWarnings(warnings);
   return {
@@ -482,12 +528,14 @@ async function computeTermCalendarPreview(tx: RedesignTx, input: PreviewTermCale
       academicCalendarVersionId: term.academicCalendarVersionId,
       meetingPatterns: normalizedPatterns,
       calendarSlotCandidates,
+      affectedMeetingCount,
       conflicts: sortedConflicts,
       warnings: sortedWarnings,
       expectedCurrentCalendarSlotCount: existingSlots.length,
     }),
     expectedCurrentCalendarSlotCount: existingSlots.length,
     calendarSlotCandidates,
+    affectedMeetingCount,
     conflicts: sortedConflicts,
     warnings: sortedWarnings,
   };
@@ -607,7 +655,7 @@ export async function getAcademicCalendarVersionForInstructor(
       where: { id: academicCalendarVersionId },
       include: { academicCalendar: true },
     });
-    if (!version) throw new DomainInvariantError("Academic Calendar version not found");
+    if (!version) throw new NotFoundError("Academic Calendar version not found");
     await assertInstructorInstitution(tx, instructorId, version.academicCalendar.institutionId);
     const [events, periods] = await Promise.all([
       tx.academicCalendarEvent.findMany({
@@ -642,7 +690,7 @@ export async function createTermCalendarException(
     await getOwnedTermForInstructor(tx, input.instructorId, termId);
     if (input.calendarSlotId) {
       const slot = await getOwnedCalendarSlotForInstructor(tx, input.instructorId, input.calendarSlotId);
-      if (slot.termId !== termId) throw new DomainInvariantError("Calendar slot not found");
+      if (slot.termId !== termId) throw new NotFoundError("Calendar slot not found");
     }
     if (input.activityTypeVersionId) {
       await assertActivityTypeVersionOwnedByInstructor(tx, input.instructorId, input.activityTypeVersionId);
@@ -676,11 +724,11 @@ export async function updateTermCalendarException(
       include: { term: { include: { course: { select: { instructorId: true } } } } },
     });
     if (!existing || existing.term?.course?.instructorId !== instructorId) {
-      throw new DomainInvariantError("Term calendar exception not found");
+      throw new NotFoundError("Term calendar exception not found");
     }
     if (input.calendarSlotId) {
       const slot = await getOwnedCalendarSlotForInstructor(tx, instructorId, input.calendarSlotId);
-      if (slot.termId !== existing.termId) throw new DomainInvariantError("Calendar slot not found");
+      if (slot.termId !== existing.termId) throw new NotFoundError("Calendar slot not found");
     }
     if (input.activityTypeVersionId) {
       await assertActivityTypeVersionOwnedByInstructor(tx, instructorId, input.activityTypeVersionId);
@@ -713,7 +761,7 @@ export async function deleteTermCalendarException(
       include: { term: { include: { course: { select: { instructorId: true } } } } },
     });
     if (!existing || existing.term?.course?.instructorId !== instructorId) {
-      throw new DomainInvariantError("Term calendar exception not found");
+      throw new NotFoundError("Term calendar exception not found");
     }
     await tx.termCalendarException.delete({ where: { id: exceptionId } });
   });
@@ -731,6 +779,8 @@ export async function applyTermCalendar(
   input: ApplyTermCalendarInput,
 ) {
   return db.$transaction(async (tx) => {
+    const term = await getOwnedTermForInstructor(tx, input.instructorId, input.termId);
+    if (term.status === "closed") throw new DomainInvariantError("Closed Terms are read-only");
     const preview = await computeTermCalendarPreview(tx, input);
     if (preview.previewToken !== input.previewToken) {
       throw new ConcurrencyConflictError("Preview token mismatch");
@@ -739,7 +789,10 @@ export async function applyTermCalendar(
       throw new ConcurrencyConflictError("Calendar slot count changed during preview");
     }
 
-    await tx.termMeetingPattern.deleteMany({ where: { termId: input.termId } });
+    const referenceConflicts = preview.conflicts.filter(conflict => conflict.code === "referenced_slots_removed");
+    if (referenceConflicts.length) throw new CalendarSlotRemovalError(referenceConflicts.map(conflict => conflict.message).join(" "));
+
+    await tx.termMeetingPattern.deleteMany({ where: { termId: input.termId, activityTypeVersionId: { in: input.meetingPatterns.map(pattern => pattern.activityTypeVersionId) } } });
     if (input.meetingPatterns.length > 0) {
       await tx.termMeetingPattern.createMany({
         data: normalizeMeetingPatterns(input.meetingPatterns).map((pattern) => ({
@@ -756,22 +809,30 @@ export async function applyTermCalendar(
       });
     }
 
-    await tx.calendarSlot.deleteMany({ where: { termId: input.termId } });
-    if (preview.calendarSlotCandidates.length > 0) {
-      await tx.calendarSlot.createMany({
-        data: preview.calendarSlotCandidates.map((candidate) => ({
-          termId: input.termId,
-          academicCalendarEventId: candidate.academicCalendarEventId,
-          date: fromIsoDate(candidate.date),
-          slotType: candidate.slotType,
-          label: candidate.label,
-          source: candidate.source,
-          instructionalCapacity: candidate.instructionalCapacity,
-          capacitySource: candidate.capacitySource,
-          capacityReason: candidate.capacityReason,
-        })),
-      });
+    const existingSlots = await tx.calendarSlot.findMany({ where: { termId: input.termId } });
+    const existingByDate = new Map<string, { id: string }>(existingSlots.map((slot: { id: string; date: Date }) => [toIsoDate(slot.date), slot]));
+    await tx.calendarSlot.deleteMany({ where: {
+      termId: input.termId,
+      date: { notIn: preview.calendarSlotCandidates.map(candidate => fromIsoDate(candidate.date)) },
+    } });
+    const newSlots = [];
+    for (const candidate of preview.calendarSlotCandidates) {
+      const data = {
+        termId: input.termId,
+        academicCalendarEventId: candidate.academicCalendarEventId,
+        date: fromIsoDate(candidate.date),
+        slotType: candidate.slotType,
+        label: candidate.label,
+        source: candidate.source,
+        instructionalCapacity: candidate.instructionalCapacity,
+        capacitySource: candidate.capacitySource,
+        capacityReason: candidate.capacityReason,
+      };
+      const retained = existingByDate.get(candidate.date);
+      if (retained) await tx.calendarSlot.update({ where: { id: retained.id }, data });
+      else newSlots.push(data);
     }
+    if (newSlots.length) await tx.calendarSlot.createMany({ data: newSlots });
 
     return {
       kind: "applied" as const,

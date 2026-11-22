@@ -1,3 +1,4 @@
+import { NotFoundError } from "@/services/redesign/errors";
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import { ok, badRequest, notFound, conflict, unauthorized } from "@/lib/api-helpers";
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return ok({ term: toTermDto(term) } satisfies TermLifecycleTransitionResponse);
   } catch (error) {
     if (error instanceof DomainInvariantError) {
-      return error.message === "Term not found" ? notFound(error.message) : badRequest(error.message);
+      return error instanceof NotFoundError ? notFound(error.message) : badRequest(error.message);
     }
     if (error instanceof ConcurrencyConflictError) {
       return conflict(error.message);

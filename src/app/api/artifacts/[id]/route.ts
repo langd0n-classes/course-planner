@@ -1,5 +1,8 @@
+import { z as idSchema } from "zod";
+import { unexpectedRouteError } from "@/lib/route-errors";
+import { readJsonBody } from "@/lib/request-json";
 import { ZodError, z } from "zod";
-import { badRequest, handleZodError, notFound, ok, serverError, unauthorized } from "@/lib/api-helpers";
+import { badRequest, handleZodError, notFound, ok, unauthorized } from "@/lib/api-helpers";
 import prisma from "@/lib/prisma";
 import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 import type {
@@ -49,10 +52,10 @@ const artifactSourceTypeSchema = z.enum(["external_uri", "uploaded_file", "gener
 
 const updateArtifactRequestSchema = z.object({
   parentType: artifactParentTypeSchema.optional(),
-  learningModuleVersionId: z.string().min(1).nullable().optional(),
-  topicVersionId: z.string().min(1).nullable().optional(),
-  sessionId: z.string().min(1).nullable().optional(),
-  assessmentId: z.string().min(1).nullable().optional(),
+  learningModuleVersionId: z.string().uuid().nullable().optional(),
+  topicVersionId: z.string().uuid().nullable().optional(),
+  sessionId: z.string().uuid().nullable().optional(),
+  assessmentId: z.string().uuid().nullable().optional(),
   artifactType: artifactTypeSchema.optional(),
   sourceType: artifactSourceTypeSchema.optional(),
   title: z.string().min(1).optional(),
@@ -70,6 +73,7 @@ export async function GET(
   context: { params: Promise<{ id: string }> },
 ) {
   const { id } = await context.params;
+  if (!idSchema.uuid().safeParse(id).success) return badRequest("Invalid id");
   try {
     const instructor = await getAuthenticatedInstructor(prisma);
     if (!instructor) return unauthorized();
@@ -88,11 +92,14 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> },
 ) {
   const { id } = await context.params;
+  if (!idSchema.uuid().safeParse(id).success) return badRequest("Invalid id");
   try {
     const instructor = await getAuthenticatedInstructor(prisma);
     if (!instructor) return unauthorized();
 
-    const body = updateArtifactRequestSchema.parse(await request.json());
+    const json = await readJsonBody(request);
+    if (json.response) return json.response;
+    const body = updateArtifactRequestSchema.parse(json.data);
     const artifact = await updateArtifact(prisma, instructor.id, id, {
       ...body,
       generatedAt:
@@ -114,6 +121,7 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> },
 ) {
   const { id } = await context.params;
+  if (!idSchema.uuid().safeParse(id).success) return badRequest("Invalid id");
   try {
     const instructor = await getAuthenticatedInstructor(prisma);
     if (!instructor) return unauthorized();
@@ -201,5 +209,5 @@ function handleArtifactError(error: unknown) {
     if (error.message.endsWith("not found")) return notFound(error.message);
     return badRequest(error.message);
   }
-  return serverError(error instanceof Error ? error.message : "Internal server error");
+  return unexpectedRouteError(error);
 }

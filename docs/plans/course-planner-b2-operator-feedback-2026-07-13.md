@@ -94,11 +94,11 @@ out again.
 
 Build a one-way DS100 importer plus a committed, sanitized demo snapshot from:
 
-- `/home/lwhite/loc-areas/courses/ds100/current-term/202602/`, excluding every
+- `<private path 1>`, excluding every
   `grading/` subtree;
-- `/home/lwhite/loc-areas/courses/ds100/terms/202504-ds100/`, excluding grading;
+- `<private path 2>`, excluding grading;
   and
-- `/home/lwhite/loc-areas/courses/ds100/terms/202601-ds100/`, excluding grading.
+- `<private path 3>`, excluding grading.
 
 The current-Term `course-info` and `lms` directories provide the initial mapping;
 the two historical Terms are comparison evidence for reusable-course versus

@@ -293,6 +293,8 @@ model Course {
   institutions    CourseInstitution[]
   terms           Term[]
   activityTypeVersions CourseActivityTypeVersion[]
+  effortSizes     CourseEffortSize[]
+  effortPartKinds CourseEffortPartKind[]
   activities      Activity[]
   learningModules LearningModule[]
   topics          Topic[]
@@ -450,6 +452,7 @@ model ActivityVersion {
   learningModuleMemberships LearningModuleVersionActivity[]
   learningModuleScopes ActivityVersionLearningModuleScope[]
   topicActions         ActivityVersionTopicAction[]
+  effortParts          ActivityVersionEffortPart[]
   milestoneTemplates   ActivityVersionMilestoneTemplate[]
   plannedInTerms       TermActivity[]
   basedRevisions       TermActivityRevision[]
@@ -478,6 +481,8 @@ model CourseworkActivityVersion {
   submissionPolicy  String? @map("submission_policy") @db.Text
   releasePolicy     String? @map("release_policy") @db.Text
   authoringNotes    String? @map("authoring_notes") @db.Text
+  effortMinMinutes Int? @map("effort_min_minutes")
+  effortMaxMinutes Int? @map("effort_max_minutes")
 
   activityVersion ActivityVersion @relation(fields: [activityVersionId], references: [id], onDelete: Cascade)
 
@@ -488,6 +493,8 @@ model AssessmentActivityVersion {
   activityVersionId String  @id @map("activity_version_id") @db.Uuid
   modality          String?
   authoringNotes    String? @map("authoring_notes") @db.Text
+  effortMinMinutes Int? @map("effort_min_minutes")
+  effortMaxMinutes Int? @map("effort_max_minutes")
 
   activityVersion ActivityVersion @relation(fields: [activityVersionId], references: [id], onDelete: Cascade)
 
@@ -849,6 +856,8 @@ model TermCourseworkActivityRevision {
   termActivityRevisionId String  @id @map("term_activity_revision_id") @db.Uuid
   lifecycleState         String? @map("lifecycle_state")
   deliveryNotes          String? @map("delivery_notes") @db.Text
+  effortMinMinutes Int? @map("effort_min_minutes")
+  effortMaxMinutes Int? @map("effort_max_minutes")
 
   termActivityRevision TermActivityRevision @relation(fields: [termActivityRevisionId], references: [id], onDelete: Cascade, map: "term_coursework_revisions_revision_fkey")
 
@@ -860,6 +869,8 @@ model TermAssessmentActivityRevision {
   lifecycleState         String? @map("lifecycle_state")
   modality               String?
   deliveryNotes          String? @map("delivery_notes") @db.Text
+  effortMinMinutes Int? @map("effort_min_minutes")
+  effortMaxMinutes Int? @map("effort_max_minutes")
 
   termActivityRevision TermActivityRevision @relation(fields: [termActivityRevisionId], references: [id], onDelete: Cascade, map: "term_assessment_revisions_revision_fkey")
 
@@ -1114,4 +1125,54 @@ model Artifact {
   @@index([activityVersionId], map: "artifacts_activity_version_idx")
   @@index([termActivityRevisionId], map: "artifacts_term_revision_idx")
   @@map("artifacts")
+}
+
+enum EffortScale {
+  student
+  grading
+}
+
+model CourseEffortSize {
+  id         String      @id @default(uuid()) @db.Uuid
+  courseId   String      @map("course_id") @db.Uuid
+  scale      EffortScale
+  label      String
+  minMinutes Int         @map("min_minutes")
+  maxMinutes Int         @map("max_minutes")
+  sequence   Int
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+  course     Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, scale, label])
+  @@map("course_effort_sizes")
+}
+
+model CourseEffortPartKind {
+  id        String                      @id @default(uuid()) @db.Uuid
+  courseId  String                      @map("course_id") @db.Uuid
+  label     String
+  sequence  Int
+  createdAt DateTime                    @default(now()) @map("created_at")
+  course    Course                      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  parts     ActivityVersionEffortPart[]
+
+  @@unique([courseId, label])
+  @@map("course_effort_part_kinds")
+}
+
+model ActivityVersionEffortPart {
+  id                String                @id @default(uuid()) @db.Uuid
+  activityVersionId String                @map("activity_version_id") @db.Uuid
+  sequence          Int
+  label             String
+  partKindId        String?               @map("part_kind_id") @db.Uuid
+  minMinutes        Int                   @map("min_minutes")
+  maxMinutes        Int                   @map("max_minutes")
+  note              String?               @db.Text
+  activityVersion   ActivityVersion       @relation(fields: [activityVersionId], references: [id], onDelete: Cascade)
+  partKind          CourseEffortPartKind? @relation(fields: [partKindId], references: [id], onDelete: SetNull)
+
+  @@unique([activityVersionId, sequence])
+  @@map("activity_version_effort_parts")
 }

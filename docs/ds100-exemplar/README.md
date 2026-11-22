@@ -30,7 +30,8 @@ complexity level the app needs to handle.
 
 - `academic-calendar-2025-2027.md` -- BU academic calendar with
   both human-readable and machine-readable sections. Defines class
-  days, holidays, and finals periods.
+  days, holidays, and finals periods. A dated snapshot with a known
+  wrong date; see the note at the top of the file.
 
 ### Module Overviews (3 examples)
 

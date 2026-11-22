@@ -8,7 +8,6 @@ import TopicWorkspacePage from "./TopicWorkspacePage";
 const topic: TopicDto = {
   id: "t1",
   courseId: "c1",
-  learningModuleId: "legacy-lm",
   stableCode: "T1",
   currentVersionId: "v1",
   archivedAt: null,

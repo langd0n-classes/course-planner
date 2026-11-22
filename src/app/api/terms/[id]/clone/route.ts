@@ -1,6 +1,8 @@
+import { NotFoundError } from "@/services/redesign/errors";
+import { ConcurrencyConflictError } from "@/services/redesign/errors";
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
-import { badRequest, notFound, ok, unauthorized } from "@/lib/api-helpers";
+import { badRequest, notFound, ok, unauthorized, conflict } from "@/lib/api-helpers";
 import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 import { cloneTermSchema } from "@/lib/redesign-schemas";
 import { toTermDto } from "@/lib/redesign-serializers";
@@ -36,8 +38,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         instructorId: instructor.id,
         sourceTermId: id,
         ...parsed.data,
-        startDate: new Date(parsed.data.startDate),
-        endDate: new Date(parsed.data.endDate),
+        startDate: parsed.data.startDate,
+        endDate: parsed.data.endDate,
       });
       return ok(preview satisfies CloneTermPreviewResponse);
     }
@@ -46,16 +48,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       instructorId: instructor.id,
       sourceTermId: id,
       ...parsed.data,
-      startDate: new Date(parsed.data.startDate),
-      endDate: new Date(parsed.data.endDate),
+      startDate: parsed.data.startDate,
+      endDate: parsed.data.endDate,
     });
     return ok({
       kind: "applied",
       term: toTermDto(applied.term),
     } satisfies CloneTermApplyResponse);
   } catch (error) {
+    if (error instanceof ConcurrencyConflictError) return conflict(error.message);
     if (error instanceof DomainInvariantError) {
-      return error.message === "Source Term not found" ? notFound(error.message) : badRequest(error.message);
+      return error instanceof NotFoundError ? notFound(error.message) : badRequest(error.message);
     }
     throw error;
   }

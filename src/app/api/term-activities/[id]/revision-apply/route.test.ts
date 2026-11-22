@@ -1,3 +1,4 @@
+import { NotFoundError } from "@/services/redesign/errors";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
@@ -8,8 +9,8 @@ const { applyTermActivityRevisionMock } = vi.hoisted(() => ({
 
 vi.mock("@/lib/prisma", () => ({ __esModule: true, default: {} }));
 vi.mock("@/lib/redesign-auth", () => ({ getAuthenticatedInstructor: vi.fn() }));
-vi.mock("@/services/redesign", () => ({
-  DomainInvariantError: class DomainInvariantError extends Error {},
+vi.mock("@/services/redesign", async () => ({
+  ...await vi.importActual<typeof import("@/services/redesign/errors")>("@/services/redesign/errors"),
   ConcurrencyConflictError: class ConcurrencyConflictError extends Error {},
   applyTermActivityRevision: applyTermActivityRevisionMock,
 }));
@@ -37,8 +38,7 @@ describe("Term Activity revision apply route", () => {
 
   it("returns 404 for foreign term activities", async () => {
     authMock.mockResolvedValue({ id: "instructor-1", email: "alice@example.edu", name: "Alice" });
-    const { DomainInvariantError } = await import("@/services/redesign");
-    applyTermActivityRevisionMock.mockRejectedValueOnce(new DomainInvariantError("Term Activity not found"));
+    applyTermActivityRevisionMock.mockRejectedValueOnce(new NotFoundError("Term Activity not found"));
 
     const { POST } = await import("./route");
     const response = await POST(
@@ -110,6 +110,14 @@ describe("Term Activity revision apply route", () => {
     );
 
     expect(response.status).toBe(200);
+    expect(
+      applyTermActivityRevisionMock.mock.calls[0][1].draft.detail
+        .effortMinMinutes,
+    ).toBeUndefined();
+    expect(
+      applyTermActivityRevisionMock.mock.calls[0][1].draft.detail
+        .effortMaxMinutes,
+    ).toBeUndefined();
     const body = await response.json();
     expect(body.revision.detail.behaviorFamily).toBe("coursework");
     expect(body.termActivity.deliveredRevisionId).toBe("tar-2");

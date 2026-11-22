@@ -78,7 +78,7 @@ const revision = (
 });
 
 function renderDriver(
-  options: { editable?: boolean; empty?: boolean; changed?: boolean; duplicateTopics?: boolean } = {},
+  options: { slot?: boolean; editable?: boolean; empty?: boolean; changed?: boolean; duplicateTopics?: boolean } = {},
 ) {
   const meeting = activity("meeting", null);
   const planned = revision("meeting");
@@ -98,6 +98,7 @@ function renderDriver(
       revisionsByTermActivityId={
         options.empty ? {} : { meeting: { planned, delivered } }
       }
+      calendarSlots={options.slot ? [{ id: "new-slot", date: "2026-02-10" }] : []}
       today="2026-02-09"
       learningModuleLabels={new Map([["module", "Probability"]])}
       topicLabels={new Map([["topic", "Random variables"]])}
@@ -162,6 +163,7 @@ describe("ActiveTermDailyDriver", () => {
         revisionsByTermActivityId={{
           meeting: { planned: revision("meeting"), delivered: null },
         }}
+        calendarSlots={[]}
         today="2026-02-09"
         learningModuleLabels={new Map()}
         topicLabels={new Map()}
@@ -177,6 +179,7 @@ describe("ActiveTermDailyDriver", () => {
       "meeting",
       expect.objectContaining({ changeReason: "Canceled during delivery." }),
     );
+    expect((previewTermActivityRevision.mock.calls as unknown as Array<[string, TermActivityRevisionPreviewRequest]>)[0][1].milestones).toBeUndefined();
     fireEvent.click(screen.getByRole("button", { name: "Apply correction" }));
     await waitFor(() =>
       expect(applyTermActivityRevision).toHaveBeenCalledWith(
@@ -219,6 +222,7 @@ describe("ActiveTermDailyDriver", () => {
       <ActiveTermDailyDriver
         termActivities={[activity("next-meeting")]}
         revisionsByTermActivityId={{ "next-meeting": { planned: revision("next-meeting", "2026-02-11T14:00:00Z"), delivered: null } }}
+        calendarSlots={[]}
         today="2026-02-09"
         learningModuleLabels={new Map()}
         topicLabels={new Map()}
@@ -329,7 +333,7 @@ describe("ActiveTermDailyDriver", () => {
     expect(previewTermActivityRevision).not.toHaveBeenCalled();
   });
 
-  it("sends moved local wall times as UTC ISO instants", async () => {
+  it.each([true, false])("sends moved local wall times with a matching slot or null: %s", async slot => {
     const previewTermActivityRevision = vi.fn(async () => ({
       kind: "preview" as const,
       previewToken: "token",
@@ -338,7 +342,7 @@ describe("ActiveTermDailyDriver", () => {
       impact: { issues: [], topicActionDuplicates: [], calendarConflicts: [] },
     }));
     setMockBackend({ previewTermActivityRevision });
-    renderDriver();
+    renderDriver({ slot });
     fireEvent.change(screen.getByLabelText("Move meeting start"), {
       target: { value: "2026-02-10T16:00" },
     });
@@ -351,6 +355,7 @@ describe("ActiveTermDailyDriver", () => {
     expect(payload).toEqual(
       expect.objectContaining({
         detail: expect.objectContaining({
+          calendarSlotId: slot ? "new-slot" : null,
           startsAt: new Date("2026-02-10T16:00").toISOString(),
           endsAt: new Date("2026-02-10T17:00").toISOString(),
         }),
@@ -378,4 +383,21 @@ describe("ActiveTermDailyDriver", () => {
       expect.objectContaining({ topicVersionId: "topic", action: "introduced" }),
     ]);
   });
+});
+
+it("offers placement when there is no next meeting and a planned meeting is undated", () => {
+  const planned = revision("undated");
+  if (planned.detail.behaviorFamily === "meeting") { planned.detail.startsAt = null; planned.detail.calendarSlotId = null; }
+  const onPlaceMeetings = vi.fn();
+  render(<ActiveTermDailyDriver termActivities={[activity("undated")]} revisionsByTermActivityId={{ undated: { planned, delivered: null } }} today="2026-02-10" learningModuleLabels={new Map()} topicLabels={new Map()} editable={false} onApplied={vi.fn()} onPlaceMeetings={onPlaceMeetings} />);
+  fireEvent.click(screen.getByRole("button", { name: "Place meetings on the calendar" }));
+  expect(onPlaceMeetings).toHaveBeenCalled();
+});
+it("does not offer placement for archived or canceled meetings", () => {
+  const canceled = revision("canceled");
+  if (canceled.detail.behaviorFamily === "meeting") { canceled.detail.startsAt = null; canceled.detail.calendarSlotId = null; canceled.detail.status = "canceled"; }
+  const archived = revision("archived");
+  if (archived.detail.behaviorFamily === "meeting") { archived.detail.startsAt = null; archived.detail.calendarSlotId = null; }
+  render(<ActiveTermDailyDriver termActivities={[activity("canceled"), { ...activity("archived"), archivedAt: "2026-01-01T00:00:00Z" }]} revisionsByTermActivityId={{ canceled: { planned: canceled, delivered: null }, archived: { planned: archived, delivered: null } }} today="2026-02-10" learningModuleLabels={new Map()} topicLabels={new Map()} editable={false} onApplied={vi.fn()} onPlaceMeetings={vi.fn()} />);
+  expect(screen.queryByRole("button", { name: "Place meetings on the calendar" })).not.toBeInTheDocument();
 });

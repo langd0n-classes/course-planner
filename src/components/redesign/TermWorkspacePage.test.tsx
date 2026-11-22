@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setMockBackend } from "@/lib/redesign-api-client";
 import type {
   CalendarSlotDto,
+  TermActivityDto,
+  TermActivityRevisionDto,
   CourseDto,
   LearningModuleDto,
   LearningModuleVersionDto,
@@ -165,6 +167,8 @@ function buildTermWorkspaceBackend() {
   );
 
   const backend = {
+    previewMilestoneDating: vi.fn(async () => ({ kind: "preview" as const, previewToken: "empty", dates: [], creates: [], undated: [], alreadyDatedCount: 0 })),
+    listTopicPrerequisites: vi.fn(async (): Promise<import("@/lib/redesign-contract").TopicPrerequisiteDto[]> => []),
     getTerm: vi.fn(async () => term),
     getCourse: vi.fn(async () => course),
     listLearningModules: vi.fn(async () => [learningModule]),
@@ -205,7 +209,7 @@ function buildTermWorkspaceBackend() {
         archivedAt: null,
       },
     ]),
-    listTermActivitiesWithRevisions: vi.fn(async () => ({ termActivities: [], revisionsByTermActivityId: {} })),
+    listTermActivitiesWithRevisions: vi.fn(async (): Promise<{ termActivities: TermActivityDto[]; revisionsByTermActivityId: Record<string, { planned: TermActivityRevisionDto | null; delivered: TermActivityRevisionDto | null }> }> => ({ termActivities: [], revisionsByTermActivityId: {} })),
     listCalendarSlots: vi.fn(async () => calendarSlots),
     listTermCalendarExceptions: vi.fn(async () => calendarExceptions),
     createTermCalendarException,
@@ -380,4 +384,122 @@ describe("TermWorkspacePage", () => {
     await waitFor(() => expect(deleteTermCalendarException).toHaveBeenCalledWith("term-1", "exception-1"));
     expect(await screen.findByText("No Term calendar exceptions recorded.")).toBeInTheDocument();
   });
+});
+
+const undatedMeeting: TermActivityDto = { id: "meeting", termId: "term-1", courseId: "course-1", activityId: "activity", plannedActivityVersionId: "version", activityTypeVersionId: "type", adoptedLabel: "Lecture", termLearningModuleId: null, ordinal: 1, lifecycleState: null, plannedRevisionId: "revision", deliveredRevisionId: null, archivedAt: null };
+const undatedRevision: TermActivityRevisionDto = { id: "revision", termActivityId: "meeting", baseActivityVersionId: "version", revision: 1, title: "Meeting", summary: null, changeReason: null, createdAt: "2026-01-01T00:00:00Z", createdByInstructorId: null, topicActions: [], milestones: [], detail: { behaviorFamily: "meeting", startsAt: null, endsAt: null, calendarSlotId: null, status: "scheduled", modality: null, overrideReason: null, overrideEvidence: null } };
+it("opens placement from the undated-meeting notice and reloads after apply", async () => {
+  const { backend } = buildTermWorkspaceBackend();
+  backend.listTermActivitiesWithRevisions.mockResolvedValue({ termActivities: [undatedMeeting], revisionsByTermActivityId: { meeting: { planned: undatedRevision, delivered: null } } });
+  const previewMeetingPlacement = vi.fn(async () => ({ kind: "preview" as const, previewToken: "token", placements: [{ termActivityId: "meeting", adoptedLabel: "Lecture", expectedPlannedRevisionId: "revision", calendarSlotId: "slot", date: "2026-03-06", startsAt: "2026-03-06T14:00:00Z", endsAt: null, timeZone: "UTC" }], unplacedMeetings: [], emptySlots: [], alreadyDatedCount: 0, missingMeetingTime: false }));
+  const applyMeetingPlacement = vi.fn(async () => { backend.listTermActivitiesWithRevisions.mockResolvedValue({ termActivities: [], revisionsByTermActivityId: {} }); return { kind: "applied" as const, placedCount: 1, storedMeetingPatternCount: 0 }; });
+  setMockBackend({ ...backend, previewMeetingPlacement, applyMeetingPlacement });
+  render(<TermWorkspacePage termId="term-1" />);
+  expect(await screen.findByText("1 undated meeting(s).")).toBeInTheDocument();
+  fireEvent.click(screen.getAllByRole("button", { name: "Place meetings on the calendar" })[0]);
+  await screen.findByRole("button", { name: "Apply" });
+  fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+  await waitFor(() => expect(backend.listTermActivitiesWithRevisions).toHaveBeenCalledTimes(2));
+  expect(screen.queryByText("1 undated meeting(s).")).not.toBeInTheDocument();
+});
+it("hides placement for a closed Term", async () => {
+  const { backend } = buildTermWorkspaceBackend();
+  const term = await backend.getTerm(); backend.getTerm.mockResolvedValue({ ...term, status: "closed" });
+  backend.listTermActivitiesWithRevisions.mockResolvedValue({ termActivities: [undatedMeeting], revisionsByTermActivityId: { meeting: { planned: undatedRevision, delivered: null } } });
+  setMockBackend(backend); render(<TermWorkspacePage termId="term-1" />);
+  await screen.findByText("Spring 2026");
+  expect(screen.queryByRole("button", { name: "Place meetings on the calendar" })).not.toBeInTheDocument();
+});
+
+it("does not offer placement for archived meetings", async () => {
+  const { backend } = buildTermWorkspaceBackend();
+  backend.listTermActivitiesWithRevisions.mockResolvedValue({ termActivities: [{ ...undatedMeeting, archivedAt: "2026-01-01T00:00:00Z" }], revisionsByTermActivityId: { meeting: { planned: undatedRevision, delivered: null } } });
+  setMockBackend(backend); render(<TermWorkspacePage termId="term-1" />);
+  await screen.findByText("Spring 2026");
+  expect(screen.queryByRole("button", { name: "Place meetings on the calendar" })).not.toBeInTheDocument();
+});
+
+const datedRevision: TermActivityRevisionDto = { ...undatedRevision, detail: { ...undatedRevision.detail, behaviorFamily: "meeting", startsAt: "2026-02-09T14:00:00Z" } as TermActivityRevisionDto["detail"] };
+function withDatedMeeting() {
+  const f = buildTermWorkspaceBackend();
+  f.backend.listTermActivitiesWithRevisions.mockResolvedValue({ termActivities: [undatedMeeting], revisionsByTermActivityId: { meeting: { planned: datedRevision, delivered: null } } });
+  return f;
+}
+it("shows the order-check empty state for a dated Term", async () => {
+  const { backend } = withDatedMeeting(); setMockBackend(backend); render(<TermWorkspacePage termId="term-1" />);
+  expect(await screen.findByText("No order problems found.")).toBeInTheDocument();
+  expect(backend.listTopicPrerequisites).toHaveBeenCalledWith("course-1");
+});
+it("shows a finding with Activity labels and recomputes after reload", async () => {
+  const { backend } = withDatedMeeting();
+  const early = { ...undatedMeeting, id: "early", adoptedLabel: "Practice" };
+  const earlyRevision: TermActivityRevisionDto = { ...datedRevision, id: "early-r", termActivityId: "early", milestones: [{ id: "due", termActivityRevisionId: "early-r", sourceTemplateId: null, role: "due", label: "Practice due", linkedTermActivityId: "meeting", occursAt: "2026-02-08T12:00:00Z", timeZone: "UTC", anchorPolicy: "fixed_instant", notes: null, provenance: null }] };
+  backend.listTermActivitiesWithRevisions.mockResolvedValue({ termActivities: [undatedMeeting, early], revisionsByTermActivityId: { meeting: { planned: datedRevision, delivered: null }, early: { planned: earlyRevision, delivered: null } } });
+  setMockBackend(backend); render(<TermWorkspacePage termId="term-1" />);
+  expect(await screen.findByText("Practice due is due before its linked meeting.")).toBeInTheDocument();
+  expect(screen.getByRole("region", { name: "Date order checks" })).toHaveTextContent("Lecture");
+  backend.listTermActivitiesWithRevisions.mockResolvedValue({ termActivities: [undatedMeeting], revisionsByTermActivityId: { meeting: { planned: datedRevision, delivered: null } } });
+  fireEvent.click(screen.getByRole("button", { name: "Activate term" }));
+  fireEvent.click(screen.getAllByRole("button", { name: "Activate term" })[1]);
+  expect(await screen.findByText("No order problems found.")).toBeInTheDocument();
+  expect(screen.queryByText("Practice due is due before its linked meeting.")).not.toBeInTheDocument();
+});
+it("keeps the workspace and other checks when prerequisite loading fails", async () => {
+  const { backend } = withDatedMeeting(); backend.listTopicPrerequisites.mockRejectedValue(new Error("Offline"));
+  setMockBackend(backend); render(<TermWorkspacePage termId="term-1" />);
+  expect(await screen.findByText(/Prerequisite order was not checked/)).toBeInTheDocument();
+  expect(screen.getByText("No order problems found.")).toBeInTheDocument();
+  expect(screen.getByText("Calendar timeline")).toBeInTheDocument();
+});
+it("offers milestone dating and reloads after apply", async () => {
+  const { backend } = withDatedMeeting();
+  const item = { termActivityId: "work", adoptedLabel: "Practice", milestoneId: null, sourceTemplateId: "t", label: "Due", linkedTermActivityId: "meeting", linkedMeetingLabel: "Lecture", occursAt: "2026-02-10T14:00:00Z", timeZone: "UTC" };
+  const preview = { kind: "preview" as const, previewToken: "token", dates: [item], creates: [item], undated: [], alreadyDatedCount: 0 };
+  const load = vi.fn(async () => preview);
+  const apply = vi.fn(async () => { load.mockResolvedValue({ ...preview, dates: [], creates: [] }); return { kind: "applied" as const, datedCount: 1, createdCount: 0 }; });
+  setMockBackend({ ...backend, previewMilestoneDating: load, applyMilestoneDating: apply }); render(<TermWorkspacePage termId="term-1" />);
+  expect(await screen.findByText("1 milestone(s) ready to date or create.")).toBeInTheDocument();
+  const announcement = screen.getByRole("status", { name: "Milestone dating result" });
+  expect(announcement).toHaveAttribute("aria-live", "polite");
+  expect(announcement).toBeEmptyDOMElement();
+  fireEvent.click(screen.getByRole("button", { name: "Date milestones" }));
+  const button = await screen.findByRole("button", { name: "Apply" });
+  await waitFor(() => expect(button).toBeEnabled()); fireEvent.click(button);
+  await waitFor(() => expect(backend.listTermActivitiesWithRevisions).toHaveBeenCalledTimes(2));
+  expect(screen.queryByRole("button", { name: "Date milestones" })).not.toBeInTheDocument();
+  await waitFor(() => expect(announcement).toHaveTextContent("1 milestone(s) dated or created."));
+  expect(announcement).toHaveFocus();
+});
+it("does not preview milestone dating for a closed Term", async () => {
+  const { backend } = withDatedMeeting(); backend.getTerm.mockResolvedValue({ ...await backend.getTerm(), status: "closed" });
+  setMockBackend(backend); render(<TermWorkspacePage termId="term-1" />); await screen.findByText("Spring 2026");
+  expect(backend.previewMilestoneDating).not.toHaveBeenCalled();
+});
+
+it("keeps the workspace usable when dating preview fails and retries", async () => {
+  const { backend } = withDatedMeeting();
+  backend.previewMilestoneDating.mockRejectedValueOnce(new Error("Offline"));
+  setMockBackend(backend);
+  render(<TermWorkspacePage termId="term-1" />);
+  expect(await screen.findByText(/Milestone dates could not be checked/)).toBeInTheDocument();
+  expect(screen.getByText("Calendar timeline")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Activate term" })).toBeEnabled();
+  fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+  await waitFor(() => expect(screen.queryByText(/Milestone dates could not be checked/)).not.toBeInTheDocument());
+});
+it("fetches only the first 100 distinct missing Topic versions in parallel and reports unmapped actions", async () => {
+  const { backend } = withDatedMeeting();
+  const version = (id: string) => ({ id, topicId: id, revision: 1, title: id, description: null, category: null, changeSummary: null, publishedAt: null, createdAt: "2026-01-01T00:00:00Z", createdByInstructorId: null, changeReason: null });
+  const known = version("known");
+  const topicActions = ["known", ...Array.from({ length: 102 }, (_, i) => `missing-${i}`), "missing-0"].map((topicVersionId, i) => ({ id: `a-${i}`, termActivityRevisionId: "revision", topicVersionId, action: "introduced" as const, notes: null, provenance: null }));
+  backend.listTermActivitiesWithRevisions.mockResolvedValue({ termActivities: [undatedMeeting], revisionsByTermActivityId: { meeting: { planned: { ...datedRevision, topicActions }, delivered: null } } });
+  const releases: (() => void)[] = [];
+  const getTopicVersion = vi.fn((id: string) => new Promise<ReturnType<typeof version>>(resolve => { releases.push(() => resolve(version(id))); }));
+  setMockBackend({ ...backend, listTopics: async () => [{ id: "known", courseId: "course-1", currentVersionId: "known", stableCode: "K", archivedAt: null }], getTopic: async () => ({ topic: { id: "known", courseId: "course-1", currentVersionId: "known", stableCode: "K", archivedAt: null }, currentVersion: known }), getTopicVersion });
+  render(<TermWorkspacePage termId="term-1" />);
+  await waitFor(() => expect(getTopicVersion).toHaveBeenCalledTimes(100));
+  expect(getTopicVersion.mock.calls.map(([id]) => id)).toEqual(Array.from({ length: 100 }, (_, i) => `missing-${i}`));
+  releases.forEach(release => release());
+  expect(await screen.findByText(/2 Topic actions could not be checked/)).toBeInTheDocument();
+  expect(screen.getByText("Calendar timeline")).toBeInTheDocument();
 });

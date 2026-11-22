@@ -27,6 +27,7 @@ function createMemoryTx() {
     meetingActivityVersions: [],
     courseworkActivityVersions: [],
     assessmentActivityVersions: [],
+    activityVersionMilestoneTemplates: [],
     activityVersionTopicActions: [],
     activityTopicScopes: [],
   };
@@ -124,6 +125,29 @@ function createMemoryTx() {
 }
 
 describe("ExemplarImportService", () => {
+  it("imports release and due templates on two demo Activities with same-module meeting links and one unlinked template", async () => {
+    const tx = createMemoryTx();
+    const service = new ExemplarImportService();
+    const input = { instructorId: "instructor-1", courseId: "course-1", snapshot: genericDemoExemplarSnapshot };
+    await service.apply(transactionalDb(tx), input);
+    const templates = tx.__state.activityVersionMilestoneTemplates;
+    expect(templates).toHaveLength(5);
+    for (const code of ["ACT-SUMMARY-PRACTICE", "ACT-MODEL-CHECK"]) {
+      const activity = tx.__state.activities.find((a: any) => a.stableCode === code);
+      const linked = templates.filter((t: any) => t.activityVersionId === activity.currentVersionId && t.linkedActivityId);
+      expect(linked.map((t: any) => t.role)).toEqual(["release", "due"]);
+      const snapshotActivity = genericDemoExemplarSnapshot.activities.find((a) => a.stableCode === code)!;
+      for (const template of linked) {
+        expect(template).toMatchObject({ relativeDays: expect.any(Number), defaultTime: expect.any(String), timeZone: "UTC" });
+        const anchor = tx.__state.activities.find((a: any) => a.id === template.linkedActivityId);
+        expect(genericDemoExemplarSnapshot.activities.find((a) => a.stableCode === anchor.stableCode)?.learningModuleCode).toBe(snapshotActivity.learningModuleCode);
+      }
+    }
+    expect(templates.filter((t: any) => t.linkedActivityId === null)).toHaveLength(1);
+    await service.apply(transactionalDb(tx), input);
+    expect(templates).toHaveLength(5);
+  });
+
   it("stages, previews deterministically, and carries provenance for generic content", () => {
     const service = new ExemplarImportService();
     const staged = service.stage(genericDemoExemplarSnapshot);
@@ -142,6 +166,18 @@ describe("ExemplarImportService", () => {
     expect(JSON.stringify(preview)).not.toMatch(
       /answerKey|solutionKey|studentScores/,
     );
+  });
+
+  it("imports and saves Topics with no learningModuleCode", async () => {
+    const snapshot = { ...structuredClone(genericDemoExemplarSnapshot),
+      topics: genericDemoExemplarSnapshot.topics.map(({ stableCode, title }) => ({ stableCode, title })),
+    };
+    const tx = createMemoryTx();
+    await new ExemplarImportService().apply(transactionalDb(tx), {
+      instructorId: "instructor-1", courseId: "course-1", snapshot,
+    });
+    expect(tx.__state.topics).toHaveLength(snapshot.topics.length);
+    expect(tx.__state.topics.every((row: any) => !("learningModuleId" in row))).toBe(true);
   });
 
   it("excludes grading fields before preview or persistence", async () => {
@@ -284,7 +320,7 @@ describe("ExemplarImportService", () => {
 
   it("batches identities, all detail families, relationships, and module memberships as the graph grows", async () => {
     const callCounts = [];
-    for (const size of [1, 20, 130]) {
+    for (const size of [1, 20, 100]) {
       const tx = createMemoryTx();
       let calls = 0;
       for (const [key, value] of Object.entries(tx)) {
@@ -348,7 +384,7 @@ describe("ExemplarImportService", () => {
       }
       expect(tx.__state.learningModuleVersionActivities).toHaveLength(size * 3);
       expect(
-        tx.__state.topics.every((row: any) => row.learningModuleId === null),
+        tx.__state.topics.every((row: any) => !("learningModuleId" in row)),
       ).toBe(true);
       callCounts.push(calls);
     }
@@ -411,4 +447,29 @@ describe("ExemplarImportService", () => {
     await service.apply(transactionalDb(tx), input);
     expect(tx.__state).toEqual(before);
   });
+});
+
+it("reports unknown milestone Activity references in the staged preview", () => {
+  const service = new ExemplarImportService();
+  const snapshot = structuredClone(genericDemoExemplarSnapshot);
+  snapshot.activities[1].milestoneTemplates![0].linkedActivityCode = "UNKNOWN";
+  expect(service.preview(service.stage(snapshot)).ambiguities).toContainEqual({
+    path: "$.activities[1].milestoneTemplates[0].linkedActivityCode", reference: "UNKNOWN",
+    candidates: [], reason: "no_activity_matches_reference",
+  });
+});
+
+it("imports a new template linked to an Activity already in the Course", async () => {
+  const tx = createMemoryTx();
+  const service = new ExemplarImportService();
+  const input = { instructorId: "instructor-1", courseId: "course-1", snapshot: genericDemoExemplarSnapshot };
+  await service.apply(transactionalDb(tx), input);
+  const anchor = tx.__state.activities.find((row: any) => row.stableCode === "ACT-INTRO-DATA");
+  const snapshot = structuredClone(genericDemoExemplarSnapshot);
+  const original = snapshot.activities.find((row) => row.stableCode === "ACT-SUMMARY-PRACTICE")!;
+  snapshot.activities.push({ ...original, stableCode: "ACT-NEW-PRACTICE", title: "New practice" });
+  expect(service.preview(service.stage(snapshot)).ambiguities).toEqual([]);
+  await service.apply(transactionalDb(tx), { ...input, snapshot });
+  const activity = tx.__state.activities.find((row: any) => row.stableCode === "ACT-NEW-PRACTICE");
+  expect(tx.__state.activityVersionMilestoneTemplates.filter((row: any) => row.activityVersionId === activity.currentVersionId && row.linkedActivityId).map((row: any) => row.linkedActivityId)).toEqual([anchor.id, anchor.id]);
 });

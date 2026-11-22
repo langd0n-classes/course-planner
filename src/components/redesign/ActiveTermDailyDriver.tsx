@@ -8,9 +8,12 @@ import type {
   TermActivityRevisionDto,
   TermActivityRevisionPreviewRequest,
 } from "@/lib/redesign-contract";
+import { isUndatedMeeting, localDate } from "@/lib/term-revision-rules";
 import { buildTermDailyDriver } from "@/lib/redesign-workspace";
 
 type Props = {
+  onPlaceMeetings?: () => void;
+  calendarSlots?: { id: string; date: string }[];
   termActivities: TermActivityDto[];
   revisionsByTermActivityId: Record<
     Id,
@@ -20,6 +23,7 @@ type Props = {
     }
   >;
   today: string;
+  timeZone?: string | null;
   learningModuleLabels: Map<Id, string>;
   topicLabels: Map<Id, string>;
   editable: boolean;
@@ -51,6 +55,7 @@ function toUtcIso(value: string) {
 function requestFromRevision(
   revision: TermActivityRevisionDto,
   changeReason: string,
+  includeMilestones = false,
 ): TermActivityRevisionPreviewRequest {
   return {
     title: revision.title,
@@ -65,7 +70,7 @@ function requestFromRevision(
         provenance,
       }),
     ),
-    milestones: revision.milestones.map(
+    milestones: includeMilestones ? revision.milestones.map(
       ({
         sourceTemplateId,
         role,
@@ -87,7 +92,7 @@ function requestFromRevision(
         notes,
         provenance,
       }),
-    ),
+    ) : undefined,
   };
 }
 
@@ -98,8 +103,9 @@ export default function ActiveTermDailyDriver(props: Props) {
         termActivities: props.termActivities,
         revisionsByTermActivityId: props.revisionsByTermActivityId,
         today: props.today,
+        timeZone: props.timeZone,
       }),
-    [props.termActivities, props.revisionsByTermActivityId, props.today],
+    [props.termActivities, props.revisionsByTermActivityId, props.today, props.timeZone],
   );
   const meeting = driver.nextMeeting;
   const nextMilestone = driver.nextMilestone;
@@ -207,6 +213,7 @@ export default function ActiveTermDailyDriver(props: Props) {
       ...meeting.revision.detail,
       startsAt,
       endsAt,
+      calendarSlotId: props.calendarSlots?.find(slot => slot.date.slice(0, 10) === localDate(startsAt, props.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone))?.id ?? null,
     };
     if (new Date(endsAt).getTime() <= new Date(startsAt).getTime()) {
       setError("The moved meeting must end after it starts.");
@@ -220,6 +227,7 @@ export default function ActiveTermDailyDriver(props: Props) {
     const request = requestFromRevision(
       nextMilestone.revision,
       "Milestone anchor changed during delivery.",
+      true,
     );
     const occursAt = toUtcIso(milestoneOccursAt.value);
     if (!occursAt) {
@@ -445,6 +453,10 @@ export default function ActiveTermDailyDriver(props: Props) {
           ) : (
             <p className="mt-2 text-sm text-slate-600">
               No future meeting is scheduled.
+              {props.onPlaceMeetings && props.termActivities.some(activity => {
+                const revision = props.revisionsByTermActivityId[activity.id]?.planned;
+                return !activity.archivedAt && revision?.detail.behaviorFamily === "meeting" && revision.detail.status !== "canceled" && isUndatedMeeting({ delivered: props.revisionsByTermActivityId[activity.id]?.delivered, planned: revision.detail });
+              }) ? <button type="button" onClick={props.onPlaceMeetings} className="mt-2 block text-sm font-medium text-sky-800 underline">Place meetings on the calendar</button> : null}
             </p>
           )}
         </div>

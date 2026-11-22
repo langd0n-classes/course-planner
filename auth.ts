@@ -42,8 +42,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     authorized({ auth }) {
       return !!auth?.user;
     },
-    async signIn({ profile, user }) {
+    async signIn({ account, profile, user }) {
+      if (account?.provider === "google" && profile?.email_verified !== true) return false;
       return isSignInEmailAllowed(profile?.email ?? user.email);
+    },
+    async session({ session }) {
+      if (!isSignInEmailAllowed(session.user?.email)) {
+        // Keep the session envelope; authorization and route guards require a user.
+        return { ...session, user: undefined } as unknown as typeof session;
+      }
+      return session;
     },
   },
 });

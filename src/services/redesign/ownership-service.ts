@@ -1,4 +1,4 @@
-import { DomainInvariantError } from "./errors";
+import { DomainInvariantError, NotFoundError } from "./errors";
 import type { RedesignTx } from "./types";
 
 export function assertOwnedByInstructor(
@@ -7,7 +7,7 @@ export function assertOwnedByInstructor(
   notFoundMessage: string,
 ) {
   if (!ownerInstructorId || ownerInstructorId !== instructorId) {
-    throw new DomainInvariantError(notFoundMessage);
+    throw new NotFoundError(notFoundMessage);
   }
 }
 
@@ -20,7 +20,7 @@ export async function getOwnedCourseForInstructor(
     where: { id_instructorId: { id: courseId, instructorId } },
   });
   if (!course) {
-    throw new DomainInvariantError("Course not found");
+    throw new NotFoundError("Course not found");
   }
   return course;
 }
@@ -39,7 +39,7 @@ export async function getOwnedTermForInstructor(
     },
   });
   if (!term) {
-    throw new DomainInvariantError("Term not found");
+    throw new NotFoundError("Term not found");
   }
   assertOwnedByInstructor(instructorId, term.course?.instructorId, "Term not found");
   return term;
@@ -63,7 +63,7 @@ export async function getOwnedTermLearningModuleForInstructor(
     },
   });
   if (!termLearningModule) {
-    throw new DomainInvariantError("Term Learning Module not found");
+    throw new NotFoundError("Term Learning Module not found");
   }
   assertOwnedByInstructor(
     instructorId,
@@ -91,7 +91,7 @@ export async function getOwnedTermActivityForInstructor(
     },
   });
   if (!termActivity) {
-    throw new DomainInvariantError("Term Activity not found");
+    throw new NotFoundError("Term Activity not found");
   }
   assertOwnedByInstructor(
     instructorId,
@@ -122,7 +122,7 @@ export async function getOwnedSessionForInstructor(
     },
   });
   if (!session) {
-    throw new DomainInvariantError("Session not found");
+    throw new NotFoundError("Session not found");
   }
   assertOwnedByInstructor(instructorId, session.term?.course?.instructorId, "Session not found");
   return session;
@@ -207,7 +207,7 @@ export async function getOwnedCalendarSlotForInstructor(
     },
   });
   if (!calendarSlot) {
-    throw new DomainInvariantError("Calendar slot not found");
+    throw new NotFoundError("Calendar slot not found");
   }
   assertOwnedByInstructor(
     instructorId,

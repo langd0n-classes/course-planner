@@ -1,5 +1,7 @@
+import { unexpectedRouteError } from "@/lib/route-errors";
+import { readJsonBody } from "@/lib/request-json";
 import { ZodError, z } from "zod";
-import { badRequest, created, handleZodError, notFound, serverError, unauthorized } from "@/lib/api-helpers";
+import { badRequest, created, handleZodError, notFound, unauthorized } from "@/lib/api-helpers";
 import prisma from "@/lib/prisma";
 import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 import type {
@@ -36,10 +38,10 @@ const artifactSourceTypeSchema = z.enum(["external_uri", "uploaded_file", "gener
 
 const createArtifactRequestSchema = z.object({
   parentType: artifactParentTypeSchema,
-  learningModuleVersionId: z.string().min(1).nullable().optional(),
-  topicVersionId: z.string().min(1).nullable().optional(),
-  sessionId: z.string().min(1).nullable().optional(),
-  assessmentId: z.string().min(1).nullable().optional(),
+  learningModuleVersionId: z.string().uuid().nullable().optional(),
+  topicVersionId: z.string().uuid().nullable().optional(),
+  sessionId: z.string().uuid().nullable().optional(),
+  assessmentId: z.string().uuid().nullable().optional(),
   artifactType: artifactTypeSchema,
   sourceType: artifactSourceTypeSchema,
   title: z.string().min(1),
@@ -60,10 +62,10 @@ export async function GET(request: Request) {
     const parentType = params.get("parentType");
     const artifacts = await listArtifacts(prisma, instructor.id, {
       parentType: parentType ? artifactParentTypeSchema.parse(parentType) : undefined,
-      learningModuleVersionId: params.get("learningModuleVersionId") ?? undefined,
-      topicVersionId: params.get("topicVersionId") ?? undefined,
-      sessionId: params.get("sessionId") ?? undefined,
-      assessmentId: params.get("assessmentId") ?? undefined,
+      learningModuleVersionId: params.has("learningModuleVersionId") ? z.string().uuid().parse(params.get("learningModuleVersionId")) : undefined,
+      topicVersionId: params.has("topicVersionId") ? z.string().uuid().parse(params.get("topicVersionId")) : undefined,
+      sessionId: params.has("sessionId") ? z.string().uuid().parse(params.get("sessionId")) : undefined,
+      assessmentId: params.has("assessmentId") ? z.string().uuid().parse(params.get("assessmentId")) : undefined,
       includeArchived: params.get("includeArchived") === "true",
     });
 
@@ -80,7 +82,9 @@ export async function POST(request: Request) {
     const instructor = await getAuthenticatedInstructor(prisma);
     if (!instructor) return unauthorized();
 
-    const body = createArtifactRequestSchema.parse(await request.json());
+    const json = await readJsonBody(request);
+    if (json.response) return json.response;
+    const body = createArtifactRequestSchema.parse(json.data);
     const artifact = await createArtifact(prisma, {
       instructorId: instructor.id,
       ...body,
@@ -137,5 +141,5 @@ function handleArtifactError(error: unknown) {
   if (error instanceof DomainInvariantError) {
     return error.message.endsWith("not found") ? notFound(error.message) : badRequest(error.message);
   }
-  return serverError(error instanceof Error ? error.message : "Internal server error");
+  return unexpectedRouteError(error);
 }

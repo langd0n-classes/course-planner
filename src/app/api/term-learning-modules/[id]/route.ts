@@ -1,6 +1,7 @@
+import { ConcurrencyConflictError } from "@/services/redesign/errors";
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
-import { badRequest, notFound, ok, unauthorized } from "@/lib/api-helpers";
+import { badRequest, notFound, ok, unauthorized, conflict } from "@/lib/api-helpers";
 import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 import { updateTermLearningModuleSchema } from "@/lib/redesign-schemas";
 import { toTermLearningModuleDto } from "@/lib/redesign-serializers";
@@ -79,6 +80,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
       termLearningModule: toTermLearningModuleDto(termLearningModule),
     } satisfies UpdateTermLearningModuleResponse);
   } catch (error) {
+    if (error instanceof ConcurrencyConflictError) return conflict(error.message);
     if (error instanceof DomainInvariantError) {
       return error.message === "Term Learning Module not found"
         ? notFound(error.message)

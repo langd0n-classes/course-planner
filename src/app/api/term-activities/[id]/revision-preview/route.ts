@@ -1,6 +1,7 @@
+import { ConcurrencyConflictError, NotFoundError } from "@/services/redesign/errors";
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
-import { badRequest, notFound, ok, unauthorized } from "@/lib/api-helpers";
+import { conflict, badRequest, notFound, ok, unauthorized } from "@/lib/api-helpers";
 import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 import { toTermActivityRevisionDto } from "@/lib/redesign-serializers";
 import { termActivityRevisionPreviewRequestSchema } from "@/lib/redesign-schemas";
@@ -12,10 +13,6 @@ import type {
 } from "@/lib/redesign-contract";
 
 export type { TermActivityRevisionPreviewRequest, TermActivityRevisionPreviewResponse };
-
-function isNotFoundError(error: DomainInvariantError) {
-  return error.message.endsWith("not found");
-}
 
 function toDraftDetail(
   detail: Record<string, unknown> & { behaviorFamily: "meeting" | "coursework" | "assessment" },
@@ -35,12 +32,16 @@ function toDraftDetail(
   if (detail.behaviorFamily === "coursework") {
     return {
       behaviorFamily: "coursework" as const,
+      effortMinMinutes: detail.effortMinMinutes as number | null | undefined,
+      effortMaxMinutes: detail.effortMaxMinutes as number | null | undefined,
       lifecycleState: (detail.lifecycleState as string | null | undefined) ?? null,
       deliveryNotes: (detail.deliveryNotes as string | null | undefined) ?? null,
     };
   }
   return {
     behaviorFamily: "assessment" as const,
+    effortMinMinutes: detail.effortMinMinutes as number | null | undefined,
+    effortMaxMinutes: detail.effortMaxMinutes as number | null | undefined,
     lifecycleState: (detail.lifecycleState as string | null | undefined) ?? null,
     modality: (detail.modality as string | null | undefined) ?? null,
     deliveryNotes: (detail.deliveryNotes as string | null | undefined) ?? null,
@@ -62,6 +63,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const preview = await previewTermActivityRevision(prisma, {
       instructorId: instructor.id,
       termActivityId: id,
+      advancePointer: parsed.data.advancePointer,
       draft: {
         title: parsed.data.title,
         summary: parsed.data.summary,
@@ -81,8 +83,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       proposedRevision: toTermActivityRevisionDto(preview.proposedRevision),
     } satisfies TermActivityRevisionPreviewResponse);
   } catch (error) {
+    if (error instanceof ConcurrencyConflictError) return conflict(error.message);
     if (error instanceof DomainInvariantError) {
-      return isNotFoundError(error) ? notFound(error.message) : badRequest(error.message);
+      return error instanceof NotFoundError ? notFound(error.message) : badRequest(error.message);
     }
     throw error;
   }

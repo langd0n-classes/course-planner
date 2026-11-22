@@ -4,14 +4,14 @@
 
 The active work is the operator evidence pass in:
 
-`/home/lwhite/loc-projects/course-planner/docs/why-this-exists.md` on **x1**.
+`<private path>` on `<host>`.
 
-As of this handoff, x1 has 31 uncommitted added lines in that file. They are
+As of this handoff, `<host>` has 31 uncommitted added lines in that file. They are
 intentional operator work and must be preserved. Do not run `git restore`,
 `git reset`, or a pull that overwrites the file before the operator chooses to
 commit or otherwise preserve it.
 
-The x1 checkout also has an untracked `.vscode/` directory; treat it as local
+The `<host>` checkout also has an untracked `.vscode/` directory; treat it as local
 editor state unless the operator says otherwise.
 
 ## What the operator is doing
@@ -42,7 +42,7 @@ evidence. The existing four tool categories remain lower in the document under
 3. Curriculum-mapping-shaped — Coursetune, Watermark, Nuventive
 4. Post-GenAI — prompting for a plan
 
-The operator added the two guiding questions beneath the categories on x1:
+The operator added the two guiding questions beneath the categories on `<host>`:
 
 1. What job is this category actually designed to do?
 2. What happens when it is asked to preserve and revise a live course plan?
@@ -96,9 +96,9 @@ and remains a separate AI-C architectural piece.
 
 ## Environment notes
 
-- `ssh x1` resolves to a stale public address. Use
-  `ssh x1g12.home.fishjump.com` from p1.
-- p1's Course Planner checkout currently has unrelated pre-existing untracked
+- `ssh <host alias>` (replace the placeholder) resolves to a stale public address. Use
+  `ssh <host>` (replace the placeholder) from `<source host>`.
+- `<source host>`'s Course Planner checkout currently has unrelated pre-existing untracked
   paths: `.agents/`, `docs/plans/course-planner-gate-0-checkpoint-2026-07-12.md`,
   `docs/prompts/fable-capability-build-2026-07.md`, `production`, and `skills/`.
   Do not commit them as part of rationale work without separate review.

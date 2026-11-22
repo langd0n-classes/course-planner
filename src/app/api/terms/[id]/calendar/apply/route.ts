@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { badRequest, conflict, notFound, ok, unauthorized } from "@/lib/api-helpers";
 import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 import { termCalendarApplyRequestSchema } from "@/lib/redesign-schemas";
-import { applyTermCalendar, ConcurrencyConflictError, DomainInvariantError } from "@/services/redesign";
+import { applyTermCalendar, CalendarSlotRemovalError, ConcurrencyConflictError, DomainInvariantError, NotFoundError } from "@/services/redesign";
 import type { TermCalendarApplyRequest, TermCalendarApplyResponse } from "@/lib/redesign-contract";
 
 export type { TermCalendarApplyRequest, TermCalendarApplyResponse };
@@ -28,7 +28,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
     return ok(applied satisfies TermCalendarApplyResponse);
   } catch (error) {
+    if (error instanceof CalendarSlotRemovalError) return conflict(error.message);
     if (error instanceof ConcurrencyConflictError) return conflict(error.message);
+    if (error instanceof NotFoundError) return notFound(error.message);
     if (error instanceof DomainInvariantError) return notFound(error.message);
     throw error;
   }

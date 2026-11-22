@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { setMockBackend } from "@/lib/redesign-api-client";
+import { redesignApi, setMockBackend } from "@/lib/redesign-api-client";
 import type { ActivityVersionLearningModuleScopeDto } from "@/lib/redesign-contract";
 import ActivityBoard from "./ActivityBoard";
 
@@ -9,7 +9,7 @@ const activity = { id: "a-1", courseId: "course-1", stableCode: "W1", currentVer
 const version = { id: "av-1", activityId: "a-1", revision: 1, title: "Probability workshop", summary: null, activityTypeVersionId: "type-1", changeSummary: null, publishedAt: null, detail: { behaviorFamily: "meeting" as const, defaultDurationMinutes: null, modality: null, preparationNotes: null, authoringNotes: null }, milestoneTemplates: [] };
 function renderBoard(onMove = vi.fn(async () => {}), initialScopes: ActivityVersionLearningModuleScopeDto[] = [], replaceActivityLmScope: (id: string, scopes: Array<{ learningModuleId: string; emphasis?: string | null; notes?: string | null }>) => Promise<ActivityVersionLearningModuleScopeDto[]> = async (_id, scopes) => scopes.map((scope, index) => ({ id: `scope-${index}`, activityVersionId: "av-1", learningModuleId: scope.learningModuleId, emphasis: scope.emphasis ?? null, notes: scope.notes ?? null })), learningModules = [{ id: "lm-1", courseId: "course-1", stableCode: "PROB", currentVersionId: "lmv-1", archivedAt: null }] ) {
   setMockBackend({ listCourseActivities: vi.fn(async () => [activity]), getActivity: vi.fn(async () => ({ activity, currentVersion: version })), listActivityTopicActions: vi.fn(async () => [{ id: "ta-1", activityVersionId: "av-1", topicVersionId: "tv-1", action: "introduced" as const, notes: null, provenance: null, siblings: [{ activityVersionId: "av-2", activityId: "a-2", activityStableCode: "W2", action: "introduced" as const }] }]), listActivityLmScope: vi.fn(async () => initialScopes), replaceActivityLmScope, replaceActivityTopicActions: vi.fn(async () => []) });
-  render(<ActivityBoard courseId="course-1" learningModules={learningModules} currentVersionsByLearningModuleId={new Map(learningModules.map((module, index) => [module.id, { id: module.currentVersionId!, learningModuleId: module.id, revision: 1, title: module.id === "lm-1" ? "Probability" : "Statistics", description: null, studentDescription: null, learningObjectives: [], notes: null, defaultSequence: index + 1, changeSummary: null, publishedAt: null, topics: [] }]))} topics={[{ id: "topic-1", courseId: "course-1", learningModuleId: null, stableCode: "P1", currentVersionId: "tv-1", archivedAt: null }]} currentVersionsByTopicId={new Map([["topic-1", { id: "tv-1", topicId: "topic-1", revision: 1, title: "Random variables", category: null, description: null, changeSummary: null, publishedAt: null }]])} onMove={onMove} />);
+  render(<ActivityBoard courseId="course-1" learningModules={learningModules} currentVersionsByLearningModuleId={new Map(learningModules.map((module, index) => [module.id, { id: module.currentVersionId!, learningModuleId: module.id, revision: 1, title: module.id === "lm-1" ? "Probability" : "Statistics", description: null, studentDescription: null, learningObjectives: [], notes: null, defaultSequence: index + 1, changeSummary: null, publishedAt: null, topics: [] }]))} topics={[{ id: "topic-1", courseId: "course-1", stableCode: "P1", currentVersionId: "tv-1", archivedAt: null }]} currentVersionsByTopicId={new Map([["topic-1", { id: "tv-1", topicId: "topic-1", revision: 1, title: "Random variables", category: null, description: null, changeSummary: null, publishedAt: null }]])} onMove={onMove} />);
   return onMove;
 }
 
@@ -104,4 +104,23 @@ describe("ActivityBoard", () => {
     expect(await screen.findByText("Emphasis: Keep")).toBeInTheDocument();
     expect(screen.getByText("Scope save failed")).toBeInTheDocument();
   });
+});
+
+it("shows a size load error with a working retry", async () => {
+  const sizes = vi
+    .spyOn(redesignApi, "listCourseEffortSizes")
+    .mockRejectedValueOnce(new Error("Sizes unavailable"))
+    .mockResolvedValue([]);
+  renderBoard();
+  expect(
+    await screen.findByText(/Unable to load effort sizes/),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Retry effort sizes" }));
+  await waitFor(() => expect(sizes).toHaveBeenCalledTimes(2));
+  await waitFor(() =>
+    expect(
+      screen.queryByText(/Unable to load effort sizes/),
+    ).not.toBeInTheDocument(),
+  );
+  sizes.mockRestore();
 });

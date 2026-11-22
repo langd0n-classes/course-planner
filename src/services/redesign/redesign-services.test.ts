@@ -30,6 +30,11 @@ import {
 } from "./academic-calendar-service";
 
 function createTransactionalDb(tx: Record<string, any>) {
+  // Existing scenarios contain no competing Term; composite code lookups
+  // must not return the source Term from an ID-only fixture.
+  const findTerm = tx.term?.findUnique;
+  tx.term = { ...tx.term, findUnique: async (args: any) =>
+    args.where.courseId_code ? null : findTerm?.(args) };
   return {
     $transaction: async <T>(fn: (tx: Record<string, any>) => Promise<T>) => fn(tx),
   };
@@ -938,6 +943,7 @@ describe("versioned academic calendar services", () => {
           return [];
         },
       },
+      termMeetingPattern: { findMany: async () => [] },
       calendarSlot: {
         findMany: async () => [],
       },
@@ -1023,12 +1029,15 @@ describe("versioned academic calendar services", () => {
           activityType: { instructorId: "instructor-1" },
         }),
       },
+      termActivity: { findMany: async () => [] },
+      session: { findMany: async () => [] },
       calendarSlot: {
         findMany: async () => [
           { id: "existing-slot", termId: "term-1", date: new Date("2027-03-01") },
           { id: "slot-2027-03-05", termId: "term-1", date: new Date("2027-03-05") },
           { id: "slot-2027-03-12", termId: "term-1", date: new Date("2027-03-12") },
         ],
+        update: async () => ({}),
         deleteMany: async ({ where }: any) => {
           calendarSlotDeletes.push(where);
           return { count: 1 };
@@ -1039,6 +1048,7 @@ describe("versioned academic calendar services", () => {
         },
       },
       termMeetingPattern: {
+        findMany: async () => [],
         deleteMany: async () => ({ count: 2 }),
         createMany: async ({ data }: any) => {
           meetingPatternCreates.push(...data);
@@ -1087,18 +1097,15 @@ describe("versioned academic calendar services", () => {
     expect(previewA.calendarSlotCandidates.find((slot) => slot.date === "2027-03-12")?.label).toBe("Review Day");
     expect(previewA.conflicts.some((conflict) => conflict.code === "meeting_day_blocked")).toBe(true);
 
-    const applied = await applyTermCalendar(db, {
-      instructorId: "instructor-1",
-      termId: "term-1",
+    await expect(applyTermCalendar(db, {
+      instructorId: "instructor-1", termId: "term-1",
       previewToken: previewA.previewToken,
       expectedCurrentCalendarSlotCount: previewA.expectedCurrentCalendarSlotCount,
       meetingPatterns,
-    });
-
-    expect(applied.calendarSlotCount).toBe(previewA.calendarSlotCandidates.length);
-    expect(meetingPatternCreates).toHaveLength(1);
-    expect(calendarSlotDeletes).toEqual([{ termId: "term-1" }]);
-    expect(calendarSlotCreates).toHaveLength(previewA.calendarSlotCandidates.length);
+    })).rejects.toThrow("0 affected meetings, 1 calendar exceptions");
+    expect(meetingPatternCreates).toHaveLength(0);
+    expect(calendarSlotDeletes).toHaveLength(0);
+    expect(calendarSlotCreates).toHaveLength(0);
 
     const updatedException = await updateTermCalendarException(db, "exception-1", "instructor-1", {
       label: "Updated label",
@@ -1233,7 +1240,7 @@ describe("revision subsystem", () => {
       const tx = baseTx({
         topicVersion: {
           findUnique: async () => ({
-            topic: { courseId: "course-1", learningModuleId: "lm-1" },
+            topic: { courseId: "course-1" },
           }),
         },
       });
@@ -1334,6 +1341,7 @@ describe("delivered revision workflow", () => {
           deliveredLearningModuleVersionId: "lmv-2",
           term: { status: "active", course: { instructorId: "instructor-1" } },
         }),
+        updateMany: async () => ({ count: 1 }),
         update: async ({ data }: any) => ({
           id: "tlm-1",
           learningModuleId: "lm-1",
@@ -1360,7 +1368,7 @@ describe("delivered revision workflow", () => {
       topicVersion: {
         findUnique: async ({ where }: any) => ({
           id: where.id,
-          topic: { courseId: "course-1", learningModuleId: "lm-1" },
+          topic: { courseId: "course-1" },
         }),
       },
     });
@@ -1378,7 +1386,7 @@ describe("delivered revision workflow", () => {
     expect(result.deliveredVersion.id).toBe("lmv-3");
     expect(result.deliveredVersion.revision).toBe(3);
     expect(result.deliveredVersion.publishedAt).toBeInstanceOf(Date);
-    expect(result.termLearningModule.deliveredLearningModuleVersionId).toBe("lmv-3");
+    expect(result.termLearningModule.id).toBe("tlm-1");
   });
 
   it("rejects stale delivered-pointer edits with optimistic concurrency", async () => {

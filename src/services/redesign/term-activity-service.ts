@@ -1,5 +1,9 @@
+import { isDeepStrictEqual } from "node:util";
+import { effectiveRevision, localDate } from "@/lib/term-revision-rules";
+import { keepEffortOverride } from "@/lib/effort";
+import { assertEffort } from "./effort-service";
 import { createHash } from "node:crypto";
-import { ConcurrencyConflictError, DomainInvariantError } from "./errors";
+import { ConcurrencyConflictError, DomainInvariantError, NotFoundError } from "./errors";
 import { assertSameCourse } from "./invariants";
 import {
   getOwnedCalendarSlotForInstructor,
@@ -56,6 +60,7 @@ async function findOwnedActivityVersionForTerm(
     include: {
       activity: { include: { course: { select: { instructorId: true } } } },
       activityTypeVersion: { include: { activityType: { select: { instructorId: true } } } },
+      milestoneTemplates: { orderBy: { sequence: "asc" } },
       meetingDetail: true,
       courseworkDetail: true,
       assessmentDetail: true,
@@ -67,7 +72,7 @@ async function findOwnedActivityVersionForTerm(
     version.activityId !== activityId ||
     version.activity.course?.instructorId !== instructorId
   ) {
-    throw new DomainInvariantError("Activity or version not found");
+    throw new NotFoundError("Activity or version not found");
   }
   assertSameCourse(termCourseId, version.activity.courseId, "Term Activity adoption");
   const enabled = await tx.courseActivityTypeVersion.findUnique({
@@ -82,7 +87,7 @@ async function findOwnedActivityVersionForTerm(
     throw new DomainInvariantError("Activity Type version not enabled for the Term's Course");
   }
   if (version.activityTypeVersion.activityType.instructorId !== instructorId) {
-    throw new DomainInvariantError("Activity Type version not found");
+    throw new NotFoundError("Activity Type version not found");
   }
   return version;
 }
@@ -98,7 +103,7 @@ async function findOwnedTermLearningModuleForAdoption(
     where: { id_termId: { id: termLearningModuleId, termId } },
   });
   if (!offering) {
-    throw new DomainInvariantError("Term Learning Module not found");
+    throw new NotFoundError("Term Learning Module not found");
   }
   assertSameCourse(courseId, offering.courseId, "Term Activity adoption");
   const version = await tx.learningModuleVersion.findUnique({
@@ -115,7 +120,7 @@ async function findOwnedTermLearningModuleForAdoption(
     },
   });
   if (!version) {
-    throw new DomainInvariantError("Learning Module version not found");
+    throw new NotFoundError("Learning Module version not found");
   }
   return { offering, version };
 }
@@ -127,6 +132,7 @@ type AdoptionCandidate = {
   ordinal: number | null;
   termLearningModuleId: string | null;
   activityTypeVersionId: string;
+  milestoneTemplates: Array<{ id: string; sequence: number; role: TermActivityMilestoneInput["role"]; label: string; linkedActivityId: string | null; timeZone: string | null; notes: string | null }>;
   baseRevision: {
     title: string;
     summary: string | null;
@@ -137,7 +143,7 @@ type AdoptionCandidate = {
 
 function snapshotDetailFromVersion(version: {
   meetingDetail?: { modality: string | null } | null;
-  courseworkDetail?: Record<string, never> | null;
+  courseworkDetail?: { effortMinMinutes?: number | null; effortMaxMinutes?: number | null } | null;
   assessmentDetail?: { modality: string | null } | null;
 }) {
   if (version.meetingDetail) {
@@ -213,6 +219,7 @@ async function buildAdoptionCandidates(
         activityTypeVersionId: activityVersion.activityTypeVersionId,
         termLearningModuleId: offering.id,
         ordinal: membership.sequence,
+        milestoneTemplates: activityVersion.milestoneTemplates ?? [],
         baseRevision: {
           title: activityVersion.title,
           summary: activityVersion.summary,
@@ -240,7 +247,7 @@ async function buildAdoptionCandidates(
         select: { id: true, courseId: true },
       });
       if (!ownedOffering) {
-        throw new DomainInvariantError("Term Learning Module not found");
+        throw new NotFoundError("Term Learning Module not found");
       }
       assertSameCourse(term.courseId, ownedOffering.courseId, "Term Activity adoption");
     }
@@ -262,6 +269,7 @@ async function buildAdoptionCandidates(
       activityTypeVersionId: activityVersion.activityTypeVersionId,
       termLearningModuleId: selection.termLearningModuleId ?? null,
       ordinal: null,
+      milestoneTemplates: activityVersion.milestoneTemplates ?? [],
       baseRevision: {
         title: activityVersion.title,
         summary: activityVersion.summary,
@@ -281,9 +289,14 @@ async function buildAdoptionCandidates(
     });
   }
 
+  const existingActivities: Array<{ id: string; activityId: string; adoptedLabel: string; archivedAt: Date | null }> = await tx.termActivity.findMany({ where: { termId: term.id }, select: { id: true, activityId: true, adoptedLabel: true, archivedAt: true } });
+  const existingIds = new Set(existingActivities.map((row: { activityId: string }) => row.activityId));
   return {
     term,
-    candidates: candidates.sort((left, right) => {
+    existingActivities,
+    alreadyAdopted: existingActivities.filter((row) => seenActivityIds.has(row.activityId))
+      .map((row) => ({ activityId: row.activityId, adoptedLabel: row.adoptedLabel })),
+    candidates: candidates.filter((candidate) => !existingIds.has(candidate.activityId)).sort((left, right) => {
       if ((left.termLearningModuleId ?? "") !== (right.termLearningModuleId ?? "")) {
         return (left.termLearningModuleId ?? "").localeCompare(right.termLearningModuleId ?? "");
       }
@@ -295,7 +308,53 @@ async function buildAdoptionCandidates(
   };
 }
 
-async function createRevisionSnapshot(
+/** Fields that identify a milestone. Date, zone, notes, and provenance may change without making it a new milestone. */
+function milestoneIdentity(milestone: TermActivityMilestoneInput) {
+  return [milestone.role, milestone.label, milestone.anchorPolicy, milestone.linkedTermActivityId ?? null,
+    milestone.sourceTemplateId ?? null];
+}
+
+async function validateSnapshotMilestones(
+  tx: RedesignTx,
+  input: { termActivityId: string; baseActivityVersionId: string; milestones: TermActivityMilestoneInput[]; inheritedMilestones?: TermActivityMilestoneInput[] },
+) {
+  const unmatchedLegacySelfLinks = (input.inheritedMilestones ?? [])
+    .filter(source => source.linkedTermActivityId === input.termActivityId);
+  for (const milestone of input.milestones) {
+    if (milestone.linkedTermActivityId === input.termActivityId) {
+      const index = unmatchedLegacySelfLinks.findIndex(source =>
+        (source.id == null || milestone.id == null || source.id === milestone.id) &&
+        isDeepStrictEqual(milestoneIdentity(source), milestoneIdentity(milestone)),
+      );
+      if (index === -1) throw new DomainInvariantError("A milestone cannot link to its own Term Activity");
+      unmatchedLegacySelfLinks.splice(index, 1);
+    }
+    if (milestone.anchorPolicy === "follow_activity" && !milestone.linkedTermActivityId) {
+      throw new DomainInvariantError("A milestone that follows an Activity needs a linked Term Activity in the same Term");
+    }
+    if ((milestone.anchorPolicy === "fixed_instant" || milestone.anchorPolicy === "standalone") && !milestone.occursAt) {
+      throw new DomainInvariantError("A fixed or standalone milestone needs a date");
+    }
+    if (milestone.linkedTermActivityId) {
+      const [owner, linked] = await Promise.all([
+        tx.termActivity.findUnique({ where: { id: input.termActivityId } }),
+        tx.termActivity.findUnique({ where: { id: milestone.linkedTermActivityId } }),
+      ]);
+      if (!owner || !linked || linked.termId !== owner.termId) {
+        if (milestone.anchorPolicy === "follow_activity") throw new DomainInvariantError("The linked Term Activity must be in the same Term");
+        throw new NotFoundError("Term Activity not found");
+      }
+    }
+    if (milestone.sourceTemplateId) {
+      const template = await tx.activityVersionMilestoneTemplate.findUnique({ where: { id: milestone.sourceTemplateId } });
+      if (!template || template.activityVersionId !== input.baseActivityVersionId) {
+        throw new DomainInvariantError("The milestone template must belong to the base Activity version");
+      }
+    }
+  }
+}
+
+export async function createRevisionSnapshot(
   tx: RedesignTx,
   input: {
     termActivityId: string;
@@ -308,8 +367,10 @@ async function createRevisionSnapshot(
     detail: TermActivityRevisionDetailDraft;
     topicActions: TermActivityRevisionTopicActionInput[];
     milestones: TermActivityMilestoneInput[];
+    inheritedMilestones?: TermActivityMilestoneInput[];
   },
 ) {
+  await validateSnapshotMilestones(tx, input);
   const revision = await tx.termActivityRevision.create({
     data: {
       termActivityId: input.termActivityId,
@@ -339,6 +400,8 @@ async function createRevisionSnapshot(
     await tx.termCourseworkActivityRevision.create({
       data: {
         termActivityRevisionId: revision.id,
+        effortMinMinutes: input.detail.effortMinMinutes ?? null,
+        effortMaxMinutes: input.detail.effortMaxMinutes ?? null,
         lifecycleState: input.detail.lifecycleState ?? null,
         deliveryNotes: input.detail.deliveryNotes ?? null,
       },
@@ -347,6 +410,8 @@ async function createRevisionSnapshot(
     await tx.termAssessmentActivityRevision.create({
       data: {
         termActivityRevisionId: revision.id,
+        effortMinMinutes: input.detail.effortMinMinutes ?? null,
+        effortMaxMinutes: input.detail.effortMaxMinutes ?? null,
         lifecycleState: input.detail.lifecycleState ?? null,
         modality: input.detail.modality ?? null,
         deliveryNotes: input.detail.deliveryNotes ?? null,
@@ -389,7 +454,8 @@ async function createRevisionSnapshot(
   });
 }
 
-const revisionInclude = {
+export const revisionInclude = {
+  baseActivityVersion: { include: { courseworkDetail: true, assessmentDetail: true } },
   meetingDetail: true,
   courseworkDetail: true,
   assessmentDetail: true,
@@ -400,13 +466,21 @@ const revisionInclude = {
 async function validateTermActivityDraft(
   tx: RedesignTx,
   instructorId: string,
-  termActivity: { termId: string; term: { courseId: string; status: "planned" | "active" | "closed" } },
+  termActivity: { activityTypeVersion?: { activityType: { behaviorFamily: string } }; plannedActivityVersion: { meetingDetail?: unknown; courseworkDetail?: unknown; assessmentDetail?: unknown }; termId: string; term: { courseId: string; status: "planned" | "active" | "closed" } },
   draft: TermActivityRevisionDraft,
 ) {
+  const base = termActivity.plannedActivityVersion;
+  const family = termActivity.activityTypeVersion?.activityType.behaviorFamily ?? (base?.meetingDetail ? "meeting" : base?.courseworkDetail ? "coursework" : base?.assessmentDetail ? "assessment" : null);
+  if (family && family !== draft.detail.behaviorFamily) throw new DomainInvariantError("Revision detail family must match the Activity family");
+  if (draft.detail.behaviorFamily !== "meeting") {
+    assertEffort(draft.detail.effortMinMinutes, draft.detail.effortMaxMinutes);
+  } else if ("effortMinMinutes" in draft.detail || "effortMaxMinutes" in draft.detail) {
+    throw new DomainInvariantError("Meetings do not carry student effort");
+  }
   if (draft.detail.behaviorFamily === "meeting" && draft.detail.calendarSlotId) {
     const slot = await getOwnedCalendarSlotForInstructor(tx, instructorId, draft.detail.calendarSlotId);
     if (slot.termId !== termActivity.termId) {
-      throw new DomainInvariantError("Calendar slot not found");
+      throw new NotFoundError("Calendar slot not found");
     }
   }
 
@@ -416,18 +490,9 @@ async function validateTermActivityDraft(
       include: { topic: { select: { courseId: true, course: { select: { instructorId: true } } } } },
     });
     if (!topicVersion || topicVersion.topic.course?.instructorId !== instructorId) {
-      throw new DomainInvariantError("Topic version not found");
+      throw new NotFoundError("Topic version not found");
     }
     assertSameCourse(termActivity.term.courseId, topicVersion.topic.courseId, "Term Activity topic action");
-  }
-
-  for (const milestone of draft.milestones ?? []) {
-    if (milestone.linkedTermActivityId) {
-      const linked = await getOwnedTermActivityForInstructor(tx, instructorId, milestone.linkedTermActivityId);
-      if (linked.termId !== termActivity.termId) {
-        throw new DomainInvariantError("Term Activity not found");
-      }
-    }
   }
 }
 
@@ -445,16 +510,44 @@ async function buildRevisionPreview(
     where: { id: input.termActivityId },
     include: {
       term: true,
+      plannedActivityVersion: { include: { courseworkDetail: true, assessmentDetail: true, meetingDetail: true } },
+      activityTypeVersion: { include: { activityType: true } },
       plannedRevision: { include: revisionInclude },
       deliveredRevision: { include: revisionInclude },
       revisions: { orderBy: { revision: "desc" }, take: 1 },
     },
   });
   if (!hydrated) {
-    throw new DomainInvariantError("Term Activity not found");
+    throw new NotFoundError("Term Activity not found");
   }
 
-  await validateTermActivityDraft(tx, input.instructorId, hydrated, input.draft);
+  const current =
+    input.advancePointer === "planned"
+      ? hydrated.plannedRevision
+      : effectiveRevision({ delivered: hydrated.deliveredRevision, planned: hydrated.plannedRevision });
+  const topicActions: TermActivityRevisionTopicActionInput[] =
+    input.draft.topicActions ?? current?.topicActions ?? [];
+  const milestones: TermActivityMilestoneInput[] =
+    input.draft.milestones ?? current?.milestones ?? [];
+  const draft = {
+    ...input.draft,
+    topicActions,
+    milestones,
+    detail: keepEffortOverride(
+      input.draft.detail,
+      current?.courseworkDetail ?? current?.assessmentDetail,
+    ),
+  };
+  if (draft.detail.behaviorFamily === "meeting" && draft.detail.startsAt &&
+      new Date(draft.detail.startsAt).getTime() !== current?.meetingDetail?.startsAt?.getTime()) {
+    const patterns = await tx.termMeetingPattern.findMany({ where: { termId: hydrated.termId }, orderBy: [{ startsOn: "asc" }, { id: "asc" }] });
+    const zone = patterns.find((pattern: { activityTypeVersionId: string; timeZone: string }) => pattern.activityTypeVersionId === hydrated.activityTypeVersionId)?.timeZone ?? patterns[0]?.timeZone ?? "UTC";
+    const date = localDate(draft.detail.startsAt, zone)!;
+    const slot = await tx.calendarSlot.findFirst({ where: { termId: hydrated.termId, date: new Date(`${date}T00:00:00Z`) } });
+    draft.detail = { ...draft.detail, calendarSlotId: slot?.id ?? null };
+  }
+  await validateTermActivityDraft(tx, input.instructorId, hydrated, draft);
+  await validateSnapshotMilestones(tx, { termActivityId: hydrated.id, baseActivityVersionId: hydrated.plannedActivityVersionId, milestones: draft.milestones, inheritedMilestones: current?.milestones ?? [] });
 
   const nextRevision = (hydrated.revisions[0]?.revision ?? 0) + 1;
   const expectedCurrentRevisionId =
@@ -463,42 +556,47 @@ async function buildRevisionPreview(
       : hydrated.deliveredRevisionId;
   const proposedRevision = {
     id: `preview-${hydrated.id}-${nextRevision}`,
+    baseActivityVersion: hydrated.plannedActivityVersion,
     termActivityId: hydrated.id,
     revision: nextRevision,
     baseActivityVersionId: hydrated.plannedActivityVersionId,
-    title: input.draft.title,
-    summary: input.draft.summary ?? null,
-    changeReason: input.draft.changeReason ?? null,
+    title: draft.title,
+    summary: draft.summary ?? null,
+    changeReason: draft.changeReason ?? null,
     createdByInstructorId: input.instructorId,
     createdAt: new Date(),
     meetingDetail:
-      input.draft.detail.behaviorFamily === "meeting"
+      draft.detail.behaviorFamily === "meeting"
         ? {
-            calendarSlotId: input.draft.detail.calendarSlotId ?? null,
-            startsAt: input.draft.detail.startsAt ?? null,
-            endsAt: input.draft.detail.endsAt ?? null,
-            status: input.draft.detail.status ?? null,
-            modality: input.draft.detail.modality ?? null,
-            overrideReason: input.draft.detail.overrideReason ?? null,
-            overrideEvidence: input.draft.detail.overrideEvidence ?? null,
+            calendarSlotId: draft.detail.calendarSlotId ?? null,
+            startsAt: draft.detail.startsAt ?? null,
+            endsAt: draft.detail.endsAt ?? null,
+            status: draft.detail.status ?? null,
+            modality: draft.detail.modality ?? null,
+            overrideReason: draft.detail.overrideReason ?? null,
+            overrideEvidence: draft.detail.overrideEvidence ?? null,
           }
         : null,
     courseworkDetail:
-      input.draft.detail.behaviorFamily === "coursework"
+      draft.detail.behaviorFamily === "coursework"
         ? {
-            lifecycleState: input.draft.detail.lifecycleState ?? null,
-            deliveryNotes: input.draft.detail.deliveryNotes ?? null,
+            effortMinMinutes: draft.detail.effortMinMinutes ?? null,
+            effortMaxMinutes: draft.detail.effortMaxMinutes ?? null,
+            lifecycleState: draft.detail.lifecycleState ?? null,
+            deliveryNotes: draft.detail.deliveryNotes ?? null,
           }
         : null,
     assessmentDetail:
-      input.draft.detail.behaviorFamily === "assessment"
+      draft.detail.behaviorFamily === "assessment"
         ? {
-            lifecycleState: input.draft.detail.lifecycleState ?? null,
-            modality: input.draft.detail.modality ?? null,
-            deliveryNotes: input.draft.detail.deliveryNotes ?? null,
+            effortMinMinutes: draft.detail.effortMinMinutes ?? null,
+            effortMaxMinutes: draft.detail.effortMaxMinutes ?? null,
+            lifecycleState: draft.detail.lifecycleState ?? null,
+            modality: draft.detail.modality ?? null,
+            deliveryNotes: draft.detail.deliveryNotes ?? null,
           }
         : null,
-    topicActions: (input.draft.topicActions ?? []).map((action, index) => ({
+    topicActions: (draft.topicActions ?? []).map((action, index) => ({
       id: `preview-topic-action-${index}`,
       termActivityRevisionId: `preview-${hydrated.id}-${nextRevision}`,
       topicVersionId: action.topicVersionId,
@@ -506,7 +604,7 @@ async function buildRevisionPreview(
       notes: action.notes ?? null,
       provenance: action.provenance ?? null,
     })),
-    milestones: (input.draft.milestones ?? []).map((milestone, index) => ({
+    milestones: (draft.milestones ?? []).map((milestone, index) => ({
       id: `preview-milestone-${index}`,
       termActivityRevisionId: `preview-${hydrated.id}-${nextRevision}`,
       sourceTemplateId: milestone.sourceTemplateId ?? null,
@@ -525,6 +623,8 @@ async function buildRevisionPreview(
   return {
     termActivity,
     nextRevision,
+    draft,
+    inheritedMilestones: current?.milestones ?? [],
     expectedCurrentRevisionId,
     proposedRevision,
   };
@@ -618,7 +718,8 @@ export async function previewTermActivityAdoption(
   },
 ) {
   return db.$transaction(async (tx) => {
-    const { term, candidates } = await buildAdoptionCandidates(tx, input);
+    const { term, candidates, existingActivities, alreadyAdopted } = await buildAdoptionCandidates(tx, input);
+    const adoptedIds = new Set([...existingActivities.filter((row) => !row.archivedAt).map((row) => row.activityId), ...candidates.map((row) => row.activityId)]);
     const expectedCurrentActivityCount = await tx.termActivity.count({ where: { termId: term.id } });
     return {
       kind: "preview" as const,
@@ -630,16 +731,36 @@ export async function previewTermActivityAdoption(
           activityVersionId: candidate.activityVersionId,
           termLearningModuleId: candidate.termLearningModuleId,
           ordinal: candidate.ordinal,
+          milestoneTemplates: candidate.milestoneTemplates,
         })),
       }),
       expectedCurrentActivityCount,
-      candidates: candidates.map((candidate) => ({
-        activityId: candidate.activityId,
-        activityVersionId: candidate.activityVersionId,
-        adoptedLabel: candidate.adoptedLabel,
-        ordinal: candidate.ordinal,
-        termLearningModuleId: candidate.termLearningModuleId,
-      })),
+      alreadyAdopted,
+      candidates: candidates.map((candidate) => {
+        // A milestone with no date must follow a Term Activity: the database
+        // rejects an undated standalone milestone. A template that has nothing
+        // to follow is not created, and the preview lists it here.
+        const notCreated = candidate.milestoneTemplates
+          .flatMap((template) => {
+            if (!template.linkedActivityId)
+              return [{ sourceTemplateId: template.id, label: template.label, reason: "The template has no linked Activity to follow" }];
+            const reason = template.linkedActivityId === candidate.activityId
+              ? "A milestone cannot follow its own Activity"
+              : existingActivities.some((row) => row.activityId === template.linkedActivityId && row.archivedAt)
+                ? "Linked Activity is archived in this Term"
+                : !adoptedIds.has(template.linkedActivityId) ? "Linked Activity is not adopted in this Term" : null;
+            return reason ? [{ sourceTemplateId: template.id, label: template.label, reason }] : [];
+          });
+        return {
+          activityId: candidate.activityId,
+          activityVersionId: candidate.activityVersionId,
+          adoptedLabel: candidate.adoptedLabel,
+          milestoneCount: candidate.milestoneTemplates.length - notCreated.length,
+          notCreatedMilestones: notCreated,
+          ordinal: candidate.ordinal,
+          termLearningModuleId: candidate.termLearningModuleId,
+        };
+      }),
       impact: emptyImpact(),
     };
   });
@@ -656,7 +777,8 @@ export async function applyTermActivityAdoption(
     expectedCurrentActivityCount: number;
   },
 ) {
-  return db.$transaction(
+  try {
+  return await db.$transaction(
     async (tx) => {
     const preview = await previewTermActivityAdoption(
       { $transaction: async <T>(fn: (nestedTx: RedesignTx) => Promise<T>) => fn(tx) },
@@ -709,7 +831,17 @@ export async function applyTermActivityAdoption(
         createdByInstructorId: input.instructorId,
         detail: candidate.baseRevision.detail,
         topicActions: candidate.baseRevision.topicActions,
-        milestones: [],
+        milestones: candidate.milestoneTemplates.flatMap((template) => {
+          const linkedTermActivityId = !template.linkedActivityId || template.linkedActivityId === candidate.activityId ? null : [...createdActivities, ...candidates.existingActivities.filter((row) => !row.archivedAt)]
+            .find((row) => row.activityId === template.linkedActivityId)?.id ?? null;
+          // An undated milestone with nothing to follow is not created; see the preview.
+          if (!linkedTermActivityId) return [];
+          return [{
+            sourceTemplateId: template.id, role: template.role, label: template.label,
+            timeZone: template.timeZone, notes: template.notes, occursAt: null,
+            linkedTermActivityId, anchorPolicy: "follow_activity" as const,
+          }];
+        }),
       });
       pointerRows.push(
         tx.termActivity.update({
@@ -736,6 +868,10 @@ export async function applyTermActivityAdoption(
     // against a local database and not against a remote one.
     { timeout: 300_000, maxWait: 30_000 },
   );
+  } catch (error) {
+    if (isUniqueConstraintError(error)) throw new ConcurrencyConflictError("Term Activity adoption changed while this edit was in progress");
+    throw error;
+  }
 }
 
 export async function previewTermActivityRevision(
@@ -744,6 +880,7 @@ export async function previewTermActivityRevision(
     instructorId: string;
     termActivityId: string;
     draft: TermActivityRevisionDraft;
+    advancePointer?: "planned" | "delivered";
   },
 ) {
   return db.$transaction(async (tx) => {
@@ -753,7 +890,7 @@ export async function previewTermActivityRevision(
       previewToken: previewToken({
         termActivityId: input.termActivityId,
         expectedCurrentRevisionId: preview.expectedCurrentRevisionId,
-        draft: input.draft,
+        draft: preview.draft,
       }),
       expectedCurrentRevisionId: preview.expectedCurrentRevisionId,
       proposedRevision: preview.proposedRevision,
@@ -786,7 +923,7 @@ export async function applyTermActivityRevision(
         include: { term: true, revisions: { orderBy: { revision: "desc" }, take: 1 } },
       });
       if (!termActivity) {
-        throw new DomainInvariantError("Term Activity not found");
+        throw new NotFoundError("Term Activity not found");
       }
       if (input.advancePointer === "delivered") {
         if (termActivity.term.status !== "active") {
@@ -800,7 +937,7 @@ export async function applyTermActivityRevision(
         previewToken({
           termActivityId: input.termActivityId,
           expectedCurrentRevisionId: preview.expectedCurrentRevisionId,
-          draft: input.draft,
+          draft: preview.draft,
         }) !== input.previewToken
       ) {
         throw new ConcurrencyConflictError("Term Activity revision preview is stale");
@@ -817,12 +954,13 @@ export async function applyTermActivityRevision(
         summary: input.draft.summary ?? null,
         changeReason: input.draft.changeReason ?? null,
         createdByInstructorId: input.instructorId,
-        detail: input.draft.detail,
-        topicActions: input.draft.topicActions ?? [],
-        milestones: input.draft.milestones ?? [],
+        detail: preview.draft.detail,
+        topicActions: preview.draft.topicActions,
+        milestones: preview.draft.milestones,
+        inheritedMilestones: preview.inheritedMilestones,
       });
       if (!revision) {
-        throw new DomainInvariantError("Term Activity revision not found");
+        throw new NotFoundError("Term Activity revision not found");
       }
 
       const pointerField =
@@ -831,10 +969,13 @@ export async function applyTermActivityRevision(
         where: {
           id: termActivity.id,
           [pointerField]: input.expectedCurrentRevisionId,
+          ...(input.advancePointer === "planned" ? { deliveredRevisionId: termActivity.deliveredRevisionId } : {}),
         },
         data: {
           [pointerField]: revision.id,
-          lifecycleState: lifecycleStateFromDetail(input.draft.detail),
+          ...(input.advancePointer === "delivered" || !termActivity.deliveredRevisionId
+            ? { lifecycleState: lifecycleStateFromDetail(input.draft.detail) }
+            : {}),
         },
       });
       if (advanced.count !== 1) {
@@ -843,7 +984,7 @@ export async function applyTermActivityRevision(
 
       const updated = await tx.termActivity.findUnique({ where: { id: termActivity.id } });
       if (!updated) {
-        throw new DomainInvariantError("Term Activity not found");
+        throw new NotFoundError("Term Activity not found");
       }
 
       return {

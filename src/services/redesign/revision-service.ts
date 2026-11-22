@@ -142,7 +142,6 @@ export async function createTopic(
     const topic = await tx.topic.create({
       data: {
         courseId: input.courseId,
-        learningModuleId: null,
         stableCode: input.stableCode,
       },
     });
@@ -342,7 +341,7 @@ export async function updateTopic(
   return db.$transaction(async (tx) => {
     const topic = await tx.topic.findUnique({
       where: { id: topicId },
-      select: { id: true, courseId: true, stableCode: true, learningModuleId: true },
+      select: { id: true, courseId: true, stableCode: true },
     });
     if (!topic) {
       throw new DomainInvariantError("Topic not found");
@@ -524,11 +523,6 @@ async function assertTopicSnapshotsBelongToLearningModuleCourse(
     });
     if (!topicVersion) throw new DomainInvariantError("Topic version not found");
     assertSameCourse(learningModule.courseId, topicVersion.topic.courseId, "Learning Module snapshot");
-    if (topicVersion.topic.learningModuleId !== learningModule.id) {
-      throw new DomainInvariantError(
-        "Learning Module version snapshots may only contain Topic versions assigned to that Learning Module",
-      );
-    }
   }
 }
 

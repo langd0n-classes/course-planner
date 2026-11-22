@@ -1,3 +1,4 @@
+import type { CourseEffortSizeDto, CourseEffortPartKindDto, CourseEffortSizeRequest, CourseEffortPartKindRequest } from "./redesign-contract";
 // Typed client for the workspace UI. Every method calls a canonical API route
 // so call sites in pages/components stay stable when routes are extended.
 //
@@ -8,6 +9,14 @@
 // or Storybook fixtures. Production always uses real HTTP.
 
 import type {
+  MilestoneDatingPreviewRequest,
+  MilestoneDatingPreviewResponse,
+  MilestoneDatingApplyRequest,
+  MilestoneDatingApplyResponse,
+  MeetingPlacementPreviewRequest,
+  MeetingPlacementPreviewResponse,
+  MeetingPlacementApplyRequest,
+  MeetingPlacementApplyResponse,
   AcademicCalendarDto,
   AcademicCalendarVersionDto,
   ActivityDto,
@@ -188,6 +197,19 @@ export function setMockBackend(mock: RedesignApiMock | null) {
 // ---------------------------------------------------------------------------
 
 const _api = {
+
+  listCourseEffortSizes: (courseId: Id): Promise<CourseEffortSizeDto[]> => get<{ entries: CourseEffortSizeDto[] }>(`/api/courses/${courseId}/effort-sizes`).then((d) => d.entries),
+  createCourseEffortSize: (courseId: Id, input: CourseEffortSizeRequest): Promise<CourseEffortSizeDto> => post<{ entry: CourseEffortSizeDto }>(`/api/courses/${courseId}/effort-sizes`, input).then((d) => d.entry),
+  updateCourseEffortSize: (courseId: Id, id: Id, input: CourseEffortSizeRequest): Promise<CourseEffortSizeDto> => patch<{ entry: CourseEffortSizeDto }>(`/api/courses/${courseId}/effort-sizes/${id}`, input).then((d) => d.entry),
+  deleteCourseEffortSize: (courseId: Id, id: Id): Promise<void> => del(`/api/courses/${courseId}/effort-sizes/${id}`),
+  reorderCourseEffortSizes: (courseId: Id, ids: Id[]): Promise<CourseEffortSizeDto[]> => put<{ entries: CourseEffortSizeDto[] }>(`/api/courses/${courseId}/effort-sizes`, { ids }).then((d) => d.entries),
+
+  listCourseEffortPartKinds: (courseId: Id): Promise<CourseEffortPartKindDto[]> => get<{ entries: CourseEffortPartKindDto[] }>(`/api/courses/${courseId}/effort-part-kinds`).then((d) => d.entries),
+  createCourseEffortPartKind: (courseId: Id, input: CourseEffortPartKindRequest): Promise<CourseEffortPartKindDto> => post<{ entry: CourseEffortPartKindDto }>(`/api/courses/${courseId}/effort-part-kinds`, input).then((d) => d.entry),
+  updateCourseEffortPartKind: (courseId: Id, id: Id, input: CourseEffortPartKindRequest): Promise<CourseEffortPartKindDto> => patch<{ entry: CourseEffortPartKindDto }>(`/api/courses/${courseId}/effort-part-kinds/${id}`, input).then((d) => d.entry),
+  deleteCourseEffortPartKind: (courseId: Id, id: Id): Promise<void> => del(`/api/courses/${courseId}/effort-part-kinds/${id}`),
+  reorderCourseEffortPartKinds: (courseId: Id, ids: Id[]): Promise<CourseEffortPartKindDto[]> => put<{ entries: CourseEffortPartKindDto[] }>(`/api/courses/${courseId}/effort-part-kinds`, { ids }).then((d) => d.entries),
+
   // Authenticated instructor --------------------------------------------------
   getCurrentInstructor: (): Promise<InstructorDto> =>
     get<{ instructor: InstructorDto }>("/api/instructors/me").then((d) => d.instructor),
@@ -703,6 +725,15 @@ const _api = {
     revisionsByTermActivityId: d.revisionsByTermActivityId ?? {},
   })),
 
+  previewMilestoneDating: (termId: Id, request: MilestoneDatingPreviewRequest = {}): Promise<MilestoneDatingPreviewResponse> =>
+    post<MilestoneDatingPreviewResponse>(`/api/terms/${termId}/milestone-dating-preview`, request),
+  applyMilestoneDating: (termId: Id, request: MilestoneDatingApplyRequest): Promise<MilestoneDatingApplyResponse> =>
+    post<MilestoneDatingApplyResponse>(`/api/terms/${termId}/milestone-dating-apply`, request),
+  previewMeetingPlacement: (termId: Id, request: MeetingPlacementPreviewRequest): Promise<MeetingPlacementPreviewResponse> =>
+    post<MeetingPlacementPreviewResponse>(`/api/terms/${termId}/placement-preview`, request),
+  applyMeetingPlacement: (termId: Id, request: MeetingPlacementApplyRequest): Promise<MeetingPlacementApplyResponse> =>
+    post<MeetingPlacementApplyResponse>(`/api/terms/${termId}/placement-apply`, request),
+
   previewTermActivityAdoption: (
     termId: Id,
     request: TermAdoptionPreviewRequest,
@@ -804,3 +835,6 @@ export const redesignApi: typeof _api = new Proxy(_api, {
     return m ?? target[key];
   },
 }) as typeof _api;
+
+// Adoption previews include milestone counts and unresolved meeting links.
+export type { TermAdoptionPreviewRequest, TermAdoptionPreviewResponse, TermActivityAdoptionCandidateDto } from "./redesign-contract";

@@ -17,9 +17,12 @@ Read these files before doing any work in this repo:
 3. `ARCHITECTURE.md` — System design and directory
    structure.
 
-4. `ASSUMPTIONS.md` — Decisions made where requirements
-   were underspecified. Append to this file when making
-   new assumptions; do not overwrite prior entries.
+4. `docs/assumptions/` — Decisions made where requirements
+   were underspecified, one file for each change. To record
+   new assumptions, add a new file named
+   `<issue number>-<slug>.md`; do not change another
+   change's file, and do not add text to `ASSUMPTIONS.md`,
+   which only points to the directory.
 
 Read the operator's global agent guidance before you proceed. It holds the
 shared, cross-project conventions: GitHub work, credentials, durable
@@ -218,24 +221,15 @@ These patterns caused bugs and rework. Follow them:
 ## Conventions
 
 - Commit messages: imperative mood, concise, explain why
-- Append to `ASSUMPTIONS.md` when making design decisions
-- Append to `ARCHITECTURE.md` when adding new subsystems
+- Add a file in `docs/assumptions/` when making design decisions
+- Do not change `ARCHITECTURE.md` in a feature pull request. Put the
+  architecture notes for a change under an "Architecture notes" heading
+  in its `docs/assumptions/` file. A separate refresh pull request moves
+  the notes into `ARCHITECTURE.md`
 - Keep `docs/phase-roadmap.md` updated as phases complete
 
-## Commit attribution (agent commits)
+## Commits
 
-Every attributable agent commit:
-
-1. **Author = `langdon-bot`** via `git -c include.path=~/loc-resources/auth/langdon-bot.gitconfig commit …` (never set globally).
-2. **Trailers:**
-   ```
-   AI-Attribution: <AI-A|AI-E|AI-C|AI-G>  (https://langd0n.com/ai-attribution)
-   Co-authored-by: langdon <1832177+langdon@users.noreply.github.com>
-   Co-Authored-By: <PARENT-AGENT> / <model> <noreply@anthropic.com>
-   ```
-   - `<PARENT-AGENT>`: producing context — an agent running from this project signs `course-planner`; the orchestrator signs `AICP`.
-   - `<model>`: actual engine (e.g. `gpt-5.5`, `Claude Opus 4.8`).
-   - `AI-Attribution`: `AI-G` autonomous / `AI-C` interactive.
-   - No `Claude-Session:` trailer.
-3. Mechanical edits (typo, format): no trailers.
-4. Stage explicit paths; never `git add -A` / `git add .`.
+Commit with `agent-commit` and push with `agent-push` (the `github-work`
+skill). Pass `--parent course-planner` for work started in this project,
+and `--parent AICP` for work the orchestrator starts.

@@ -1,6 +1,8 @@
+import { NotFoundError } from "@/services/redesign/errors";
+import { ConcurrencyConflictError } from "@/services/redesign/errors";
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
-import { ok, created, badRequest, notFound, unauthorized } from "@/lib/api-helpers";
+import { ok, created, badRequest, notFound, unauthorized, conflict } from "@/lib/api-helpers";
 import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
 import { toTermDto } from "@/lib/redesign-serializers";
 import { createTermSchema } from "@/lib/redesign-schemas";
@@ -60,8 +62,8 @@ export async function POST(request: NextRequest) {
       academicCalendarId: parsed.data.academicCalendarId,
       code: parsed.data.code,
       name: parsed.data.name,
-      startDate: new Date(parsed.data.startDate),
-      endDate: new Date(parsed.data.endDate),
+      startDate: parsed.data.startDate,
+      endDate: parsed.data.endDate,
       meetingPattern: parsed.data.meetingPattern,
     };
 
@@ -83,10 +85,9 @@ export async function POST(request: NextRequest) {
       warnings: applied.warnings,
     } satisfies CreateTermResponse);
   } catch (error) {
+    if (error instanceof ConcurrencyConflictError) return conflict(error.message);
     if (error instanceof DomainInvariantError) {
-      return error.message === "Course not found" || error.message === "Source Term not found"
-        ? notFound(error.message)
-        : badRequest(error.message);
+      return error instanceof NotFoundError ? notFound(error.message) : badRequest(error.message);
     }
     throw error;
   }

@@ -1,3 +1,4 @@
+import type { EffortFields, EffortRange } from "./effort";
 // Frozen Phase A REST contract for redesign issue #18.
 // Phase B lanes may implement these handlers, but route shapes and exported
 // request/response names are the interface of record.
@@ -388,7 +389,6 @@ export type PublishLearningModuleVersionResponse = { version: LearningModuleVers
 export type TopicDto = {
   id: Id;
   courseId: Id;
-  learningModuleId: Id | null;
   stableCode: string;
   currentVersionId: Id | null;
   archivedAt: IsoDateTime | null;
@@ -413,7 +413,6 @@ export type UpsertTopicVersionRequest = {
 };
 export type CreateTopicRequest = {
   stableCode: string;
-  learningModuleId?: Id | null;
   createdByInstructorId: Id;
   version: UpsertTopicVersionRequest;
 };
@@ -422,7 +421,6 @@ export type CreateTopicResponse = { topic: TopicDto; currentVersion: TopicVersio
 export type GetTopicResponse = { topic: TopicDto; currentVersion: TopicVersionDto | null };
 export type UpdateTopicRequest = {
   stableCode?: string;
-  learningModuleId?: Id | null;
   archivedAt?: IsoDateTime | null;
 };
 export type UpdateTopicResponse = {
@@ -465,13 +463,13 @@ export type MeetingActivityDetailDto = {
   preparationNotes: string | null;
   authoringNotes: string | null;
 };
-export type CourseworkActivityDetailDto = {
+export type CourseworkActivityDetailDto = EffortFields & {
   behaviorFamily: "coursework";
   submissionPolicy: string | null;
   releasePolicy: string | null;
   authoringNotes: string | null;
 };
-export type AssessmentActivityDetailDto = {
+export type AssessmentActivityDetailDto = EffortFields & {
   behaviorFamily: "assessment";
   modality: string | null;
   authoringNotes: string | null;
@@ -493,6 +491,7 @@ export type ActivityVersionDto = {
   changeSummary: string | null;
   publishedAt: IsoDateTime | null;
   detail: ActivityDetailDto;
+  effortParts?: EffortPartInput[];
   milestoneTemplates: ActivityVersionMilestoneTemplateDto[];
 };
 export type UpsertActivityVersionRequest = {
@@ -503,6 +502,9 @@ export type UpsertActivityVersionRequest = {
   changeSummary?: string | null;
   publish?: boolean;
   detail: ActivityDetailDto;
+  effortParts?: EffortPartInput[];
+  topicActions?: ReplaceActivityTopicActionsRequest["actions"];
+  learningModuleScopes?: ReplaceActivityLmScopeRequest["scopes"];
   milestoneTemplates?: UpsertMilestoneTemplateRequest[];
 };
 export type CreateActivityRequest = {
@@ -635,6 +637,7 @@ export type TermDto = {
   startDate: IsoDate;
   endDate: IsoDate;
   meetingPattern: unknown | null;
+  meetingPatterns?: TermMeetingPatternDto[];
   status: TermStatus;
   closedAt: IsoDateTime | null;
   clonedFromId: Id | null;
@@ -863,12 +866,12 @@ export type MeetingRevisionDetailDto = {
   overrideReason: string | null;
   overrideEvidence: unknown | null;
 };
-export type CourseworkRevisionDetailDto = {
+export type CourseworkRevisionDetailDto = EffortFields & {
   behaviorFamily: "coursework";
   lifecycleState: string | null;
   deliveryNotes: string | null;
 };
-export type AssessmentRevisionDetailDto = {
+export type AssessmentRevisionDetailDto = EffortFields & {
   behaviorFamily: "assessment";
   lifecycleState: string | null;
   modality: string | null;
@@ -912,6 +915,8 @@ export type TermActivityMilestoneDto = {
 // candidate revision via preview/apply below, then atomically advance
 // `TermActivity.deliveredRevisionId`.
 export type TermActivityRevisionDto = {
+  baseEffort?: EffortFields | null;
+  effectiveEffort?: EffortRange | null;
   id: Id;
   termActivityId: Id;
   revision: number;
@@ -962,6 +967,8 @@ export type TermAdoptionPreviewRequest = {
   crossCuttingSelections: TermActivityAdoptionSelectionDto[];
 };
 export type TermActivityAdoptionCandidateDto = {
+  milestoneCount: number;
+  notCreatedMilestones: Array<{ sourceTemplateId: Id; label: string; reason: string }>;
   activityId: Id;
   activityVersionId: Id;
   adoptedLabel: string;
@@ -974,6 +981,7 @@ export type TermAdoptionPreviewResponse = {
   // Pointer proving no concurrent adoption happened between preview and
   // apply: the number of TermActivity rows already adopted for this Term.
   expectedCurrentActivityCount: number;
+  alreadyAdopted: Array<{ activityId: Id; adoptedLabel: string }>;
   candidates: TermActivityAdoptionCandidateDto[];
   impact: PreviewImpactDto;
 };
@@ -1000,6 +1008,7 @@ export type GetTermActivityResponse = { termActivity: TermActivityDto };
 // milestone history is never patched in place.
 
 export type UpsertTermActivityMilestoneRequest = {
+  id?: string;
   sourceTemplateId?: Id | null;
   role: MilestoneRole;
   label: string;
@@ -1011,6 +1020,7 @@ export type UpsertTermActivityMilestoneRequest = {
   provenance?: unknown;
 };
 export type TermActivityRevisionPreviewRequest = {
+  advancePointer?: "planned" | "delivered";
   title: string;
   summary?: string | null;
   changeReason?: string | null;
@@ -1054,6 +1064,7 @@ export type PromotedActivityDraftDto = {
     title: string;
     summary: string | null;
     detail: ActivityDetailDto;
+    effortParts?: EffortPartInput[];
     topicActions: Array<{ topicVersionId: Id; action: CoverageLevel }>;
   };
 };
@@ -1145,6 +1156,7 @@ export type TermCalendarPreviewRequest = {
   meetingPatterns: UpsertTermMeetingPatternRequest[];
 };
 export type TermCalendarPreviewResponse = {
+  affectedMeetingCount: number;
   kind: "preview";
   previewToken: string;
   expectedCurrentCalendarSlotCount: number;
@@ -1432,6 +1444,10 @@ export const CANONICAL_ROUTES = [
   "/api/activity-types/[id]/versions",
   "/api/courses/[id]/activity-types",
   "/api/courses/[id]/activities",
+  "/api/courses/[id]/effort-sizes",
+  "/api/courses/[id]/effort-sizes/[entryId]",
+  "/api/courses/[id]/effort-part-kinds",
+  "/api/courses/[id]/effort-part-kinds/[entryId]",
   "/api/activities/[id]",
   "/api/activities/[id]/versions",
   "/api/activity-versions/[id]",
@@ -1441,6 +1457,10 @@ export const CANONICAL_ROUTES = [
   "/api/activity-versions/[id]/topic-scope",
 
   // B.2R accepted contract: Term plan and run
+  "/api/terms/[id]/milestone-dating-preview",
+  "/api/terms/[id]/milestone-dating-apply",
+  "/api/terms/[id]/placement-preview",
+  "/api/terms/[id]/placement-apply",
   "/api/terms/[id]/adoption-preview",
   "/api/terms/[id]/adoption-apply",
   "/api/terms/[id]/activities",
@@ -1458,3 +1478,51 @@ export const CANONICAL_ROUTES = [
 ] as const;
 
 export type CanonicalRoute = (typeof CANONICAL_ROUTES)[number];
+
+export type DefaultMeetingTimeDto = {
+  startTimeLocal: string;
+  endTimeLocal: string | null;
+  timeZone: string;
+};
+export type MeetingPlacementPreviewRequest = { defaultMeetingTime?: DefaultMeetingTimeDto | null };
+export type MeetingPlacementPreviewResponse = {
+  kind: "preview";
+  previewToken: string;
+  placements: Array<{ termActivityId: Id; adoptedLabel: string; expectedPlannedRevisionId: Id | null; calendarSlotId: Id; date: string; startsAt: string; endsAt: string | null; timeZone: string }>;
+  unplacedMeetings: Array<{ termActivityId: Id; adoptedLabel: string; reason: "no_learning_module" | "no_slot_left" }>;
+  emptySlots: Array<{ calendarSlotId: Id; date: string }>;
+  alreadyDatedCount: number;
+  missingMeetingTime: boolean;
+};
+export type MeetingPlacementApplyRequest = MeetingPlacementPreviewRequest & { previewToken: string };
+export type MeetingPlacementApplyResponse = { kind: "applied"; placedCount: number; storedMeetingPatternCount: number };
+
+export type EffortScale = "student" | "grading";
+export type CourseEffortSizeDto = EffortRange & { id: Id; courseId: Id; scale: EffortScale; label: string; sequence: number; createdAt: IsoDateTime; updatedAt: IsoDateTime };
+export type CourseEffortPartKindDto = { id: Id; courseId: Id; label: string; sequence: number; createdAt: IsoDateTime };
+export type EffortPartInput = EffortRange & { sequence: number; label: string; partKindId?: Id | null; note?: string | null };
+export type CourseEffortSizeRequest = EffortRange & { label: string };
+export type CourseEffortPartKindRequest = { label: string };
+export type ReorderCourseEffortRequest = { ids: Id[] };
+
+export type MilestoneDatingReason = "invalid_time_zone" | "invalid_default_time" | "linked_meeting_canceled" | "linked_activity_archived" | "linked_meeting_undated" | "linked_activity_not_a_meeting" | "no_template" | "no_default_time" | "no_time_zone" | "local_time_does_not_exist";
+export type MilestoneDatingItemDto = {
+  termActivityId: Id;
+  adoptedLabel: string;
+  milestoneId: Id | null;
+  sourceTemplateId: Id | null;
+  label: string;
+  linkedTermActivityId: Id | null;
+  linkedMeetingLabel: string | null;
+};
+export type MilestoneDatingPreviewRequest = Record<string, never>;
+export type MilestoneDatingPreviewResponse = {
+  kind: "preview";
+  previewToken: string;
+  dates: (MilestoneDatingItemDto & { occursAt: string; timeZone: string })[];
+  creates: MilestoneDatingItemDto[];
+  undated: (MilestoneDatingItemDto & { reason: MilestoneDatingReason })[];
+  alreadyDatedCount: number;
+};
+export type MilestoneDatingApplyRequest = { previewToken: string };
+export type MilestoneDatingApplyResponse = { kind: "applied"; datedCount: number; createdCount: number };

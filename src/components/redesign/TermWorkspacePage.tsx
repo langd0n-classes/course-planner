@@ -1,7 +1,9 @@
 "use client";
 
+import { effectiveRevision, isUndatedMeeting, localDate } from "@/lib/term-revision-rules";
 import Link from "next/link";
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type FormEvent } from "react";
+import { countMilestoneDatingChanges } from "@/lib/milestone-dating-count";
 import { redesignApi } from "@/lib/redesign-api-client";
 import type {
   CalendarSlotDto,
@@ -15,6 +17,8 @@ import type {
   TermCalendarExceptionDto,
   TermLifecycleTransition,
   TopicVersionDto,
+  TopicPrerequisiteDto,
+  MilestoneDatingPreviewResponse,
 } from "@/lib/redesign-contract";
 import { buildTermCalendarTimeline, deriveTermPlanningGaps } from "@/lib/redesign-workspace";
 import {
@@ -23,9 +27,15 @@ import {
   formatInstructionalCapacityLabel,
   isCapacityAdvisory,
 } from "./CalendarCapacityPresentation";
+import { checkTermOrder } from "@/lib/term-order-checks";
+import TermOrderFindingsPanel from "./TermOrderFindingsPanel";
+import DateMilestonesPanel from "./DateMilestonesPanel";
+import PlaceMeetingsPanel from "./PlaceMeetingsPanel";
 import AdoptLearningModulePanel from "./AdoptLearningModulePanel";
+import ActivityAdoptionPanel from "./ActivityAdoptionPanel";
 import DeliveredRevisionEditor from "./DeliveredRevisionEditor";
 import GapNotice from "./GapNotice";
+import TermActivityEffortList from "./TermActivityEffortList";
 import ActiveTermDailyDriver from "./ActiveTermDailyDriver";
 import LifecycleBadge from "./LifecycleBadge";
 import LifecycleConfirmPanel from "./LifecycleConfirmPanel";
@@ -119,6 +129,14 @@ export default function TermWorkspacePage({ termId }: Props) {
   const [availableTopicVersions, setAvailableTopicVersions] = useState<TopicVersionDto[]>([]);
   const [topicVersionsById, setTopicVersionsById] = useState(new Map<Id, TopicVersionDto>());
   const [editingTermLearningModuleId, setEditingTermLearningModuleId] = useState<Id | null>(null);
+  const [prerequisites, setPrerequisites] = useState<TopicPrerequisiteDto[]>([]);
+  const [prerequisitesFailed, setPrerequisitesFailed] = useState(false);
+  const [datingPreview, setDatingPreview] = useState<MilestoneDatingPreviewResponse | null>(null);
+  const [datingAnnouncement, setDatingAnnouncement] = useState("");
+  const datingStatusRef = useRef<HTMLParagraphElement>(null);
+  const [datingFailed, setDatingFailed] = useState(false);
+  const [showDateMilestones, setShowDateMilestones] = useState(false);
+  const [showPlaceMeetings, setShowPlaceMeetings] = useState(false);
   const [showAdoptPanel, setShowAdoptPanel] = useState(false);
   const [pendingTransition, setPendingTransition] = useState<TermLifecycleTransition | null>(null);
   const [transitionBusy, setTransitionBusy] = useState(false);
@@ -137,7 +155,28 @@ export default function TermWorkspacePage({ termId }: Props) {
   const [exceptionError, setExceptionError] = useState<string | null>(null);
   const [calendarAnnouncement, setCalendarAnnouncement] = useState("");
   const transitionButtonRef = useRef<HTMLButtonElement | null>(null);
+  const undatedMeetings = termActivities.filter(activity => {
+    const revision = activityRevisions[activity.id]?.planned;
+    return !activity.archivedAt && revision?.detail.behaviorFamily === "meeting" && revision.detail.status !== "canceled" && isUndatedMeeting({ delivered: activityRevisions[activity.id]?.delivered, planned: revision.detail });
+  });
   const todayIso = useMemo(() => getTodayIsoDate(), []);
+  const termTimeZone = term?.meetingPatterns?.[0]?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const orderResult = useMemo(() => checkTermOrder({
+    termActivities, revisionsByTermActivityId: activityRevisions, calendarSlots,
+    topicVersions: [...topicVersionsById.values()], prerequisites,
+    topicLabels: Object.fromEntries([...topicVersionsById.values()].map(topic => [topic.topicId, topic.title])),
+    timeZone: termTimeZone,
+  }), [termActivities, activityRevisions, calendarSlots, topicVersionsById, prerequisites, termTimeZone]);
+  const hasDatedMeetings = termActivities.some(activity => {
+    const revisions = activityRevisions[activity.id];
+    const revision = effectiveRevision(revisions);
+    return !activity.archivedAt && revision?.detail.behaviorFamily === "meeting" && Boolean(revision.detail.startsAt || revision.detail.calendarSlotId);
+  });
+  const datingCount = datingPreview ? countMilestoneDatingChanges(datingPreview) : 0;
+  useEffect(() => {
+    if (datingAnnouncement) datingStatusRef.current?.focus();
+  }, [datingAnnouncement]);
+
 
   async function loadWorkspace() {
     setLoading(true);
@@ -155,6 +194,8 @@ export default function TermWorkspacePage({ termId }: Props) {
         loadedLearningModules,
         loadedTopics,
         loadedActivities,
+        loadedPrerequisites,
+        loadedDating,
       ] = await Promise.all([
         redesignApi.getCourse(loadedTerm.courseId),
         redesignApi.listTermLearningModules(termId),
@@ -166,6 +207,8 @@ export default function TermWorkspacePage({ termId }: Props) {
         redesignApi.listLearningModules(loadedTerm.courseId),
         redesignApi.listTopics(loadedTerm.courseId),
         redesignApi.listTermActivitiesWithRevisions(termId),
+        redesignApi.listTopicPrerequisites(loadedTerm.courseId).then(pairs => ({ pairs, failed: false })).catch(() => ({ pairs: [], failed: true })),
+        loadedTerm.status === "closed" ? Promise.resolve(null) : redesignApi.previewMilestoneDating(termId, {}).catch(() => null),
       ]);
 
       const [learningModuleDetails, moduleVersions, diffs, topicDetails] = await Promise.all([
@@ -220,14 +263,25 @@ export default function TermWorkspacePage({ termId }: Props) {
         if (detail.currentVersion) currentTopicVersions.push(detail.currentVersion);
       }
 
-      const resolvedTopicVersions = await Promise.all(
-        [...referencedTopicVersionIds].map((topicVersionId) => redesignApi.getTopicVersion(topicVersionId)),
+      for (const revisions of Object.values(loadedActivities.revisionsByTermActivityId)) {
+        for (const revision of [revisions.planned, revisions.delivered]) {
+          for (const action of revision?.topicActions ?? []) referencedTopicVersionIds.add(action.topicVersionId);
+        }
+      }
+      const nextTopicVersionsById = new Map(currentTopicVersions.map(version => [version.id, version]));
+      const missingTopicVersionIds = [...referencedTopicVersionIds]
+        .filter(id => !nextTopicVersionsById.has(id)).slice(0, 100);
+      const resolvedTopicVersions = await Promise.allSettled(
+        missingTopicVersionIds.map(id => redesignApi.getTopicVersion(id)),
       );
-      const nextTopicVersionsById = new Map<Id, TopicVersionDto>();
-      for (const topicVersion of resolvedTopicVersions) {
-        nextTopicVersionsById.set(topicVersion.id, topicVersion);
+      for (const result of resolvedTopicVersions) {
+        if (result.status === "fulfilled") nextTopicVersionsById.set(result.value.id, result.value);
       }
 
+      setPrerequisites(loadedPrerequisites.pairs);
+      setPrerequisitesFailed(loadedPrerequisites.failed);
+      setDatingPreview(loadedDating);
+      setDatingFailed(loadedTerm.status !== "closed" && loadedDating === null);
       setTerm(loadedTerm);
       setCourse(loadedCourse);
       setCourseLearningModules(loadedLearningModules);
@@ -420,7 +474,7 @@ export default function TermWorkspacePage({ termId }: Props) {
     }
   }
 
-  if (loading) {
+  if (loading && !term) {
     return (
       <div className="space-y-4 animate-pulse">
         <div className="h-40 rounded-3xl bg-slate-100" />
@@ -451,6 +505,7 @@ export default function TermWorkspacePage({ termId }: Props) {
 
   return (
     <div className="space-y-8">
+      <p role="status" aria-label="Milestone dating result" aria-live="polite" tabIndex={-1} ref={datingStatusRef}>{datingAnnouncement}</p>
       <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
         <Link href={`/courses/${term.courseId}`} className="text-sm font-medium text-sky-700 hover:text-sky-800">
           ← {course.number} · {course.title}
@@ -520,13 +575,36 @@ export default function TermWorkspacePage({ termId }: Props) {
         </div>
       </section>
 
+      {term.status !== "closed" && undatedMeetings.length > 0 ? <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-label="Meeting placement">
+        <p className="text-sm text-slate-700">{undatedMeetings.length} undated meeting(s).</p>
+        <button type="button" className="mt-2 text-sm font-medium text-sky-800 underline" onClick={() => setShowPlaceMeetings(true)}>Place meetings on the calendar</button>
+        {showPlaceMeetings ? <><button type="button" className="ml-4 text-sm text-slate-600 underline" onClick={() => setShowPlaceMeetings(false)}>Close placement</button><PlaceMeetingsPanel termId={termId} onApplied={async () => { setShowPlaceMeetings(false); await loadWorkspace(); }} /></> : null}
+      </section> : null}
+      {term.status !== "closed" && datingCount > 0 ? <section aria-label="Milestone dating" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p className="text-sm text-slate-700">{datingCount} milestone(s) ready to date or create.</p>
+        <button type="button" className="mt-2 text-sm font-medium text-sky-800 underline" onClick={() => { setDatingAnnouncement(""); setShowDateMilestones(true); }}>Date milestones</button>
+        {showDateMilestones ? <>
+          <button type="button" className="ml-4 text-sm text-slate-600 underline" onClick={() => setShowDateMilestones(false)}>Close milestone dating</button>
+          <DateMilestonesPanel termId={termId} timeZone={term?.meetingPatterns?.[0]?.timeZone ?? null} onApplied={async (count) => { setShowDateMilestones(false); await loadWorkspace(); setDatingAnnouncement(`${count} milestone(s) dated or created.`); }} />
+        </> : null}
+      </section> : null}
+      {datingFailed ? <p role="status" className="text-sm text-amber-800">Milestone dates could not be checked. <button type="button" className="underline" onClick={() => void loadWorkspace()}>Retry</button></p> : null}
+      {hasDatedMeetings ? <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        {prerequisitesFailed ? <p className="mb-3 text-sm text-amber-800">Prerequisite order was not checked because the prerequisite pairs could not be loaded.</p> : null}
+        <TermOrderFindingsPanel result={orderResult} activityLabels={Object.fromEntries(termActivities.map(activity => [activity.id, activity.adoptedLabel]))} />
+      </div> : null}
+      <TermActivityEffortList courseId={term.courseId} activities={termActivities} revisions={activityRevisions} status={term.status} onApplied={loadWorkspace} />
+
       <ActiveTermDailyDriver
         termActivities={termActivities}
         revisionsByTermActivityId={activityRevisions}
-        today={todayIso}
+        today={localDate(new Date(), termTimeZone)!}
+        timeZone={termTimeZone}
+        calendarSlots={calendarSlots}
         learningModuleLabels={learningModuleLabels}
         topicLabels={topicLabels}
         editable={term.status === "active"}
+        onPlaceMeetings={term.status !== "closed" ? () => setShowPlaceMeetings(true) : undefined}
         onApplied={loadWorkspace}
       />
 
@@ -855,6 +933,18 @@ export default function TermWorkspacePage({ termId }: Props) {
               }}
             />
           </div>
+        ) : null}
+
+        {term.status !== "closed" && moduleWorkspaces.length > 0 ? (
+          <ActivityAdoptionPanel
+            key={moduleWorkspaces.map((row) => `${row.termLearningModule.id}:${row.termLearningModule.learningModuleVersionId}`).join(",")}
+            termId={term.id}
+            selections={moduleWorkspaces.flatMap((row) => row.termLearningModule.learningModuleVersionId ? [{
+              termLearningModuleId: row.termLearningModule.id,
+              learningModuleVersionId: row.termLearningModule.learningModuleVersionId,
+            }] : [])}
+            onAdopted={loadWorkspace}
+          />
         ) : null}
 
         {courseLearningModules.length === 0 ? (

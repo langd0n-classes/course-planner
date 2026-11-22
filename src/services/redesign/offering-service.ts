@@ -55,38 +55,6 @@ export async function adoptLearningModuleForTerm(
   });
 }
 
-export async function reviseDeliveredLearningModuleForTerm(
-  db: RedesignDb,
-  input: {
-    termLearningModuleId: string;
-    deliveredLearningModuleVersionId: string;
-  },
-) {
-  return db.$transaction(async (tx) => {
-    const offering = await tx.termLearningModule.findUnique({
-      where: { id: input.termLearningModuleId },
-    });
-    if (!offering) throw new DomainInvariantError("Term Learning Module not found");
-
-    const delivered = await tx.learningModuleVersion.findUnique({
-      where: { id_learningModuleId: {
-        id: input.deliveredLearningModuleVersionId,
-        learningModuleId: offering.learningModuleId,
-      } },
-    });
-    if (!delivered) {
-      throw new DomainInvariantError(
-        "Delivered Learning Module version must belong to the adopted Learning Module",
-      );
-    }
-
-    return tx.termLearningModule.update({
-      where: { id: offering.id },
-      data: { deliveredLearningModuleVersionId: delivered.id },
-    });
-  });
-}
-
 export async function listTermLearningModulesForTerm(
   db: RedesignDb,
   instructorId: string,
@@ -120,10 +88,19 @@ export async function updateTermLearningModule(
   });
 }
 
-// Removing an adopted Learning Module while Sessions still reference it would
-// silently orphan those Sessions' delivery record; the design's guarded
-// "detach Sessions, then remove adoption" two-step flow is Lane B/Chunk 5
-// scope, so for now removal simply fails while Sessions remain attached.
+// Count every referencing row, including archived Activities that retain history.
+async function termLearningModuleRemovalPreview(tx: RedesignTx, termLearningModuleId: string) {
+  const [sessions, activities] = await Promise.all([
+    tx.session.count({ where: { termLearningModuleId } }),
+    tx.termActivity.count({ where: { termLearningModuleId } }),
+  ]);
+  const blockers = [
+    { code: "sessions", count: sessions, message: `Cannot remove this Term Learning Module while ${sessions} Sessions are attached. Detach the Sessions first.` },
+    { code: "term_activities", count: activities, message: `Cannot remove this Term Learning Module while ${activities} Term Activities (including archived) are attached. Detach the Term Activities first.` },
+  ].filter((blocker) => blocker.count > 0);
+  return { termLearningModuleId, canRemove: blockers.length === 0, blockers };
+}
+
 export async function removeTermLearningModule(
   db: RedesignDb,
   instructorId: string,
@@ -132,17 +109,18 @@ export async function removeTermLearningModule(
   return db.$transaction(async (tx) => {
     const offering = await getOwnedTermLearningModuleForInstructor(tx, instructorId, termLearningModuleId);
     assertWritableTerm(offering.term.status);
-    const attachedSessions = await tx.session.findMany({
-      where: { termLearningModuleId },
-      select: { id: true },
-      take: 1,
-    });
-    if (attachedSessions.length > 0) {
-      throw new DomainInvariantError(
-        "Cannot remove a Term Learning Module while Sessions are attached to it",
-      );
+    const preview = await termLearningModuleRemovalPreview(tx, termLearningModuleId);
+    if (!preview.canRemove) {
+      throw new ConcurrencyConflictError(preview.blockers.map((blocker) => blocker.message).join(" "));
     }
-    await tx.termLearningModule.delete({ where: { id: termLearningModuleId } });
+    try {
+      await tx.termLearningModule.delete({ where: { id: termLearningModuleId } });
+    } catch (error) {
+      if (typeof error === "object" && error !== null && "code" in error && error.code === "P2003") {
+        throw new ConcurrencyConflictError("Cannot remove this Term Learning Module while references remain attached, including archived Term Activities. Refresh and detach the references first.");
+      }
+      throw error;
+    }
     return offering;
   });
 }
@@ -161,7 +139,8 @@ export async function createDeliveredRevision(
     draft: LearningModuleVersionDraft;
   },
 ) {
-  return db.$transaction(async (tx) => {
+  try {
+  return await db.$transaction(async (tx) => {
     const offering = await getOwnedTermLearningModuleForInstructor(
       tx,
       input.instructorId,
@@ -196,13 +175,19 @@ export async function createDeliveredRevision(
       publishedAt: new Date(),
     });
 
-    const termLearningModule = await tx.termLearningModule.update({
-      where: { id: offering.id },
+    const advanced = await tx.termLearningModule.updateMany({
+      where: { id: offering.id, deliveredLearningModuleVersionId: input.expectedDeliveredLearningModuleVersionId },
       data: { deliveredLearningModuleVersionId: deliveredVersion.id },
     });
 
+    if (advanced.count !== 1) throw new ConcurrencyConflictError();
+    const termLearningModule = await tx.termLearningModule.findUnique({ where: { id: offering.id } });
     return { termLearningModule, deliveredVersion };
   });
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") throw new ConcurrencyConflictError();
+    throw error;
+  }
 }
 
 type TopicSnapshotWithTopicId = TopicSnapshotInput & { topicId: string };

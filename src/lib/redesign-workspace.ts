@@ -1,3 +1,4 @@
+import { effectiveRevision, localDate } from "./term-revision-rules";
 import type {
   ActivityDto,
   ActivityVersionDto,
@@ -11,7 +12,6 @@ import type {
   TermActivityDto,
   TermActivityRevisionDto,
   TopicDto,
-  TopicPrerequisiteDto,
   TopicVersionDto,
 } from "./redesign-contract";
 
@@ -62,17 +62,6 @@ export type TermDailyDriver = {
   totalMeetings: number;
 };
 
-function calendarDate(value: string) {
-  // today arrives as a local date; a value near UTC midnight can fall on a different UTC date.
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-  const instant = new Date(value);
-  if (Number.isNaN(instant.getTime())) return value.slice(0, 10);
-  const year = instant.getFullYear();
-  const month = String(instant.getMonth() + 1).padStart(2, "0");
-  const day = String(instant.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 /** Builds the small, time-oriented active-Term view from immutable revisions. */
 export function buildTermDailyDriver(args: {
   termActivities: TermActivityDto[];
@@ -84,16 +73,25 @@ export function buildTermDailyDriver(args: {
     }
   >;
   today: string;
+  timeZone?: string | null;
 }): TermDailyDriver {
+  const timeZone = args.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const milestoneDate = (value: string, zone: string | null) => {
+    try { return localDate(value, zone ?? timeZone); }
+    catch (error) {
+      if (!(error instanceof RangeError)) throw error;
+      return localDate(value, timeZone);
+    }
+  };
   const effective = args.termActivities.flatMap((activity) => {
     const revisions = args.revisionsByTermActivityId[activity.id];
-    const revision = revisions?.delivered ?? revisions?.planned;
-    return revision
+    const revision = effectiveRevision(revisions);
+    return revision && !activity.archivedAt
       ? [{ activity, revision, planned: revisions?.planned ?? null }]
       : [];
   });
   const meetings = effective
-    .filter(({ revision }) => revision.detail.behaviorFamily === "meeting")
+    .filter(({ activity, revision }) => revision.detail.behaviorFamily === "meeting" && !/^(canceled|cancelled)$/i.test(revision.detail.status ?? "") && !/^(canceled|cancelled)$/i.test(activity.lifecycleState ?? ""))
     .sort((left, right) => {
       if (
         left.revision.detail.behaviorFamily !== "meeting" ||
@@ -109,7 +107,7 @@ export function buildTermDailyDriver(args: {
       if (revision.detail.behaviorFamily !== "meeting") return false;
       return (
         Boolean(revision.detail.startsAt) &&
-        calendarDate(revision.detail.startsAt!) >= calendarDate(args.today) &&
+        localDate(revision.detail.startsAt!, timeZone)! >= localDate(args.today, timeZone)! &&
         revision.detail.status !== "canceled"
       );
     })
@@ -123,7 +121,7 @@ export function buildTermDailyDriver(args: {
         .map((milestone, milestoneIndex) => ({ milestone, milestoneIndex }))
         .filter(
           ({ milestone }) =>
-            milestone.occursAt && milestone.occursAt.slice(0, 10) >= args.today,
+            milestone.occursAt && milestoneDate(milestone.occursAt, milestone.timeZone)! >= localDate(args.today, timeZone)!,
         )
         .map(({ milestone, milestoneIndex }) => ({
           activity,
@@ -263,14 +261,6 @@ export type TopicBrowserEntry = {
   prerequisiteTopicIds: Id[];
 };
 
-export type TopicBrowserBucket = {
-  key: string;
-  label: string;
-  learningModuleId: Id | null;
-  isUnassigned: boolean;
-  topics: TopicBrowserEntry[];
-};
-
 export type ComparedTopicChange = {
   kind: "added" | "removed" | "reordered";
   title: string;
@@ -315,10 +305,6 @@ export type TermCalendarTimeline = {
     | "after_term";
 };
 
-function sortText(value: string | null | undefined): string {
-  return (value ?? "").toLocaleLowerCase();
-}
-
 export function suggestTopicStableCode(title: string): string {
   const slug = title
     .toLocaleLowerCase()
@@ -328,79 +314,6 @@ export function suggestTopicStableCode(title: string): string {
     .replace(/^-+|-+$/g, "");
 
   return slug ? `topic-${slug}` : "";
-}
-
-export function buildTopicBrowserBuckets(args: {
-  learningModules: LearningModuleDto[];
-  currentVersionsByLearningModuleId: Map<Id, LearningModuleVersionDto | null>;
-  topics: TopicDto[];
-  currentVersionsByTopicId: Map<Id, TopicVersionDto | null>;
-  prerequisites: TopicPrerequisiteDto[];
-}): TopicBrowserBucket[] {
-  const prerequisiteMap = new Map<Id, Id[]>();
-  for (const prerequisite of args.prerequisites) {
-    prerequisiteMap.set(prerequisite.topicId, [
-      ...(prerequisiteMap.get(prerequisite.topicId) ?? []),
-      prerequisite.prerequisiteTopicId,
-    ]);
-  }
-
-  const topicsByLearningModuleId = new Map<Id | null, TopicBrowserEntry[]>();
-  for (const topic of args.topics) {
-    const entry: TopicBrowserEntry = {
-      topic,
-      currentVersion: args.currentVersionsByTopicId.get(topic.id) ?? null,
-      prerequisiteTopicIds: prerequisiteMap.get(topic.id) ?? [],
-    };
-    const key = topic.learningModuleId;
-    topicsByLearningModuleId.set(key, [...(topicsByLearningModuleId.get(key) ?? []), entry]);
-  }
-
-  const sortEntries = (entries: TopicBrowserEntry[]) =>
-    [...entries].sort((left, right) => {
-      const categoryCompare = sortText(left.currentVersion?.category).localeCompare(
-        sortText(right.currentVersion?.category),
-      );
-      if (categoryCompare !== 0) return categoryCompare;
-      const titleCompare = sortText(left.currentVersion?.title).localeCompare(
-        sortText(right.currentVersion?.title),
-      );
-      if (titleCompare !== 0) return titleCompare;
-      return left.topic.stableCode.localeCompare(right.topic.stableCode);
-    });
-
-  const buckets: TopicBrowserBucket[] = [];
-  const unassigned = sortEntries(topicsByLearningModuleId.get(null) ?? []);
-  buckets.push({
-    key: "unassigned",
-    label: "Unassigned Topics",
-    learningModuleId: null,
-    isUnassigned: true,
-    topics: unassigned,
-  });
-
-  const orderedModules = [...args.learningModules].sort((left, right) => {
-    const leftVersion = args.currentVersionsByLearningModuleId.get(left.id) ?? null;
-    const rightVersion = args.currentVersionsByLearningModuleId.get(right.id) ?? null;
-    const sequenceCompare = (leftVersion?.defaultSequence ?? Number.MAX_SAFE_INTEGER) - (rightVersion?.defaultSequence ?? Number.MAX_SAFE_INTEGER);
-    if (sequenceCompare !== 0) return sequenceCompare;
-    const titleCompare = sortText(leftVersion?.title).localeCompare(sortText(rightVersion?.title));
-    if (titleCompare !== 0) return titleCompare;
-    return left.stableCode.localeCompare(right.stableCode);
-  });
-
-  for (const learningModule of orderedModules) {
-    const currentVersion = args.currentVersionsByLearningModuleId.get(learningModule.id) ?? null;
-    buckets.push({
-      key: learningModule.id,
-      label: currentVersion?.title ?? learningModule.stableCode,
-      learningModuleId: learningModule.id,
-      isUnassigned: false,
-      topics: sortEntries(topicsByLearningModuleId.get(learningModule.id) ?? []),
-    });
-  }
-
-  return buckets;
 }
 
 export function compareLearningModuleVersions(args: {

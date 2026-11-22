@@ -111,19 +111,20 @@ Course-specific data enters the system through import
 must handle, but they are reference material, not app
 content.
 
-## 8. Mock AI is a feature, not a placeholder
+## 8. An agent works with the instructor
 
-The mock AI service (`MockAiPlanner`) is intentionally
-kept as the active implementation while workflows are
-being designed. Mock responses should look realistic so
-the UX can be designed and tested properly.
+The product has an agent (a language model) behind it. The
+agent asks, recommends, drafts, and reviews with the
+instructor. Design each workflow for that: the agent
+proposes a change, the app shows its effect, and the
+instructor accepts, edits, or rejects it.
 
-Real AI integration costs money and adds latency. It
-should only be wired in when:
-- The manual workflow is correct and complete
-- The UX for displaying AI suggestions is settled
-- The instructor has explicitly opted in
+Computed facts stay deterministic: dates, order findings,
+coverage gaps, and workload. The agent reasons from them;
+it does not replace them.
 
-Until then, mocks are the right answer. They also enable
-scripted demo scenarios for testing the what-if panel
-without real data consequences.
+The mock planner (`MockAiPlanner`) stands in for the agent
+in tests and builds, so they spend no money. Its responses
+look realistic, so the UX can be built and tested against
+them. A demo that uses the real agent needs strict usage
+limits.
