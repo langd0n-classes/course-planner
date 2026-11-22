@@ -1,0 +1,50 @@
+import { NotFoundError } from "@/services/redesign/errors";
+import { NextRequest } from "next/server";
+import prisma from "@/lib/prisma";
+import {
+  badRequest,
+  conflict,
+  notFound,
+  ok,
+  unauthorized,
+} from "@/lib/api-helpers";
+import { getAuthenticatedInstructor } from "@/lib/redesign-auth";
+import { meetingPlacementApplyRequestSchema } from "@/lib/redesign-schemas";
+import {
+  ConcurrencyConflictError,
+  DomainInvariantError,
+  applyMeetingPlacement,
+} from "@/services/redesign";
+import type {
+  MeetingPlacementApplyRequest,
+  MeetingPlacementApplyResponse,
+} from "@/lib/redesign-contract";
+export type { MeetingPlacementApplyRequest, MeetingPlacementApplyResponse };
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const instructor = await getAuthenticatedInstructor(prisma);
+  if (!instructor) return unauthorized();
+  const parsed = meetingPlacementApplyRequestSchema.safeParse(
+    await request.json(),
+  );
+  if (!parsed.success)
+    return badRequest("Invalid request", parsed.error.flatten().fieldErrors);
+  try {
+    const result = await applyMeetingPlacement(prisma, {
+      instructorId: instructor.id,
+      termId: id,
+      ...parsed.data,
+    });
+    return ok(result satisfies MeetingPlacementApplyResponse);
+  } catch (error) {
+    if (error instanceof ConcurrencyConflictError)
+      return conflict(error.message);
+    if (error instanceof DomainInvariantError)
+      return error instanceof NotFoundError ? notFound(error.message) : badRequest(error.message);
+    throw error;
+  }
+}

@@ -1,0 +1,13 @@
+# Hardening decisions — 2026-11-17
+
+- New or changed Term dates must be real calendar dates. An impossible date such as February 30 is refused rather than silently moved into March, so the saved dates match the instructor's request.
+- A Term may start and end on the same day. Only an end before the start is refused, so single-day courses remain possible.
+- New or changed Term dates may span at most 400 elapsed UTC days. Exactly 400 elapsed days is allowed. Measuring in UTC avoids daylight saving differences and bounds accidental multi-year plans.
+- When either date is supplied in an update, check it with the other supplied date or its stored counterpart. Save only supplied dates. Edits that supply neither date leave older Terms usable even when their stored span exceeds the new limit.
+- Calendar preview and apply do not reject a Term for its stored date span. Generate dates for at most the first 400 calendar days, counting the start as day one, and report the limit in preview warnings. This bounds calendar work while allowing instructors to work with older Terms.
+- Term codes must be unique within a Course, including archived Terms. Creation and clone previews check availability so their proposed code can be applied; updates allow the Term's own code. Duplicate-code conflicts return 409, including a concurrent write that claims the same code. Other unique-constraint failures retain their existing handling so they are not misreported as duplicate codes.
+- Term Learning Module removal is blocked by attached Sessions and Term Activities, including archived Activities. Archived Activities retain a restrictive foreign key to the module, preserving their history. The refusal reports the counts and identifies archived Activities as included. A reference added during removal also returns 409, allowing the instructor to refresh and resolve it.
+- Calendar preview and apply return 404 for missing or inaccessible resources. Other domain validation errors retain their earlier 404 status; apply conflicts return 409. Closed Terms remain read-only, protecting delivered plans.
+- Force seed accepts loopback hosts without regard to case or a final dot. A remote host or any URL with a `host` query parameter requires `SEED_FORCE_DATABASE` to exactly match the decoded database name. Query parameters can override the connection host, so the visible loopback hostname alone does not establish a local target.
+- Missing or malformed force-seed URLs are refused. Error messages omit passwords and full connection URLs to keep credentials out of logs.
+- Database checks use separate `cp_hardening` and `cp15` databases so demo checks and destructive seed checks do not interfere with each other's data.
